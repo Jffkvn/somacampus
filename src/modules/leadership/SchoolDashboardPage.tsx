@@ -7,6 +7,7 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { Users, GraduationCap, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { toLocalYYYYMMDD } from '../teacher/scheduleUtils';
 
 export const SchoolDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export const SchoolDashboardPage: React.FC = () => {
     async function load() {
       try {
         setIsLoading(true);
-        const res = await leadershipService.getSchoolLeadershipDashboard('school-grace-01', '2026-09-03');
+        const res = await leadershipService.getSchoolLeadershipDashboard('22222222-2222-2222-2222-222222222222', toLocalYYYYMMDD(new Date()));
         setData(res);
       } catch (err) {
         console.error('Failed to load leadership dashboard data', err);
