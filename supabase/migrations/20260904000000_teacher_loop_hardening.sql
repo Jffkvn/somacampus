@@ -31,6 +31,17 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'Class-level assignment blocked: stream-level assignments exist for this class/date range';
     END IF;
+  ELSE
+    IF EXISTS (
+      SELECT 1 FROM class_teachers ct
+      WHERE ct.class_id = NEW.class_id
+        AND ct.stream_id IS NULL
+        AND daterange(ct.effective_from, COALESCE(ct.effective_to, 'infinity'::date), '[]')
+            && daterange(NEW.effective_from, COALESCE(NEW.effective_to, 'infinity'::date), '[]')
+        AND (TG_OP = 'INSERT' OR ct.id <> NEW.id)
+    ) THEN
+      RAISE EXCEPTION 'Stream-level assignment blocked: class-level assignment exists for this class/date range';
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -46,6 +57,7 @@ CREATE TRIGGER trg_prevent_dual_class_stream_assignment
 -- Part B: teacher_attendance RLS policies
 -- ------------------------------------------------------------------------------
 -- Read-open like other reference tables (payroll sensitivity is Phase-later concern).
+-- NOTE: DELETE on teacher_attendance intentionally has no policy (clock-in/out needs select/insert/update only).
 DROP POLICY IF EXISTS teacher_attendance_auth_read ON teacher_attendance;
 CREATE POLICY teacher_attendance_auth_read ON teacher_attendance
   FOR SELECT TO authenticated USING (true);
