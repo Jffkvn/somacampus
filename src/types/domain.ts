@@ -51,6 +51,8 @@ export interface ClassResponsibility {
     recordedByTeacherName?: string;
     // Derivable from relationships, NOT an arbitrary stored string:
     isRecordedByClassTeacher: boolean;
+    // Derived, display-only, never persisted. Per spec §7 role labels derive from relationships.
+    recordedByRole?: 'class_teacher' | 'subject_teacher' | 'substitute' | 'admin';
     totalStudents: number;
     presentCount: number;
     absentCount: number;

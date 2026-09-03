@@ -305,7 +305,7 @@ export const TeacherTodayPage: React.FC = () => {
                         <p className="text-xs text-emerald-800">
                           {att.isRecordedByClassTeacher
                             ? 'Recorded by you (Class Teacher)'
-                            : `Recorded by ${att.recordedByTeacherName} (Subject Teacher)`}
+                            : `Recorded by ${att.recordedByTeacherName ?? 'Teacher'} ${att.recordedByRole === 'class_teacher' ? '(Class Teacher)' : att.recordedByRole === 'subject_teacher' ? '(Subject Teacher)' : att.recordedByRole === 'substitute' ? '(Cover Teacher)' : '(Teacher)'}`}
                         </p>
 
                         <div className="flex items-center gap-3 text-xs font-semibold pt-1 border-t border-emerald-200/60">

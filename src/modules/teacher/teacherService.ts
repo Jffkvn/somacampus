@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { TeacherTodayViewModel, TimetableEntry, ClassResponsibility, AttendanceSession, AttendanceAuditLog } from '../../types/domain';
-import { toDayOfWeek, toHHMM, toLocalYYYYMMDD } from './scheduleUtils';
+import { toDayOfWeek, toHHMM, toLocalYYYYMMDD, deriveRecorderRole } from './scheduleUtils';
 
 const VERIF = ['verified_gps', 'verified_manual', 'flagged'] as const;
 type VerificationMethod = (typeof VERIF)[number];
@@ -343,6 +343,19 @@ export const teacherService = {
       const activeEntry = isViewingToday
         ? (schedule.find((e) => e.endTime > nowHHMM) ?? schedule[0])
         : schedule[0];
+
+      // Derive recorder role labels from relationships (display-only, never persisted).
+      // Admin detection needs user_roles lookup — skipped; 'admin' stays for future use.
+      const scheduleTeacherIds = schedule.map((e) => e.teacherId);
+      for (const resp of activeResponsibilities) {
+        if (resp.todayDailyAttendance) {
+          resp.todayDailyAttendance.recordedByRole = deriveRecorderRole(
+            resp.todayDailyAttendance.recordedByTeacherId,
+            resp.classTeacherId,
+            scheduleTeacherIds
+          );
+        }
+      }
 
       // 4. Clock-in lookup: today's teacher_attendance row (never breaks the view).
       let clockInStatus: TeacherTodayViewModel['clockInStatus'] = {

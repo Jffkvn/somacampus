@@ -21,3 +21,19 @@ export function toHHMM(v: unknown): string | null {
 export function toLocalYYYYMMDD(d: Date = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+/**
+ * Derive the attendance recorder role from relationships (display-only, never persisted).
+ * - same id as class teacher → 'class_teacher'
+ * - different id present in today's schedule teacherIds → 'subject_teacher'
+ * - otherwise → 'substitute'
+ */
+export function deriveRecorderRole(
+  recordedById: string | undefined,
+  classTeacherId: string,
+  scheduleTeacherIds: string[]
+): 'class_teacher' | 'subject_teacher' | 'substitute' {
+  if (recordedById && recordedById === classTeacherId) return 'class_teacher';
+  if (recordedById && scheduleTeacherIds.includes(recordedById)) return 'subject_teacher';
+  return 'substitute';
+}
