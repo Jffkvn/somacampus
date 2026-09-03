@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
+import { hasLiveAdminCreds, hasLiveAnonCreds } from './helpers/supabaseEnv';
 
 describe('Remote Supabase Database Verification', () => {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-  const isMockEnv = !supabaseUrl || /mock|placeholder/i.test(supabaseUrl);
-  const hasAdminCreds = Boolean(supabaseUrl && serviceRoleKey) && !isMockEnv;
-  const hasAnonCreds = Boolean(supabaseUrl && anonKey) && !isMockEnv;
+  const hasAdminCreds = hasLiveAdminCreds(supabaseUrl, serviceRoleKey);
+  const hasAnonCreds = hasLiveAnonCreds(supabaseUrl, anonKey);
 
   const anonClient = hasAnonCreds ? createClient(supabaseUrl, anonKey) : null;
   const adminClient = hasAdminCreds ? createClient(supabaseUrl, serviceRoleKey) : null;

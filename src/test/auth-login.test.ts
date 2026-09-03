@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { getRoleLandingRoute } from '../config/permissions';
+import { hasLiveAnonCreds } from './helpers/supabaseEnv';
 
 describe('SomaCampus Live Authentication & Role Landing Verification', () => {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
-  const isMockEnv = !supabaseUrl || /mock|placeholder/i.test(supabaseUrl);
-  const hasAnonCreds = Boolean(supabaseUrl && anonKey) && !isMockEnv;
+  const hasAnonCreds = hasLiveAnonCreds(supabaseUrl, anonKey);
 
   const accounts = [
     { role: 'teacher', email: 'teacher@somacampus.ug', expectedLanding: '/teacher/today' },

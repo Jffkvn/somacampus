@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
+import { hasLiveAdminCreds, hasLiveAnonCreds } from './helpers/supabaseEnv';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://vhivioulpbdyaynkqpja.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const hasAnon = Boolean(SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'placeholder-key') && !/mock|placeholder/i.test(SUPABASE_URL);
-const hasAdmin = Boolean(SUPABASE_SERVICE_KEY && SUPABASE_SERVICE_KEY !== 'placeholder-key') && !/mock|placeholder/i.test(SUPABASE_URL);
+const hasAnon = hasLiveAnonCreds(SUPABASE_URL, SUPABASE_ANON_KEY);
+const hasAdmin = hasLiveAdminCreds(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 describe.skipIf(!hasAnon)('Class Teacher & Daily Attendance RLS Security Suite', () => {
   const schoolId = '22222222-2222-2222-2222-222222222222';
@@ -176,7 +177,7 @@ describe.skipIf(!hasAnon)('Class Teacher & Daily Attendance RLS Security Suite',
   });
 
   // 6. Attendance Correction Audit Trail
-  it('preserves immutable audit log when attendance status is corrected', async () => {
+  it.skipIf(!hasAdmin)('preserves immutable audit log when attendance status is corrected', async () => {
     const { client } = await createTeacherClient('teacher@somacampus.ug');
     const testDate = '2026-09-03';
 
