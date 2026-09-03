@@ -4,6 +4,8 @@ export interface DailyAttendanceSession {
   id: string;
   class_teacher_id?: string | null;
   recorded_by_teacher_id?: string | null;
+  /** Display name of the recorder, mapped from the recorder join (null when unknown). */
+  recordedByName?: string | null;
   recorded_at?: string | null;
   present_count?: number | null;
   absent_count?: number | null;
@@ -19,7 +21,19 @@ export interface DailyAttendanceCoverage {
 }
 
 const COVERAGE_SELECT =
-  'id, class_teacher_id, recorded_by_teacher_id, recorded_at, present_count, absent_count, late_count, excused_count, total_students';
+  'id, class_teacher_id, recorded_by_teacher_id, recorded_at, present_count, absent_count, late_count, excused_count, total_students, recorder:employees!student_attendance_sessions_recorded_by_teacher_id_fkey(id, people(first_name,last_name))';
+
+/** First element when PostgREST returns object-or-array (mirrors lessonService `first`). */
+const first = (v: unknown): any => (Array.isArray(v) ? v[0] : v);
+
+/** Map the recorder join to a display name; null-safe (null when unknown). */
+function recorderDisplayName(row: unknown): string | null {
+  const recorder = first((row as any)?.recorder);
+  const person = first(recorder?.people);
+  const firstName = typeof person?.first_name === 'string' ? person.first_name : '';
+  const lastName = typeof person?.last_name === 'string' ? person.last_name : '';
+  return `${firstName} ${lastName}`.trim() || null;
+}
 
 /** Canonical covered-set key: `classId|streamId|date` (null stream -> ''). */
 export function attendanceCoverageKey(
@@ -76,7 +90,8 @@ export async function getDailyAttendanceCoverage(
     }
     const { data } = await query.maybeSingle();
     if (!data) return { covered: false, session: null };
-    return { covered: true, session: data as DailyAttendanceSession };
+    const session = data as DailyAttendanceSession;
+    return { covered: true, session: { ...session, recordedByName: recorderDisplayName(data) } };
   } catch {
     return { covered: false };
   }

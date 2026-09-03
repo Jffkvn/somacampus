@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getLessonContext, submitLesson } from './lessonService';
 import { getDailyAttendanceCoverage, type DailyAttendanceCoverage } from '../teacher/attendanceCoverage';
-import { resolveCockpitAttendanceStrip } from './cockpitAttendance';
+import { resolveCockpitAttendanceStrip, formatCockpitStripMessage } from './cockpitAttendance';
 import { toHHMM, toLocalYYYYMMDD } from '../teacher/scheduleUtils';
 import type { LessonContext, LessonSubmission } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
@@ -118,7 +118,7 @@ export const LessonCockpitPage: React.FC = () => {
 
   const strip = resolveCockpitAttendanceStrip(
     context.teacherId,
-    undefined,
+    coverage?.session?.recordedByName,
     coverage ?? { covered: false },
   );
   const attendanceSessionId = strip.state === 'recorded' ? strip.sessionId : undefined;
@@ -185,16 +185,17 @@ export const LessonCockpitPage: React.FC = () => {
         <CardHeader>
           <CardTitle>Daily class attendance</CardTitle>
           {strip.state === 'recorded' ? (
-            <StatusPill status="success" label={`Recorded ${recordedHHMM}`} />
+            <StatusPill
+              status="success"
+              label={recordedHHMM ? `Recorded ${recordedHHMM}` : 'Recorded'}
+            />
           ) : (
             <StatusPill status="pending" label="Not recorded yet" />
           )}
         </CardHeader>
         <CardContent className="space-y-2">
           {strip.state === 'recorded' ? (
-            <p className="text-xs text-slate-600">
-              Daily morning attendance recorded by {strip.recorderName} at {recordedHHMM}.
-            </p>
+            <p className="text-xs text-slate-600">{formatCockpitStripMessage(strip)}</p>
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-amber-800">Daily morning attendance has not been recorded yet.</p>
