@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getLessonContext, submitLesson } from './lessonService';
-import { teacherService } from '../teacher/teacherService';
-import { toLocalYYYYMMDD } from '../teacher/scheduleUtils';
+import { getDailyAttendanceCoverage, type DailyAttendanceCoverage } from '../teacher/attendanceCoverage';
+import { resolveCockpitAttendanceStrip } from './cockpitAttendance';
+import { toHHMM, toLocalYYYYMMDD } from '../teacher/scheduleUtils';
 import type { LessonContext, LessonSubmission } from '../../types/domain';
-import type { TeacherTodayViewModel } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { StatusPill } from '../../components/ui/StatusPill';
@@ -27,7 +27,7 @@ export const LessonCockpitPage: React.FC = () => {
   const today = toLocalYYYYMMDD();
 
   const [context, setContext] = useState<LessonContext | null>(null);
-  const [todayData, setTodayData] = useState<TeacherTodayViewModel | null>(null);
+  const [coverage, setCoverage] = useState<DailyAttendanceCoverage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -51,14 +51,15 @@ export const LessonCockpitPage: React.FC = () => {
         setLoadError(null);
         const ctx = await getLessonContext(entryId, today);
         setContext(ctx);
-        try {
-          // teacherKey = context.teacherId (employee UUID — getTeacherToday accepts UUID directly).
-          const vm = await teacherService.getTeacherToday(ctx.teacherId, today);
-          setTodayData(vm);
-        } catch (err) {
-          console.warn('LessonCockpit attendance strip fallback (getTeacherToday read failed):', err);
-          setTodayData(null);
-        }
+        // Single source of truth: class-date coverage (never the viewer's
+        // Today responsibilities — empty for subject teachers). Never throws.
+        const cov = await getDailyAttendanceCoverage(
+          ctx.schoolId,
+          ctx.classId,
+          ctx.streamId ?? null,
+          today,
+        );
+        setCoverage(cov);
       } catch (err: any) {
         setLoadError(err?.message ?? 'Could not load lesson context. Please try again.');
       } finally {
@@ -115,9 +116,14 @@ export const LessonCockpitPage: React.FC = () => {
     );
   }
 
-  const responsibility = todayData?.classResponsibilities.find((r) => r.classId === classId);
-  const attendance = responsibility?.todayDailyAttendance;
-  const attendanceSessionId = attendance?.sessionId;
+  const strip = resolveCockpitAttendanceStrip(
+    context.teacherId,
+    undefined,
+    coverage ?? { covered: false },
+  );
+  const attendanceSessionId = strip.state === 'recorded' ? strip.sessionId : undefined;
+  const recordedHHMM =
+    strip.state === 'recorded' ? (toHHMM(strip.recordedAt) ?? strip.recordedAt.slice(0, 5)) : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,11 +134,9 @@ export const LessonCockpitPage: React.FC = () => {
     try {
       setIsSubmitting(true);
       setSubmitError(null);
-      // stream_id is nullable in the lessons contract. LessonContext carries only
-      // streamName (no id), so resolve via the teacher schedule entry match;
-      // omit streamId entirely when unresolvable rather than guessing.
-      const scheduleMatch = todayData?.schedule.find((s) => s.id === entryId);
-      const streamId = scheduleMatch?.streamId;
+      // stream_id is nullable in the lessons contract; it comes from the
+      // timetable entry via LessonContext (no schedule lookup needed).
+      const streamId = context.streamId ?? undefined;
       const sub: LessonSubmission = {
         lessonId: `lesson-${entryId}-${Date.now()}`,
         timetableEntryId: entryId,
@@ -179,18 +183,17 @@ export const LessonCockpitPage: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Daily attendance</CardTitle>
-          {attendance?.isRecorded ? (
-            <StatusPill status="success" label={`Recorded ${attendance.recordedAt ?? ''}`} />
+          <CardTitle>Daily class attendance</CardTitle>
+          {strip.state === 'recorded' ? (
+            <StatusPill status="success" label={`Recorded ${recordedHHMM}`} />
           ) : (
             <StatusPill status="pending" label="Not recorded yet" />
           )}
         </CardHeader>
         <CardContent className="space-y-2">
-          {attendance?.isRecorded ? (
+          {strip.state === 'recorded' ? (
             <p className="text-xs text-slate-600">
-              {attendance.presentCount} present • {attendance.absentCount} absent
-              {attendance.lateCount > 0 ? ` • ${attendance.lateCount} late` : ''}
+              Daily morning attendance recorded by {strip.recorderName} at {recordedHHMM}.
             </p>
           ) : (
             <div className="space-y-2">

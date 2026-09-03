@@ -151,6 +151,7 @@ export interface LessonContext {
   schoolId: string;
   classId: string;
   className: string;
+  streamId?: string | null;
   streamName?: string;
   subjectId: string;
   subjectName: string;
