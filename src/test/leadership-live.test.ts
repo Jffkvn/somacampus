@@ -172,8 +172,11 @@ describe('leadership live dashboard (Phase 2 Task 4 RED)', () => {
     const routes = vm.alerts.map((a) => a.actionRoute).filter(Boolean) as string[];
     expect(routes).not.toContain('/dashboard/school/teaching');
     expect(routes).not.toContain('/fees/reconciliation');
+    expect(routes).not.toContain('/dashboard/school');
+    expect(routes).not.toContain('/teacher/today');
+    expect(routes).toContain('/teaching/lessons');
     routes.forEach((r) => {
-      expect(['/dashboard/school', '/teacher/today', '/students', '/fees']).toContain(r);
+      expect(['/teaching/lessons', '/students', '/fees']).toContain(r);
     });
   });
 

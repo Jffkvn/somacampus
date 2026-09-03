@@ -97,7 +97,7 @@ export const SchoolDashboardPage: React.FC = () => {
           value={`${data.stats.lessonsCompleted} / ${data.stats.lessonsExpected}`}
           subValue={completionSubValue}
           icon={CheckCircle2}
-          href="/teacher/today"
+          href="/teaching/lessons"
         />
       </div>
 
@@ -146,7 +146,7 @@ export const SchoolDashboardPage: React.FC = () => {
                 </CardDescription>
               </div>
               <button
-                onClick={() => navigate('/teacher/today')}
+                onClick={() => navigate('/teaching/lessons')}
                 className="text-xs font-semibold text-brand-teal hover:text-brand-tealDark flex items-center gap-1"
               >
                 <span>View all lessons</span>

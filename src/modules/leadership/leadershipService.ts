@@ -384,7 +384,7 @@ export const leadershipService = {
             type: 'warning',
             title: `Missing Lesson Note (${lesson.className})`,
             description: `${lesson.teacherName} has not submitted the ${lesson.scheduledTime} ${lesson.subjectName} lesson note.`,
-            actionRoute: '/dashboard/school',
+            actionRoute: '/teaching/lessons',
           });
         }
       }
