@@ -1,14 +1,9 @@
 import { supabase } from '../../lib/supabase';
 import { TeacherTodayViewModel, TimetableEntry, ClassResponsibility, AttendanceSession, AttendanceAuditLog } from '../../types/domain';
-import { toDayOfWeek } from './scheduleUtils';
+import { toDayOfWeek, toHHMM, toLocalYYYYMMDD } from './scheduleUtils';
 
 const VERIF = ['verified_gps', 'verified_manual', 'flagged'] as const;
 type VerificationMethod = (typeof VERIF)[number];
-
-const toHHMM = (v: unknown): string | null => {
-  const m = String(v ?? '').match(/(\d{2}):(\d{2})/);
-  return m ? `${m[1]}:${m[2]}` : null;
-};
 
 const toVerif = (v: unknown): VerificationMethod =>
   (VERIF as readonly string[]).includes(String(v))
@@ -280,6 +275,8 @@ export const teacherService = {
       ];
 
       // 3b. Live timetable query (never throws — falls back to fallbackSchedule).
+      // Single-school pilot: scope timetable reads to the pilot school.
+      const schoolIdForSchedule = '22222222-2222-2222-2222-222222222222';
       let schedule: TimetableEntry[] = fallbackSchedule;
       try {
         const dow = toDayOfWeek(date);
@@ -287,42 +284,52 @@ export const teacherService = {
           .from('timetable_entries')
           .select('id, timetable_id, class_id, stream_id, subject_id, teacher_id, room_name, day_of_week, start_time, end_time, timetables!inner(is_active, school_id), subjects(id,name), classes(id,name), streams(id,name), teacher:employees!timetable_entries_teacher_id_fkey(id, people(first_name,last_name))')
           .eq('timetables.is_active', true)
+          .eq('timetables.school_id', schoolIdForSchedule)
           .eq('day_of_week', dow)
           .eq('teacher_id', employeeId)
           .order('start_time');
 
-        if (!ttErr && ttRows && ttRows.length > 0) {
-          const mapped: TimetableEntry[] = (ttRows as any[]).map((r) => {
-            const subj = Array.isArray(r.subjects) ? r.subjects[0] : r.subjects;
-            const cls = Array.isArray(r.classes) ? r.classes[0] : r.classes;
-            const stm = Array.isArray(r.streams) ? r.streams[0] : r.streams;
-            const tch = Array.isArray(r.teacher) ? r.teacher[0] : r.teacher;
-            const person = tch ? (Array.isArray(tch.people) ? tch.people[0] : tch.people) : null;
-            const tt = Array.isArray(r.timetables) ? r.timetables[0] : r.timetables;
-            const className = cls?.name ?? 'Stage 5';
-            const streamName = stm?.name;
-            const resp = activeResponsibilities.find(
-              (c) => c.classId === r.class_id && (c.streamId ?? null) === (r.stream_id ?? null)
-            );
-            return {
-              id: r.id,
-              timetableId: r.timetable_id,
-              schoolId: tt?.school_id ?? '22222222-2222-2222-2222-222222222222',
-              classId: r.class_id,
-              className: streamName ? `${className} ${streamName}` : className,
-              streamId: r.stream_id ?? undefined,
-              streamName: streamName ?? undefined,
-              subjectId: r.subject_id,
-              subjectName: subj?.name ?? 'Lesson',
-              teacherId: r.teacher_id,
-              teacherName: person ? `${person.first_name} ${person.last_name}` : teacherName,
-              roomName: r.room_name ?? undefined,
-              dayOfWeek: r.day_of_week,
-              startTime: toHHMM(r.start_time) ?? String(r.start_time ?? '').slice(0, 5),
-              endTime: toHHMM(r.end_time) ?? String(r.end_time ?? '').slice(0, 5),
-              studentCount: resp?.studentCount ?? 0,
-            } as TimetableEntry;
-          });
+        if (ttErr) {
+          console.warn('getTeacherToday timetable schedule query failed, using fallback:', ttErr);
+        } else if (ttRows && ttRows.length > 0) {
+          const mapped: TimetableEntry[] = (ttRows as any[])
+            .map((r) => {
+              const dowNum = Number(r.day_of_week);
+              if (!Number.isInteger(dowNum) || dowNum < 1 || dowNum > 7) return null;
+              const subj = Array.isArray(r.subjects) ? r.subjects[0] : r.subjects;
+              const cls = Array.isArray(r.classes) ? r.classes[0] : r.classes;
+              const stm = Array.isArray(r.streams) ? r.streams[0] : r.streams;
+              const tch = Array.isArray(r.teacher) ? r.teacher[0] : r.teacher;
+              const person = tch ? (Array.isArray(tch.people) ? tch.people[0] : tch.people) : null;
+              const personName = person?.first_name
+                ? `${person.first_name}${person.last_name ? ` ${person.last_name}` : ''}`
+                : null;
+              const tt = Array.isArray(r.timetables) ? r.timetables[0] : r.timetables;
+              const className = cls?.name ?? 'Stage 5';
+              const streamName = stm?.name;
+              const resp = activeResponsibilities.find(
+                (c) => c.classId === r.class_id && (c.streamId ?? null) === (r.stream_id ?? null)
+              );
+              return {
+                id: r.id,
+                timetableId: r.timetable_id,
+                schoolId: tt?.school_id ?? schoolIdForSchedule,
+                classId: r.class_id,
+                className: streamName ? `${className} ${streamName}` : className,
+                streamId: r.stream_id ?? undefined,
+                streamName: streamName ?? undefined,
+                subjectId: r.subject_id,
+                subjectName: subj?.name ?? 'Lesson',
+                teacherId: r.teacher_id,
+                teacherName: personName ?? (tch ? 'Teacher' : teacherName),
+                roomName: r.room_name ?? undefined,
+                dayOfWeek: dowNum,
+                startTime: toHHMM(r.start_time) ?? (String(r.start_time ?? '').slice(0, 5) || '00:00'),
+                endTime: toHHMM(r.end_time) ?? (String(r.end_time ?? '').slice(0, 5) || '00:00'),
+                studentCount: resp?.studentCount ?? 0,
+              } as TimetableEntry;
+            })
+            .filter((e): e is TimetableEntry => e !== null);
           if (mapped.length > 0) schedule = mapped;
         }
       } catch (err) {
@@ -330,9 +337,12 @@ export const teacherService = {
         schedule = fallbackSchedule;
       }
 
-      // Active entry: first period still in session/upcoming, else the first row.
+      // Active entry: only time-aware when viewing today; otherwise the first row.
+      const isViewingToday = date === toLocalYYYYMMDD();
       const nowHHMM = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
-      const activeEntry = schedule.find((e) => e.endTime > nowHHMM) ?? schedule[0];
+      const activeEntry = isViewingToday
+        ? (schedule.find((e) => e.endTime > nowHHMM) ?? schedule[0])
+        : schedule[0];
 
       // 4. Clock-in lookup: today's teacher_attendance row (never breaks the view).
       let clockInStatus: TeacherTodayViewModel['clockInStatus'] = {

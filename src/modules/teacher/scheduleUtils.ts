@@ -16,3 +16,8 @@ export function toHHMM(v: unknown): string | null {
   const m = String(v ?? '').match(/(\d{2}):(\d{2})/);
   return m ? `${m[1]}:${m[2]}` : null;
 }
+
+/** Local YYYY-MM-DD for a Date (getFullYear/getMonth/getDate, padded). */
+export function toLocalYYYYMMDD(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
