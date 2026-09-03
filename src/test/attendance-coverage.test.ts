@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getDailyAttendanceCoverage } from '../modules/teacher/attendanceCoverage';
+import { getDailyAttendanceCoverage, attendanceCoverageKey, buildAttendanceCoveredSet } from '../modules/teacher/attendanceCoverage';
 import { getLiveLessonsMonitor } from '../modules/leadership/leadershipService';
 
 const { mockFrom } = vi.hoisted(() => ({ mockFrom: vi.fn() }));
@@ -234,5 +234,66 @@ describe('daily attendance coverage (class+stream+date)', () => {
     const result = await getLiveLessonsMonitor(SCHOOL_ID, DATE);
     const submitted = result.periods.find((p) => p.periodState === 'submitted');
     expect(submitted?.hasAttendanceRecorded).toBe(false);
+  });
+});
+
+describe('attendanceCoverageKey + buildAttendanceCoveredSet (pure units)', () => {
+  it('normalizes null vs undefined vs empty-string stream to the same key', () => {
+    expect(attendanceCoverageKey('class-1', null, DATE)).toBe(attendanceCoverageKey('class-1', '', DATE));
+    expect(attendanceCoverageKey('class-1', undefined, DATE)).toBe(attendanceCoverageKey('class-1', '', DATE));
+    expect(attendanceCoverageKey('class-1', STREAM_ID, DATE)).not.toBe(attendanceCoverageKey('class-1', '', DATE));
+  });
+
+  it('normalizes garbage (non-string) stream values to empty-string', () => {
+    const set = buildAttendanceCoveredSet(
+      [
+        { class_id: 'class-1', stream_id: 123, date: DATE },
+        { class_id: 'class-2', stream_id: { id: 'stream-1' }, date: DATE },
+        { class_id: 'class-3', stream_id: false, date: DATE },
+      ],
+      DATE,
+    );
+    expect(set.has(attendanceCoverageKey('class-1', '', DATE))).toBe(true);
+    expect(set.has(attendanceCoverageKey('class-2', '', DATE))).toBe(true);
+    expect(set.has(attendanceCoverageKey('class-3', '', DATE))).toBe(true);
+    expect(set.has(attendanceCoverageKey('class-1', STREAM_ID, DATE))).toBe(false);
+  });
+
+  it('skips rows without class_id or date (dateless-row skip)', () => {
+    const set = buildAttendanceCoveredSet(
+      [
+        { class_id: null, stream_id: null, date: DATE },
+        { class_id: 'class-1', stream_id: null }, // no date, no fallback
+        { stream_id: null, date: DATE }, // no class_id
+      ],
+      undefined,
+    );
+    expect(set.size).toBe(0);
+  });
+
+  it('isolates cross-date rows: other dates never mark today covered', () => {
+    const set = buildAttendanceCoveredSet(
+      [
+        { class_id: 'class-1', stream_id: null, date: '2026-09-02' },
+        { class_id: 'class-1', stream_id: STREAM_ID, date: DATE },
+      ],
+      DATE,
+    );
+    expect(set.has(attendanceCoverageKey('class-1', '', DATE))).toBe(false);
+    expect(set.has(attendanceCoverageKey('class-1', '', '2026-09-02'))).toBe(true);
+    expect(set.has(attendanceCoverageKey('class-1', STREAM_ID, DATE))).toBe(true);
+  });
+
+  it('pins fallbackDate behavior: fills missing dates, never overrides explicit ones', () => {
+    const set = buildAttendanceCoveredSet(
+      [
+        { class_id: 'class-1', stream_id: null }, // dateless -> fallback
+        { class_id: 'class-2', stream_id: null, date: '2026-09-02' }, // explicit wins
+      ],
+      DATE,
+    );
+    expect(set.has(attendanceCoverageKey('class-1', '', DATE))).toBe(true);
+    expect(set.has(attendanceCoverageKey('class-2', '', DATE))).toBe(false);
+    expect(set.has(attendanceCoverageKey('class-2', '', '2026-09-02'))).toBe(true);
   });
 });

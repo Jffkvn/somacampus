@@ -257,7 +257,8 @@ export const leadershipService = {
         lessonsExpected = 0;
       }
 
-      // Sessions: one query serves today's rate, trend, and class-date coverage.
+      // Sessions: history query serves the 5-day trend; a separate date-scoped
+      // query serves today's rate + class-date coverage.
       // Student attendance is ONE session per class/stream/date (daily) —
       // recordDailyAttendance never writes timetable_entry_id, so coverage
       // MUST be keyed on class+stream+date, never entry ids.
@@ -273,7 +274,23 @@ export const leadershipService = {
       } catch {
         sessionRows = [];
       }
-      const todaySessions = sessionRows.filter((r) => r?.date === date);
+      // Date-scoped fetch: a date-ordered history capped at 30 can truncate
+      // today's classes at large schools (same-date rows sort arbitrarily),
+      // silently dropping coverage and skewing today's rate. Backstop limit
+      // 200; the in-memory date filter stays as defense (harmless).
+      let todaySessions: any[] = [];
+      try {
+        const { data } = await supabase
+          .from('student_attendance_sessions')
+          .select('id, date, class_id, stream_id, present_count, total_students, absent_count, timetable_entry_id, contextual_timetable_entry_id')
+          .eq('school_id', effectiveSchool)
+          .eq('date', date)
+          .limit(200);
+        if (Array.isArray(data)) todaySessions = data;
+      } catch {
+        todaySessions = [];
+      }
+      todaySessions = todaySessions.filter((r) => r?.date === date);
       const presentTotal = todaySessions.reduce((s, r) => s + (Number(r?.present_count) || 0), 0);
       const studentTotal = todaySessions.reduce((s, r) => s + (Number(r?.total_students) || 0), 0);
       const attendanceRate = studentTotal > 0 ? Math.round((presentTotal / studentTotal) * 100) : 0;
