@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { LeadershipLessonSummary } from '../../types/domain';
+import { buildAttendanceCoveredSet, attendanceCoverageKey } from '../teacher/attendanceCoverage';
 import { toDayOfWeek, toHHMM } from '../teacher/scheduleUtils';
 
 export interface LeadershipDashboardViewModel {
@@ -256,12 +257,15 @@ export const leadershipService = {
         lessonsExpected = 0;
       }
 
-      // Sessions: one query serves today's rate, trend, and entry-id batch
+      // Sessions: one query serves today's rate, trend, and class-date coverage.
+      // Student attendance is ONE session per class/stream/date (daily) —
+      // recordDailyAttendance never writes timetable_entry_id, so coverage
+      // MUST be keyed on class+stream+date, never entry ids.
       let sessionRows: any[] = [];
       try {
         const { data } = await supabase
           .from('student_attendance_sessions')
-          .select('id, date, present_count, total_students, absent_count, timetable_entry_id, contextual_timetable_entry_id')
+          .select('id, date, class_id, stream_id, present_count, total_students, absent_count, timetable_entry_id, contextual_timetable_entry_id')
           .eq('school_id', effectiveSchool)
           .order('date', { ascending: false })
           .limit(30);
@@ -273,15 +277,7 @@ export const leadershipService = {
       const presentTotal = todaySessions.reduce((s, r) => s + (Number(r?.present_count) || 0), 0);
       const studentTotal = todaySessions.reduce((s, r) => s + (Number(r?.total_students) || 0), 0);
       const attendanceRate = studentTotal > 0 ? Math.round((presentTotal / studentTotal) * 100) : 0;
-      const sessionEntryIds = new Set<string>();
-      for (const s of todaySessions) {
-        if (typeof s?.timetable_entry_id === 'string' && s.timetable_entry_id) {
-          sessionEntryIds.add(s.timetable_entry_id);
-        }
-        if (typeof s?.contextual_timetable_entry_id === 'string' && s.contextual_timetable_entry_id) {
-          sessionEntryIds.add(s.contextual_timetable_entry_id);
-        }
-      }
+      const attendanceCoveredSet = buildAttendanceCoveredSet(todaySessions, date);
 
       // Teacher attendance per day (staffRate)
       let clockRows: any[] = [];
@@ -329,7 +325,7 @@ export const leadershipService = {
       try {
         const { data } = await supabase
           .from('lessons')
-          .select('id, school_id, teacher_id, class_id, subject_id, timetable_entry_id, attendance_session_id, curriculum_topic, visible_lesson_note, lesson_status, submitted_at, classes(id, name), subjects(id, name), streams(id, name), timetable_entries(id, start_time, end_time), teacher:employees!lessons_teacher_id_fkey(id, people(first_name, last_name))')
+          .select('id, school_id, teacher_id, class_id, stream_id, subject_id, timetable_entry_id, attendance_session_id, curriculum_topic, visible_lesson_note, lesson_status, submitted_at, classes(id, name), subjects(id, name), streams(id, name), timetable_entries(id, start_time, end_time), teacher:employees!lessons_teacher_id_fkey(id, people(first_name, last_name))')
           .eq('school_id', effectiveSchool)
           .gte('submitted_at', `${date}T00:00:00`)
           .lt('submitted_at', `${nextDay(date)}T00:00:00`)
@@ -353,6 +349,12 @@ export const leadershipService = {
         const end = toHHMM(tt?.end_time);
         const scheduledTime = start && end ? `${start} - ${end}` : '—';
         const status = VALID_STATUSES.has(String(r?.lesson_status)) ? r.lesson_status : 'completed';
+        const lessonClassId = String(r?.class_id ?? '');
+        const lessonStreamId =
+          typeof r?.stream_id === 'string' && r.stream_id ? r.stream_id : (stm?.id ?? '');
+        const lessonCovered = attendanceCoveredSet.has(
+          attendanceCoverageKey(lessonClassId, lessonStreamId ?? '', date),
+        );
         return {
           lessonId: String(r?.id ?? ''),
           schoolId: String(r?.school_id ?? effectiveSchool),
@@ -366,10 +368,7 @@ export const leadershipService = {
           status,
           curriculumTopic: String(r?.curriculum_topic ?? subjectName ?? 'Lesson'),
           visibleLessonNote: String(r?.visible_lesson_note ?? 'Lesson submission pending.'),
-          hasAttendanceRecorded: Boolean(
-            r?.attendance_session_id ||
-              (typeof r?.timetable_entry_id === 'string' && sessionEntryIds.has(r.timetable_entry_id))
-          ),
+          hasAttendanceRecorded: Boolean(r?.attendance_session_id) || lessonCovered,
           studentCount: classCounts.get(String(r?.class_id ?? '')) ?? 0,
         };
       });
@@ -564,7 +563,7 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
     try {
       const { data } = await supabase
         .from('timetable_entries')
-        .select('id, day_of_week, start_time, end_time, class_id, subject_id, teacher_id, classes(id, name), subjects(id, name), streams(id, name), teacher:employees(id, people(first_name, last_name)), timetables!inner(is_active, school_id)')
+        .select('id, day_of_week, start_time, end_time, class_id, stream_id, subject_id, teacher_id, classes(id, name), subjects(id, name), streams(id, name), teacher:employees(id, people(first_name, last_name)), timetables!inner(is_active, school_id)')
         .eq('timetables.is_active', true)
         .eq('timetables.school_id', effectiveSchool)
         .eq('day_of_week', dow);
@@ -580,7 +579,7 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
     try {
       const { data } = await supabase
         .from('lessons')
-        .select('id, school_id, teacher_id, class_id, subject_id, timetable_entry_id, attendance_session_id, curriculum_topic, visible_lesson_note, lesson_status, submitted_at, classes(id, name), subjects(id, name), streams(id, name), timetable_entries(id, start_time, end_time), teacher:employees!lessons_teacher_id_fkey(id, people(first_name, last_name))')
+        .select('id, school_id, teacher_id, class_id, stream_id, subject_id, timetable_entry_id, attendance_session_id, curriculum_topic, visible_lesson_note, lesson_status, submitted_at, classes(id, name), subjects(id, name), streams(id, name), timetable_entries(id, start_time, end_time), teacher:employees!lessons_teacher_id_fkey(id, people(first_name, last_name))')
         .eq('school_id', effectiveSchool)
         .gte('submitted_at', `${date}T00:00:00`)
         .lt('submitted_at', `${nextDay(date)}T00:00:00`)
@@ -591,23 +590,17 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
     }
     lessonRows.sort((a: any, b: any) => String(b?.submitted_at ?? '').localeCompare(String(a?.submitted_at ?? '')));
 
-    // Session entry-ids batched once
-    const sessionEntryIds = new Set<string>();
+    // Session class-date coverage batched once (daily sessions carry no
+    // timetable_entry_id — key on class+stream+date).
+    let monitorCoveredSet = new Set<string>();
     try {
       const { data } = await supabase
         .from('student_attendance_sessions')
-        .select('id, date, timetable_entry_id, contextual_timetable_entry_id')
+        .select('id, date, class_id, stream_id, timetable_entry_id, contextual_timetable_entry_id')
         .eq('school_id', effectiveSchool)
         .eq('date', date);
       const rows = Array.isArray(data) ? data : [];
-      for (const s of rows) {
-        if (typeof s?.timetable_entry_id === 'string' && s.timetable_entry_id) {
-          sessionEntryIds.add(s.timetable_entry_id);
-        }
-        if (typeof s?.contextual_timetable_entry_id === 'string' && s.contextual_timetable_entry_id) {
-          sessionEntryIds.add(s.contextual_timetable_entry_id);
-        }
-      }
+      monitorCoveredSet = buildAttendanceCoveredSet(rows, date);
     } catch {
       // empty set — every submitted lesson counts as missing attendance
     }
@@ -625,6 +618,12 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
       const end = toHHMM(tt?.end_time);
       const scheduledTime = start && end ? `${start} - ${end}` : '—';
       const status = VALID_STATUSES.has(String(r?.lesson_status)) ? r.lesson_status : 'completed';
+      const summaryClassId = String(r?.class_id ?? '');
+      const summaryStreamId =
+        typeof r?.stream_id === 'string' && r.stream_id ? r.stream_id : (stm?.id ?? '');
+      const summaryCovered = monitorCoveredSet.has(
+        attendanceCoverageKey(summaryClassId, summaryStreamId ?? '', date),
+      );
       return {
         lessonId: String(r?.id ?? ''),
         schoolId: String(r?.school_id ?? effectiveSchool),
@@ -638,10 +637,7 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
         status,
         curriculumTopic: String(r?.curriculum_topic ?? subjectName ?? 'Lesson'),
         visibleLessonNote: String(r?.visible_lesson_note ?? 'Lesson submission pending.'),
-        hasAttendanceRecorded: Boolean(
-          r?.attendance_session_id ||
-            (typeof r?.timetable_entry_id === 'string' && sessionEntryIds.has(r.timetable_entry_id))
-        ),
+        hasAttendanceRecorded: Boolean(r?.attendance_session_id) || summaryCovered,
         studentCount: classCounts.get(String(r?.class_id ?? '')) ?? 0,
       };
     };
@@ -685,12 +681,18 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
         const subjectName = subj?.name ?? 'Lesson';
         const start = schedStart ?? '—';
         const end = schedEnd ?? '—';
+        const pendingClassId = String(e?.class_id ?? '');
+        const pendingStreamId =
+          typeof e?.stream_id === 'string' && e.stream_id ? e.stream_id : (stm?.id ?? '');
+        const pendingCovered = monitorCoveredSet.has(
+          attendanceCoverageKey(pendingClassId, pendingStreamId ?? '', date),
+        );
         periods.push({
           lessonId: `pending-${entryId}`,
           schoolId: effectiveSchool,
           teacherId: String(e?.teacher_id ?? one(e?.teacher)?.id ?? ''),
           teacherName: personName(tch, 'Teacher'),
-          classId: String(e?.class_id ?? ''),
+          classId: pendingClassId,
           className,
           subjectName,
           scheduledTime: start !== '—' && end !== '—' ? `${start} - ${end}` : '—',
@@ -698,7 +700,7 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
           status: 'not_completed',
           curriculumTopic: subjectName,
           visibleLessonNote: 'Lesson submission pending.',
-          hasAttendanceRecorded: sessionEntryIds.has(entryId),
+          hasAttendanceRecorded: pendingCovered,
           studentCount: classCounts.get(String(e?.class_id ?? '')) ?? 0,
           periodState: 'pending',
           startTime: start,
