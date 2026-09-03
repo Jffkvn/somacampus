@@ -440,3 +440,271 @@ export const leadershipService = {
     }
   },
 };
+
+export interface LiveLessonPeriod extends LeadershipLessonSummary {
+  periodState: 'submitted' | 'pending';
+  startTime: string;
+  endTime: string;
+}
+
+export interface LiveLessonsMonitorResult {
+  expected: number;
+  submitted: number;
+  pending: number;
+  missingAttendance: number;
+  periods: LiveLessonPeriod[];
+}
+
+export async function getLiveLessonsMonitor(schoolId: string, date: string): Promise<LiveLessonsMonitorResult> {
+  const isMockEnv = !import.meta.env.VITE_SUPABASE_URL ||
+    import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
+    import.meta.env.VITE_SUPABASE_URL.includes('mock') ||
+    schoolId.startsWith('school-');
+
+  if (isMockEnv) {
+    const mockLessons: LeadershipLessonSummary[] = [
+      {
+        lessonId: 'les-001',
+        schoolId,
+        teacherId: 'teacher-sarah',
+        teacherName: 'Sarah Namukasa',
+        classId: 'class-p5-blue',
+        className: 'Stage 5 Blue',
+        subjectName: 'Mathematics',
+        scheduledTime: '08:00 - 09:00',
+        submittedAt: '08:58 AM',
+        status: 'completed',
+        curriculumTopic: 'Fractions & Decimals',
+        visibleLessonNote: 'Covered mixed numbers conversion. Class responded actively; 4 students needed assistance with simplified fractions.',
+        hasAttendanceRecorded: true,
+        studentCount: 24,
+      },
+      {
+        lessonId: 'les-002',
+        schoolId,
+        teacherId: 'teacher-david',
+        teacherName: 'David Ochieng',
+        classId: 'class-p6-red',
+        className: 'Stage 6 Red',
+        subjectName: 'English',
+        scheduledTime: '08:00 - 09:00',
+        submittedAt: '09:05 AM',
+        status: 'completed',
+        curriculumTopic: 'Persuasive Writing',
+        visibleLessonNote: 'Introductory essay outlining arguments. All 26 students drafted thesis statements.',
+        hasAttendanceRecorded: true,
+        studentCount: 26,
+      },
+    ];
+    const periods: LiveLessonPeriod[] = [
+      { ...mockLessons[0], periodState: 'submitted', startTime: '08:00', endTime: '09:00' },
+      { ...mockLessons[1], periodState: 'submitted', startTime: '08:00', endTime: '09:00' },
+      {
+        lessonId: 'pending-mock-tt-3',
+        schoolId,
+        teacherId: 'teacher-james',
+        teacherName: 'James Kato',
+        classId: 'class-p4-green',
+        className: 'Stage 4 Green',
+        subjectName: 'Science',
+        scheduledTime: '09:00 - 10:00',
+        submittedAt: '—',
+        status: 'not_completed',
+        curriculumTopic: 'Habitats & Adaptations',
+        visibleLessonNote: 'Lesson submission pending.',
+        hasAttendanceRecorded: false,
+        studentCount: 22,
+        periodState: 'pending',
+        startTime: '09:00',
+        endTime: '10:00',
+      },
+    ];
+    return { expected: 3, submitted: 2, pending: 1, missingAttendance: 0, periods };
+  }
+
+  try {
+    const effectiveSchool = schoolId || PILOT_SCHOOL_ID;
+    const dow = toDayOfWeek(date);
+
+    // Enrolment class counts (batched once)
+    let classCounts = new Map<string, number>();
+    try {
+      const { data } = await supabase
+        .from('student_enrolments')
+        .select('id, class_id')
+        .eq('school_id', effectiveSchool)
+        .eq('status', 'active');
+      if (Array.isArray(data)) {
+        for (const r of data) {
+          if (r?.class_id) classCounts.set(r.class_id, (classCounts.get(r.class_id) ?? 0) + 1);
+        }
+      }
+    } catch {
+      classCounts = new Map<string, number>();
+    }
+
+    // Scheduled periods: active timetable, school, dow
+    let scheduledRows: any[] = [];
+    try {
+      const { data } = await supabase
+        .from('timetable_entries')
+        .select('id, day_of_week, start_time, end_time, class_id, subject_id, teacher_id, classes(id, name), subjects(id, name), streams(id, name), teacher:employees(id, people(first_name, last_name)), timetables!inner(is_active, school_id)')
+        .eq('timetables.is_active', true)
+        .eq('timetables.school_id', effectiveSchool)
+        .eq('day_of_week', dow);
+      const rows = Array.isArray(data) ? data : [];
+      scheduledRows = rows.filter((r: any) => Number(r?.day_of_week) === dow);
+    } catch {
+      scheduledRows = [];
+    }
+
+    // NOTE: today's-lessons query intentionally duplicated inline from
+    // getSchoolLeadershipDashboard (~15 lines) — dashboard left untouched.
+    let lessonRows: any[] = [];
+    try {
+      const { data } = await supabase
+        .from('lessons')
+        .select('id, school_id, teacher_id, class_id, subject_id, timetable_entry_id, attendance_session_id, curriculum_topic, visible_lesson_note, lesson_status, submitted_at, classes(id, name), subjects(id, name), streams(id, name), timetable_entries(id, start_time, end_time), teacher:employees!lessons_teacher_id_fkey(id, people(first_name, last_name))')
+        .eq('school_id', effectiveSchool)
+        .gte('submitted_at', `${date}T00:00:00`)
+        .lt('submitted_at', `${nextDay(date)}T00:00:00`)
+        .order('submitted_at', { ascending: false });
+      if (Array.isArray(data)) lessonRows = data;
+    } catch {
+      lessonRows = [];
+    }
+    lessonRows.sort((a: any, b: any) => String(b?.submitted_at ?? '').localeCompare(String(a?.submitted_at ?? '')));
+
+    // Session entry-ids batched once
+    const sessionEntryIds = new Set<string>();
+    try {
+      const { data } = await supabase
+        .from('student_attendance_sessions')
+        .select('id, date, timetable_entry_id, contextual_timetable_entry_id')
+        .eq('school_id', effectiveSchool)
+        .eq('date', date);
+      const rows = Array.isArray(data) ? data : [];
+      for (const s of rows) {
+        if (typeof s?.timetable_entry_id === 'string' && s.timetable_entry_id) {
+          sessionEntryIds.add(s.timetable_entry_id);
+        }
+        if (typeof s?.contextual_timetable_entry_id === 'string' && s.contextual_timetable_entry_id) {
+          sessionEntryIds.add(s.contextual_timetable_entry_id);
+        }
+      }
+    } catch {
+      // empty set — every submitted lesson counts as missing attendance
+    }
+
+    const toSummary = (r: any): LeadershipLessonSummary => {
+      const tch = one(r?.teacher);
+      const cls = one(r?.classes);
+      const subj = one(r?.subjects);
+      const stm = one(r?.streams);
+      const tt = one(r?.timetable_entries);
+      const classBase = cls?.name ?? 'Class';
+      const className = stm?.name ? `${classBase} ${stm.name}` : classBase;
+      const subjectName = subj?.name ?? 'Lesson';
+      const start = toHHMM(tt?.start_time);
+      const end = toHHMM(tt?.end_time);
+      const scheduledTime = start && end ? `${start} - ${end}` : '—';
+      const status = VALID_STATUSES.has(String(r?.lesson_status)) ? r.lesson_status : 'completed';
+      return {
+        lessonId: String(r?.id ?? ''),
+        schoolId: String(r?.school_id ?? effectiveSchool),
+        teacherId: String(r?.teacher_id ?? ''),
+        teacherName: personName(tch, 'Teacher'),
+        classId: String(r?.class_id ?? ''),
+        className,
+        subjectName,
+        scheduledTime,
+        submittedAt: formatSubmittedAt(r?.submitted_at),
+        status,
+        curriculumTopic: String(r?.curriculum_topic ?? subjectName ?? 'Lesson'),
+        visibleLessonNote: String(r?.visible_lesson_note ?? 'Lesson submission pending.'),
+        hasAttendanceRecorded: Boolean(
+          r?.attendance_session_id ||
+            (typeof r?.timetable_entry_id === 'string' && sessionEntryIds.has(r.timetable_entry_id))
+        ),
+        studentCount: classCounts.get(String(r?.class_id ?? '')) ?? 0,
+      };
+    };
+
+    const lessonByEntry = new Map<string, any>();
+    const orphanLessons: any[] = [];
+    for (const r of lessonRows) {
+      if (typeof r?.timetable_entry_id === 'string' && r.timetable_entry_id) {
+        if (!lessonByEntry.has(r.timetable_entry_id)) lessonByEntry.set(r.timetable_entry_id, r);
+      } else {
+        orphanLessons.push(r);
+      }
+    }
+
+    const periods: LiveLessonPeriod[] = [];
+    for (const e of scheduledRows) {
+      const entryId = String(e?.id ?? '');
+      const lesson = lessonByEntry.get(entryId);
+      const schedStart = toHHMM(e?.start_time);
+      const schedEnd = toHHMM(e?.end_time);
+      if (lesson) {
+        const summary = toSummary(lesson);
+        const tt = one(lesson?.timetable_entries);
+        const start = schedStart ?? toHHMM(tt?.start_time) ?? '—';
+        const end = schedEnd ?? toHHMM(tt?.end_time) ?? '—';
+        periods.push({
+          ...summary,
+          scheduledTime: start !== '—' && end !== '—' ? `${start} - ${end}` : summary.scheduledTime,
+          periodState: 'submitted',
+          startTime: start,
+          endTime: end,
+        });
+      } else {
+        const tch = one(e?.teacher);
+        const cls = one(e?.classes);
+        const subj = one(e?.subjects);
+        const stm = one(e?.streams);
+        const classBase = cls?.name ?? 'Class';
+        const className = stm?.name ? `${classBase} ${stm.name}` : classBase;
+        const subjectName = subj?.name ?? 'Lesson';
+        const start = schedStart ?? '—';
+        const end = schedEnd ?? '—';
+        periods.push({
+          lessonId: `pending-${entryId}`,
+          schoolId: effectiveSchool,
+          teacherId: String(e?.teacher_id ?? one(e?.teacher)?.id ?? ''),
+          teacherName: personName(tch, 'Teacher'),
+          classId: String(e?.class_id ?? ''),
+          className,
+          subjectName,
+          scheduledTime: start !== '—' && end !== '—' ? `${start} - ${end}` : '—',
+          submittedAt: '—',
+          status: 'not_completed',
+          curriculumTopic: subjectName,
+          visibleLessonNote: 'Lesson submission pending.',
+          hasAttendanceRecorded: sessionEntryIds.has(entryId),
+          studentCount: classCounts.get(String(e?.class_id ?? '')) ?? 0,
+          periodState: 'pending',
+          startTime: start,
+          endTime: end,
+        });
+      }
+    }
+    for (const r of orphanLessons) {
+      const summary = toSummary(r);
+      periods.push({ ...summary, scheduledTime: '—', periodState: 'submitted', startTime: '—', endTime: '—' });
+    }
+    periods.sort((a, b) => {
+      if (a.startTime === '—' && b.startTime === '—') return 0;
+      if (a.startTime === '—') return 1;
+      if (b.startTime === '—') return -1;
+      return a.startTime.localeCompare(b.startTime);
+    });
+
+    const submitted = periods.filter((p) => p.periodState === 'submitted').length;
+    const pending = periods.filter((p) => p.periodState === 'pending').length;
+    const missingAttendance = periods.filter((p) => p.periodState === 'submitted' && !p.hasAttendanceRecorded).length;
+    return { expected: scheduledRows.length, submitted, pending, missingAttendance, periods };
+  } catch {
+    return { expected: 0, submitted: 0, pending: 0, missingAttendance: 0, periods: [] };
+  }
+}
