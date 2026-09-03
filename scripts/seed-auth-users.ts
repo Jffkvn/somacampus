@@ -70,6 +70,38 @@ const DEMO_USERS: DemoUser[] = [
     employeeNumber: 'TCH-001',
   },
   {
+    email: 'david.m@graceschool.ac.ug',
+    password: 'SomaCampus2026!',
+    role: 'teacher',
+    firstName: 'David',
+    lastName: 'Musoke',
+    employeeNumber: 'TCH-002',
+  },
+  {
+    email: 'mary.n@graceschool.ac.ug',
+    password: 'SomaCampus2026!',
+    role: 'teacher',
+    firstName: 'Mary',
+    lastName: 'Nabatanzi',
+    employeeNumber: 'TCH-003',
+  },
+  {
+    email: 'james.k@graceschool.ac.ug',
+    password: 'SomaCampus2026!',
+    role: 'teacher',
+    firstName: 'James',
+    lastName: 'Kato',
+    employeeNumber: 'TCH-004',
+  },
+  {
+    email: 'paul.m@graceschool.ac.ug',
+    password: 'SomaCampus2026!',
+    role: 'teacher',
+    firstName: 'Paul',
+    lastName: 'Mukasa',
+    employeeNumber: 'TCH-005',
+  },
+  {
     email: 'bursar@somacampus.ug',
     password: 'SomaCampus2026!',
     role: 'bursar',
@@ -159,23 +191,32 @@ async function seedAuthUsers() {
       authUserId = created.user.id;
     }
 
-    // 3. Upsert into `people`
-    const { data: personData, error: personErr } = await adminClient
+    // 3. Link or insert into `people`
+    const { data: existingPeople } = await adminClient
       .from('people')
-      .upsert(
-        {
+      .select('id')
+      .eq('email', userDef.email)
+      .limit(1);
+
+    let personId: string;
+    if (existingPeople && existingPeople.length > 0) {
+      personId = existingPeople[0].id;
+      await adminClient
+        .from('people')
+        .update({ auth_user_id: authUserId })
+        .eq('id', personId);
+    } else {
+      const { data: newPerson } = await adminClient
+        .from('people')
+        .insert({
           auth_user_id: authUserId,
           first_name: userDef.firstName,
           last_name: userDef.lastName,
           email: userDef.email,
-        },
-        { onConflict: 'id' }
-      )
-      .select('id')
-      .single();
-
-    if (personErr) {
-      console.warn(`  Warning upserting person: ${personErr.message}`);
+        })
+        .select('id')
+        .single();
+      personId = newPerson!.id;
     }
 
     // 4. Upsert into `user_roles`
@@ -194,17 +235,12 @@ async function seedAuthUsers() {
     }
 
     // 5. If staff, link employee
-    if (userDef.employeeNumber && personData) {
-      await adminClient.from('employees').upsert(
-        {
-          person_id: personData.id,
-          school_id: school.id,
-          employee_number: userDef.employeeNumber,
-          role: userDef.role,
-          is_teacher: userDef.role === 'teacher',
-        },
-        { onConflict: 'school_id,employee_number' }
-      );
+    if (userDef.employeeNumber) {
+      await adminClient
+        .from('employees')
+        .update({ person_id: personId, status: 'active' })
+        .eq('school_id', school.id)
+        .eq('employee_number', userDef.employeeNumber);
     }
 
     // 6. Test actual login via anonClient (as a real user would log in)

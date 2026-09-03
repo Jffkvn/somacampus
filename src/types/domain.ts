@@ -31,7 +31,35 @@ export interface TimetableEntry {
   };
 }
 
-// 2. Teacher Today View Model Contract
+// 2. Class Responsibility Contract (Class / Form Teacher pastoral guardianship)
+export interface ClassResponsibility {
+  classId: string;
+  className: string;
+  streamId?: string;
+  streamName?: string;
+  studentCount: number;
+  classTeacherId: string;
+  classTeacherName: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  isCurrentUserClassTeacher: boolean;
+  todayDailyAttendance?: {
+    sessionId: string;
+    isRecorded: boolean;
+    recordedAt?: string;
+    recordedByTeacherId?: string;
+    recordedByTeacherName?: string;
+    // Derivable from relationships, NOT an arbitrary stored string:
+    isRecordedByClassTeacher: boolean;
+    totalStudents: number;
+    presentCount: number;
+    absentCount: number;
+    lateCount: number;
+    excusedCount: number;
+  };
+}
+
+// 3. Teacher Today View Model Contract
 export interface TeacherTodayViewModel {
   teacherId: string;
   teacherName: string;
@@ -43,6 +71,9 @@ export interface TeacherTodayViewModel {
     locationVerified?: boolean;
     verificationMethod?: 'verified_gps' | 'verified_manual' | 'flagged';
   };
+  // 1. CLASS RESPONSIBILITIES (Pastoral & Daily Class Attendance)
+  classResponsibilities: ClassResponsibility[];
+  // 2. TEACHING TIMETABLE (Scheduled Instructional Lessons)
   schedule: TimetableEntry[];
   activeClassIndex?: number;
   activeTimetableEntry?: TimetableEntry;
@@ -56,16 +87,20 @@ export interface TeacherTodayViewModel {
   }>;
 }
 
-// 3. Attendance Session Contract
+// 4. Daily Attendance Session Contract
+// Crucial: Student attendance is NOT per-subject. Exactly ONE daily attendance record per class/stream.
 export interface AttendanceSession {
   id: string;
   schoolId: string;
   classId: string;
   streamId?: string;
-  teacherId: string;
-  timetableEntryId?: string;
-  lessonId?: string;
-  date: string;
+  classTeacherId: string;            // Responsible class teacher on attendance date
+  classTeacherName?: string;
+  recordedByTeacherId: string;       // Actual teacher who entered attendance
+  recordedByTeacherName?: string;
+  isRecordedByClassTeacher: boolean; // Derived: recordedByTeacherId === classTeacherId
+  contextualTimetableEntryId?: string;
+  date: string;                      // ONE daily class attendance record
   totalStudents: number;
   presentCount: number;
   absentCount: number;
@@ -75,7 +110,7 @@ export interface AttendanceSession {
   updatedAt: string;
 }
 
-// 4. Attendance Record Contract (Longitudinal Learner History)
+// 5. Attendance Record Contract (Longitudinal Learner History)
 export interface AttendanceRecord {
   id: string;
   sessionId: string;
@@ -83,6 +118,7 @@ export interface AttendanceRecord {
   studentName: string;
   admissionNumber: string;
   photoUrl?: string;
+  streamId?: string;
   status: 'present' | 'absent' | 'late' | 'excused';
   remarks?: string;
   recordedBy: string;
@@ -90,6 +126,20 @@ export interface AttendanceRecord {
   correctedAt?: string;
   correctionReason?: string;
   correctedBy?: string;
+}
+
+// 6. Attendance Audit Log Contract (Historical correction trail)
+export interface AttendanceAuditLog {
+  id: string;
+  attendanceRecordId: string;
+  sessionId: string;
+  studentId: string;
+  previousStatus: 'present' | 'absent' | 'late' | 'excused';
+  newStatus: 'present' | 'absent' | 'late' | 'excused';
+  changedByTeacherId: string;
+  changedByTeacherName?: string;
+  changedAt: string;
+  reason: string;
 }
 
 // 5. Lesson Context Contract
