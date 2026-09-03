@@ -75,9 +75,20 @@ async function runLiveBrowserInspection() {
   console.log(`Attached with session ID: ${sessionId}`);
 
   // Enable Page, Runtime, and Console
+  eventListeners.set('Page.javascriptDialogOpening', async (params) => {
+    console.log(`[CDP] Handling JavaScript Dialog: "${params.message}" (${params.type})`);
+    try {
+      await sendCommand('Page.handleJavaScriptDialog', { accept: true }, sessionId);
+    } catch {}
+  });
+
   await sendCommand('Page.enable', {}, sessionId);
   await sendCommand('Runtime.enable', {}, sessionId);
   await sendCommand('DOM.enable', {}, sessionId);
+
+  try {
+    await sendCommand('Page.handleJavaScriptDialog', { accept: true }, sessionId);
+  } catch {}
 
   // Helper to capture screenshot
   async function takeScreenshot(filename: string) {

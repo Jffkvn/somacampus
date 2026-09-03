@@ -28,14 +28,14 @@ interface StudentRosterItem {
 }
 
 const DEFAULT_P5_STUDENTS: StudentRosterItem[] = [
-  { id: 'std-001', name: 'John Okello', admissionNumber: 'GCC-2024-001', status: 'present' },
-  { id: 'std-002', name: 'Grace Achieng', admissionNumber: 'GCC-2024-002', status: 'present' },
-  { id: 'std-003', name: 'Brian Kigozi', admissionNumber: 'GCC-2024-003', status: 'absent' },
-  { id: 'std-004', name: 'Doreen Nalubega', admissionNumber: 'GCC-2024-004', status: 'present' },
-  { id: 'std-005', name: 'Emmanuel Sserwadda', admissionNumber: 'GCC-2024-005', status: 'present' },
-  { id: 'std-006', name: 'Fiona Namatovu', admissionNumber: 'GCC-2024-006', status: 'present' },
-  { id: 'std-007', name: 'Ivan Mugisha', admissionNumber: 'GCC-2024-007', status: 'present' },
-  { id: 'std-008', name: 'Patricia Nakabugo', admissionNumber: 'GCC-2024-008', status: 'present' },
+  { id: '22222222-0000-0000-0000-000000000001', name: 'John Okello', admissionNumber: 'GCC-2024-001', status: 'present' },
+  { id: '22222222-0000-0000-0000-000000000002', name: 'Grace Achieng', admissionNumber: 'GCC-2024-002', status: 'present' },
+  { id: '22222222-0000-0000-0000-000000000003', name: 'Brian Kigozi', admissionNumber: 'GCC-2024-003', status: 'absent' },
+  { id: '22222222-0000-0000-0000-000000000004', name: 'Doreen Nalubega', admissionNumber: 'GCC-2024-004', status: 'present' },
+  { id: '22222222-0000-0000-0000-000000000005', name: 'Emmanuel Sserwadda', admissionNumber: 'GCC-2024-005', status: 'present' },
+  { id: '22222222-0000-0000-0000-000000000006', name: 'Faith Nakato', admissionNumber: 'GCC-2024-006', status: 'present' },
+  { id: '22222222-0000-0000-0000-000000000007', name: 'George William Mukasa', admissionNumber: 'GCC-2024-007', status: 'present' },
+  { id: '22222222-0000-0000-0000-000000000008', name: 'Harriet Namatovu', admissionNumber: 'GCC-2024-008', status: 'present' },
 ];
 
 export const TeacherTodayPage: React.FC = () => {
@@ -55,7 +55,7 @@ export const TeacherTodayPage: React.FC = () => {
     async function loadData() {
       try {
         setIsLoading(true);
-        const result = await teacherService.getTeacherToday('teacher-sarah-01', '2026-09-03');
+        const result = await teacherService.getTeacherToday('teacher@somacampus.ug', '2026-09-03');
         setData(result);
       } catch (err) {
         console.error('Failed to load teacher today data', err);
@@ -90,10 +90,18 @@ export const TeacherTodayPage: React.FC = () => {
     }
   };
 
-  const handleOpenAttendanceModal = (cr: ClassResponsibility) => {
+  const handleOpenAttendanceModal = async (cr: ClassResponsibility) => {
     setAttendanceModalClass(cr);
     setCorrectionReason('');
     setCorrectionStudentId(null);
+    try {
+      const students = await teacherService.getClassStudents(cr.classId, cr.streamId);
+      if (students && students.length > 0) {
+        setRoster(students);
+      }
+    } catch (e) {
+      console.warn('Could not load dynamic roster, using defaults', e);
+    }
   };
 
   const handleStatusChange = (studentId: string, newStatus: 'present' | 'absent' | 'late' | 'excused') => {
@@ -161,9 +169,9 @@ export const TeacherTodayPage: React.FC = () => {
       });
 
       setAttendanceModalClass(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save daily attendance', err);
-      alert('Error saving daily attendance. Please try again.');
+      alert(`Error saving daily attendance: ${err?.message || err?.error_description || 'Please try again.'}`);
     } finally {
       setIsSubmittingAttendance(false);
     }
