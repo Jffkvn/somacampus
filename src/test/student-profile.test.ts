@@ -117,31 +117,75 @@ describe('student profile (Phase 2 Task 5)', () => {
     tableResponses.student_fee_accounts = { data: null, error: { message: 'no policy' } };
 
     const profile = await studentService.getStudentProfile('student-1');
-    expect(profile.profile.fullName).toBe('John Okello');
-    expect(profile.profile.admissionNumber).toBe('GCC-2024-001');
-    expect(profile.attendance).toMatchObject({
+    expect(profile).not.toBeNull();
+    expect(profile!.profile.fullName).toBe('John Okello');
+    expect(profile!.profile.admissionNumber).toBe('GCC-2024-001');
+    expect(profile!.attendance).toMatchObject({
       total: 4,
       present: 2,
       absent: 1,
       late: 1,
     });
-    expect(profile.attendance.percentage).toBe(50);
-    expect(profile.recentRecords).toHaveLength(4);
-    expect(profile.recentRecords[0]).toMatchObject({ date: '2026-09-03', status: 'present' });
+    expect(profile!.attendance.percentage).toBe(50);
+    expect(profile!.recentRecords).toHaveLength(4);
+    expect(profile!.recentRecords[0]).toMatchObject({ date: '2026-09-03', status: 'present' });
     // Fee line degrades to hidden: failed fee lookup → undefined, never throws.
-    expect(profile.feeClearanceStatus).toBeUndefined();
+    expect(profile!.feeClearanceStatus).toBeUndefined();
   });
 
-  it('zero-division guard: no records → 0% and empty history', async () => {
+  it('zero-division guard: real student with no records → valid 0% profile (not null)', async () => {
     tableResponses.students = { data: studentRow(), error: null };
     tableResponses.student_enrolments = { data: enrolmentRow(), error: null };
     tableResponses.student_attendance_records = { data: [], error: null };
     tableResponses.student_fee_accounts = { data: null, error: { message: 'no policy' } };
 
     const profile = await studentService.getStudentProfile('student-1');
-    expect(profile.attendance.total).toBe(0);
-    expect(profile.attendance.percentage).toBe(0);
-    expect(profile.recentRecords).toEqual([]);
+    expect(profile).not.toBeNull();
+    expect(profile!.profile.fullName).toBe('John Okello');
+    expect(profile!.attendance.total).toBe(0);
+    expect(profile!.attendance.percentage).toBe(0);
+    expect(profile!.recentRecords).toEqual([]);
+  });
+
+  it('records lookup failure still returns a valid (empty-history) profile', async () => {
+    tableResponses.students = { data: studentRow(), error: null };
+    tableResponses.student_enrolments = { data: enrolmentRow(), error: null };
+    tableResponses.student_attendance_records = { data: null, error: { message: 'denied' } };
+    tableResponses.student_fee_accounts = { data: null, error: { message: 'no policy' } };
+
+    const profile = await studentService.getStudentProfile('student-1');
+    expect(profile).not.toBeNull();
+    expect(profile!.attendance.total).toBe(0);
+    expect(profile!.recentRecords).toEqual([]);
+  });
+
+  it('not-found: unknown student id returns null (never a synthetic profile)', async () => {
+    tableResponses.students = { data: null, error: null };
+    const profile = await studentService.getStudentProfile('no-such-student');
+    expect(profile).toBeNull();
+  });
+
+  it('error state: identity lookup failure returns null without throwing', async () => {
+    tableResponses.students = { data: null, error: { message: 'denied' } };
+    await expect(studentService.getStudentProfile('student-1')).resolves.toBeNull();
+  });
+
+  it('renders raw status for unknown values (counts only the four known)', async () => {
+    tableResponses.students = { data: studentRow(), error: null };
+    tableResponses.student_enrolments = { data: enrolmentRow(), error: null };
+    tableResponses.student_attendance_records = {
+      data: [
+        { id: 'rec-1', date: '2026-09-03', status: 'present', remarks: null },
+        { id: 'rec-2', date: '2026-09-02', status: 'sick', remarks: null },
+      ],
+      error: null,
+    };
+    tableResponses.student_fee_accounts = { data: null, error: { message: 'no policy' } };
+
+    const profile = await studentService.getStudentProfile('student-1');
+    expect(profile).not.toBeNull();
+    expect(profile!.attendance).toMatchObject({ total: 2, present: 1, absent: 0, late: 0 });
+    expect(profile!.recentRecords[1]).toMatchObject({ id: 'rec-2', status: 'sick' });
   });
 
   it('limits recent history to 10 records', async () => {
@@ -156,6 +200,7 @@ describe('student profile (Phase 2 Task 5)', () => {
     tableResponses.student_fee_accounts = { data: null, error: { message: 'no policy' } };
 
     const profile = await studentService.getStudentProfile('student-1');
-    expect(profile.recentRecords).toHaveLength(10);
+    expect(profile).not.toBeNull();
+    expect(profile!.recentRecords).toHaveLength(10);
   });
 });

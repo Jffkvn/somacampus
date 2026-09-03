@@ -9,8 +9,10 @@ export interface StudentDirectoryRow {
 }
 
 export interface StudentAttendanceRecord {
+  id: string;
   date: string;
-  status: 'present' | 'absent' | 'late' | 'excused';
+  /** Raw status string from the record — unknown values render as-is, only the four known statuses are counted. */
+  status: string;
   remarks?: string;
 }
 
@@ -41,12 +43,6 @@ const isMockEnv = (): boolean =>
   import.meta.env.VITE_SUPABASE_URL.includes('mock');
 
 const one = (v: unknown): any => (Array.isArray(v) ? v[0] : v);
-
-const emptyProfile = (studentId: string): StudentProfile => ({
-  profile: { studentId, admissionNumber: '—', fullName: 'Unknown student', className: '—' },
-  attendance: { total: 0, present: 0, absent: 0, late: 0, excused: 0, percentage: 0 },
-  recentRecords: [],
-});
 
 export const studentService = {
   /**
@@ -97,12 +93,16 @@ export const studentService = {
   /**
    * Read-only student profile: identity + enrolment class + longitudinal
    * attendance aggregates + recent history (desc, max 10).
+   * Returns null when the student is not found (or the identity lookup
+   * fails) — distinct from a real student with zero attendance, which
+   * returns a valid profile with 0% and empty history. Downstream
+   * lookups (records, fees) degrade to empties without failing the profile.
    * Fee line is best-effort: student_fee_accounts has no read path, so a
    * failed lookup degrades to undefined and the UI hides the fee row.
-   * Never throws top-level — degrades to empties.
+   * Never throws top-level.
    */
-  async getStudentProfile(studentId: string): Promise<StudentProfile> {
-    if (isMockEnv()) return emptyProfile(studentId);
+  async getStudentProfile(studentId: string): Promise<StudentProfile | null> {
+    if (isMockEnv()) return null;
     try {
       const { data: student, error: studentErr } = await supabase
         .from('students')
@@ -110,7 +110,7 @@ export const studentService = {
         .eq('id', studentId)
         .maybeSingle();
 
-      if (studentErr || !student) return emptyProfile(studentId);
+      if (studentErr || !student) return null;
 
       const person = one((student as any).person);
 
@@ -129,11 +129,11 @@ export const studentService = {
         // class label stays '—'
       }
 
-      let records: Array<{ date: string; status: string; remarks?: string | null }> = [];
+      let records: Array<{ id?: string | null; date: string; status: string; remarks?: string | null }> = [];
       try {
         const { data, error } = await supabase
           .from('student_attendance_records')
-          .select('date, status, remarks')
+          .select('id, date, status, remarks')
           .eq('student_id', studentId)
           .order('date', { ascending: false })
           .limit(60);
@@ -152,11 +152,10 @@ export const studentService = {
       const recentRecords: StudentAttendanceRecord[] = [...records]
         .sort((a, b) => String(b.date).localeCompare(String(a.date)))
         .slice(0, 10)
-        .map((r) => ({
+        .map((r, i) => ({
+          id: r.id ?? `record-${i}`,
           date: String(r.date).slice(0, 10),
-          status: (['present', 'absent', 'late', 'excused'] as const).includes(r.status as any)
-            ? (r.status as StudentAttendanceRecord['status'])
-            : 'present',
+          status: String(r.status),
           ...(r.remarks ? { remarks: r.remarks } : {}),
         }));
 
@@ -193,7 +192,7 @@ export const studentService = {
         ...(feeClearanceStatus ? { feeClearanceStatus, feeBalance } : {}),
       };
     } catch {
-      return emptyProfile(studentId);
+      return null;
     }
   },
 };

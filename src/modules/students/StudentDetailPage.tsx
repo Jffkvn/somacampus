@@ -1,27 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { studentService, StudentProfile } from './studentService';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { StatusPill } from '../../components/ui/StatusPill';
-import { ArrowLeft, GraduationCap } from 'lucide-react';
+import { ArrowLeft, GraduationCap, UserX } from 'lucide-react';
 
-const statusPillFor = (status: string): 'success' | 'critical' | 'warning' | 'info' =>
-  status === 'present' ? 'success' : status === 'absent' ? 'critical' : status === 'late' ? 'warning' : 'info';
+const statusPillFor = (status: string): 'success' | 'critical' | 'warning' | 'info' | 'neutral' =>
+  status === 'present'
+    ? 'success'
+    : status === 'absent'
+      ? 'critical'
+      : status === 'late'
+        ? 'warning'
+        : status === 'excused'
+          ? 'info'
+          : 'neutral';
 
 export const StudentDetailPage: React.FC = () => {
   const { studentId } = useParams<{ studentId: string }>();
+  const navigate = useNavigate();
   const [data, setData] = useState<StudentProfile | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      if (!studentId) return;
+      if (!studentId) {
+        setError('No student selected.');
+        setIsLoading(false);
+        return;
+      }
       try {
         setIsLoading(true);
-        setData(await studentService.getStudentProfile(studentId));
+        setError(null);
+        const res = await studentService.getStudentProfile(studentId);
+        if (!res) {
+          setError('not-found');
+          setData(null);
+        } else {
+          setData(res);
+        }
       } catch (err) {
         console.error('Failed to load student profile', err);
+        setError('Failed to load this student profile. Please try again.');
         setData(null);
       } finally {
         setIsLoading(false);
@@ -30,8 +53,33 @@ export const StudentDetailPage: React.FC = () => {
     load();
   }, [studentId]);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return <LoadingState label="Loading student profile..." />;
+  }
+
+  if (error || !data) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <Link
+          to="/students"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-teal hover:text-brand-tealDark"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Student Directory</span>
+        </Link>
+        <EmptyState
+          icon={UserX}
+          title="Student not found"
+          description={
+            error === 'not-found'
+              ? 'No student record matches this profile. It may have been withdrawn or the link is incorrect.'
+              : (error ?? 'No student record matches this profile.')
+          }
+          actionLabel="Back to directory"
+          onAction={() => navigate('/students')}
+        />
+      </div>
+    );
   }
 
   const { profile, attendance, recentRecords } = data;
@@ -123,7 +171,7 @@ export const StudentDetailPage: React.FC = () => {
           ) : (
             <div className="divide-y divide-slate-100">
               {recentRecords.map((r) => (
-                <div key={`${r.date}-${r.status}`} className="py-3 flex items-center justify-between gap-4">
+                <div key={r.id} className="py-3 flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{r.date}</p>
                     {r.remarks && <p className="text-xs text-slate-400 mt-0.5">{r.remarks}</p>}
