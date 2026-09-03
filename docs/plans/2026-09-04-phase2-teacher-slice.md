@@ -25,7 +25,7 @@
 -- corrections (INSERT was strict-owner since 00001; UPDATE was denied for all).
 ALTER TABLE lessons
   ADD COLUMN IF NOT EXISTS attendance_session_id UUID REFERENCES student_attendance_sessions(id) ON DELETE SET NULL;
-CREATE INDEX IF NOT EXISTS idx_lessons_timetable_date ON lessons (timetable_entry_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lessons_timetable_date ON lessons (timetable_entry_id, submitted_at DESC);
 
 DROP POLICY IF EXISTS lessons_auth_update ON lessons;
 CREATE POLICY lessons_auth_update ON lessons
