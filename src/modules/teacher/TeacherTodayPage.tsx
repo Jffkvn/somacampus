@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { greetFirstName } from './scheduleUtils';
 
 interface StudentRosterItem {
   id: string;
@@ -193,7 +194,7 @@ export const TeacherTodayPage: React.FC = () => {
             Teacher Workspace
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Good morning, {data.teacherName.split(' ')[1] || 'Teacher'}
+            Good morning, {greetFirstName(data.teacherName)}
           </h1>
           <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-slate-400" />

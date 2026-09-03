@@ -23,6 +23,25 @@ export function toLocalYYYYMMDD(d: Date = new Date()): string {
 }
 
 /**
+ * Extract the first name for greeting, skipping leading honorific titles.
+ * Strips Mrs/Mr/Ms/Miss/Dr/Prof (with or without period, case-insensitive),
+ * returns the first remaining token, or "Teacher" when nothing is left.
+ */
+export function greetFirstName(fullName: string): string {
+  const tokens = String(fullName ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const titles = new Set(['mrs', 'mr', 'ms', 'miss', 'dr', 'prof']);
+  while (tokens.length > 0) {
+    const normalized = tokens[0].replace(/\.+$/, '').toLowerCase();
+    if (!titles.has(normalized)) break;
+    tokens.shift();
+  }
+  return tokens[0] ?? 'Teacher';
+}
+
+/**
  * Derive the attendance recorder role from relationships (display-only, never persisted).
  * - same id as class teacher → 'class_teacher'
  * - different id present in today's schedule teacherIds → 'subject_teacher'
