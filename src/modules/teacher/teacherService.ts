@@ -199,7 +199,7 @@ export const teacherService = {
           const { data: enrolRows, error: enrolErr } = await supabase
             .from('student_enrolments')
             .select('class_id, stream_id')
-            .eq('status', 'enrolled')
+            .eq('status', 'active')
             .in('class_id', classIds);
           if (!enrolErr && enrolRows && enrolRows.length > 0) {
             for (const resp of activeResponsibilities) {

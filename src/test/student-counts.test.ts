@@ -15,6 +15,8 @@ describe('teacher class sizes from student_enrolments (RED)', () => {
 
   let tableResponses: Record<string, unknown> = {};
 
+  // Records every .eq() call so tests can pin the enrolment status vocabulary.
+  let eqCalls: Array<{ table: string; args: unknown[] }> = [];
   // Minimal thenable query-builder stub: every chain method returns the builder.
   const builderFor = (table: string) => {
     const respond = () => {
@@ -24,7 +26,10 @@ describe('teacher class sizes from student_enrolments (RED)', () => {
     };
     const builder: any = {};
     builder.select = () => builder;
-    builder.eq = () => builder;
+    builder.eq = (...args: unknown[]) => {
+      eqCalls.push({ table, args });
+      return builder;
+    };
     builder.in = () => builder;
     builder.order = () => builder;
     builder.limit = () => builder;
@@ -69,6 +74,7 @@ describe('teacher class sizes from student_enrolments (RED)', () => {
     vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
     vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key');
     mockFrom.mockImplementation((table: string) => builderFor(table));
+    eqCalls = [];
     tableResponses = {
       employees: { data: [], error: null },
       class_teachers: { data: [ctRow()], error: null },
@@ -87,15 +93,20 @@ describe('teacher class sizes from student_enrolments (RED)', () => {
   it('(a) responsibilities get counts from enrolment rows (class+stream match)', async () => {
     tableResponses.student_enrolments = {
       data: [
-        { class_id: CLASS_ID, stream_id: STREAM_ID },
-        { class_id: CLASS_ID, stream_id: STREAM_ID },
-        { class_id: CLASS_ID, stream_id: STREAM_ID },
-        { class_id: CLASS_ID, stream_id: OTHER_STREAM }, // other stream: not counted
-        { class_id: OTHER_CLASS, stream_id: STREAM_ID }, // other class: not counted
+        { class_id: CLASS_ID, stream_id: STREAM_ID, status: 'active' },
+        { class_id: CLASS_ID, stream_id: STREAM_ID, status: 'active' },
+        { class_id: CLASS_ID, stream_id: STREAM_ID, status: 'active' },
+        { class_id: CLASS_ID, stream_id: OTHER_STREAM, status: 'active' }, // other stream: not counted
+        { class_id: OTHER_CLASS, stream_id: STREAM_ID, status: 'active' }, // other class: not counted
       ],
       error: null,
     };
     const vm = await teacherService.getTeacherToday(TEACHER_UUID, '2026-09-03');
+    // CHECK-conformant vocabulary: the query must filter status='active', not 'enrolled'
+    expect(eqCalls).toContainEqual({
+      table: 'student_enrolments',
+      args: ['status', 'active'],
+    });
     expect(vm.classResponsibilities).toHaveLength(1);
     expect(vm.classResponsibilities[0].studentCount).toBe(3);
     // Live timetable mapping picks up the derived count via classId/streamId match
