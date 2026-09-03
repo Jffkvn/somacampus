@@ -188,6 +188,49 @@ export const teacherService = {
         }
       }
 
+      // 2b. Batched class-size lookup from student_enrolments (ONE query, never throws).
+      // Counts enrolled rows per class+stream in memory and overrides each
+      // responsibility. On any failure/empty result the Indie fallback chain
+      // below applies: today's session total_students if present, else the
+      // existing value.
+      try {
+        const classIds = [...new Set(activeResponsibilities.map((r) => r.classId))];
+        if (classIds.length > 0) {
+          const { data: enrolRows, error: enrolErr } = await supabase
+            .from('student_enrolments')
+            .select('class_id, stream_id')
+            .eq('status', 'enrolled')
+            .in('class_id', classIds);
+          if (!enrolErr && enrolRows && enrolRows.length > 0) {
+            for (const resp of activeResponsibilities) {
+              const counted = (enrolRows as any[]).filter(
+                (e) =>
+                  e.class_id === resp.classId &&
+                  (resp.streamId == null || e.stream_id === resp.streamId)
+              ).length;
+              resp.studentCount =
+                counted > 0
+                  ? counted
+                  : (resp.todayDailyAttendance?.totalStudents ?? resp.studentCount);
+            }
+          } else {
+            if (enrolErr) {
+              console.warn('getTeacherToday class-size lookup failed, using session fallback:', enrolErr);
+            }
+            for (const resp of activeResponsibilities) {
+              resp.studentCount =
+                resp.todayDailyAttendance?.totalStudents ?? resp.studentCount;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('getTeacherToday class-size lookup fallback (student_enrolments read failed):', err);
+        for (const resp of activeResponsibilities) {
+          resp.studentCount =
+            resp.todayDailyAttendance?.totalStudents ?? resp.studentCount;
+        }
+      }
+
       // If no live DB rows found (fallback for initial render or test), provide canonical Sarah P5 Blue model
       if (activeResponsibilities.length === 0 && teacherEmailOrId.includes('teacher')) {
         activeResponsibilities.push({
