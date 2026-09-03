@@ -23,6 +23,23 @@ export function toLocalYYYYMMDD(d: Date = new Date()): string {
 }
 
 /**
+ * Index of the schedule entry to highlight.
+ * - empty schedule → -1 (nothing to highlight)
+ * - not viewing today → 0 (first row, not time-aware)
+ * - today → first index with endTime > nowHHMM, else -1 (day over).
+ * Day-over is derivable as (isToday && index === -1 && schedule.length > 0).
+ */
+export function selectActiveEntry(
+  schedule: { endTime: string }[],
+  nowHHMM: string,
+  isToday: boolean
+): number {
+  if (schedule.length === 0) return -1;
+  if (!isToday) return 0;
+  return schedule.findIndex((e) => e.endTime > nowHHMM);
+}
+
+/**
  * Extract the first name for greeting, skipping leading honorific titles.
  * Strips Mrs/Mr/Ms/Miss/Dr/Prof (with or without period, case-insensitive),
  * returns the first remaining token, or "Teacher" when nothing is left.

@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { TeacherTodayViewModel, TimetableEntry, ClassResponsibility, AttendanceSession, AttendanceAuditLog } from '../../types/domain';
-import { toDayOfWeek, toHHMM, toLocalYYYYMMDD, deriveRecorderRole } from './scheduleUtils';
+import { toDayOfWeek, toHHMM, toLocalYYYYMMDD, deriveRecorderRole, selectActiveEntry } from './scheduleUtils';
 
 const VERIF = ['verified_gps', 'verified_manual', 'flagged'] as const;
 type VerificationMethod = (typeof VERIF)[number];
@@ -381,11 +381,13 @@ export const teacherService = {
       }
 
       // Active entry: only time-aware when viewing today; otherwise the first row.
+      // selectActiveEntry returns -1 when the school day is over (or the
+      // schedule is empty) → activeTimetableEntry stays undefined and the UI
+      // renders the day-complete state instead of a stale "current" lesson.
       const isViewingToday = date === toLocalYYYYMMDD();
       const nowHHMM = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
-      const activeEntry = isViewingToday
-        ? (schedule.find((e) => e.endTime > nowHHMM) ?? schedule[0])
-        : schedule[0];
+      const activeIndex = selectActiveEntry(schedule, nowHHMM, isViewingToday);
+      const activeEntry = activeIndex === -1 ? undefined : schedule[activeIndex];
 
       // Derive recorder role labels from relationships (display-only, never persisted).
       // Admin detection needs user_roles lookup — skipped; 'admin' stays for future use.

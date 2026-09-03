@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { greetFirstName } from './scheduleUtils';
+import { greetFirstName, toLocalYYYYMMDD } from './scheduleUtils';
 
 interface StudentRosterItem {
   id: string;
@@ -182,8 +182,16 @@ export const TeacherTodayPage: React.FC = () => {
     return <LoadingState label="Loading today's teaching workspace..." />;
   }
 
-  const { isClockedIn, clockedInAt } = data.clockInStatus;
+  const { isClockedIn, clockedInAt, verificationMethod } = data.clockInStatus;
   const activeEntry = data.activeTimetableEntry;
+  const isViewingToday = data.date === toLocalYYYYMMDD();
+  const nowHHMM = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
+  const verificationLabel =
+    verificationMethod === 'verified_gps'
+      ? 'GPS Verified • School Compound'
+      : verificationMethod === 'flagged'
+        ? 'Needs review'
+        : 'Verified';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -215,7 +223,7 @@ export const TeacherTodayPage: React.FC = () => {
                 </span>
                 <span className="text-emerald-700/90 flex items-center gap-1 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                  GPS Verified • School Compound
+                  {verificationLabel}
                 </span>
               </div>
             </div>
@@ -403,8 +411,8 @@ export const TeacherTodayPage: React.FC = () => {
           </span>
         </div>
 
-        {/* Hero: Active / Current Scheduled Class */}
-        {activeEntry && (
+        {/* Hero: Active / Current Scheduled Class, or day-complete state */}
+        {activeEntry ? (
           <Card className="border-slate-200/80 bg-white shadow-sm">
             <CardHeader className="border-b-0 pb-2">
               <div className="flex items-center gap-2">
@@ -470,13 +478,28 @@ export const TeacherTodayPage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-        )}
+        ) : data.schedule.length > 0 ? (
+          <Card className="border-emerald-200/80 bg-emerald-50/50 shadow-sm">
+            <CardContent className="py-5 flex items-center gap-3">
+              <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-slate-900">
+                  School day complete — see you tomorrow
+                </p>
+                <p className="text-xs text-slate-500">
+                  All scheduled lessons for today have ended.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Full Timetable List & Events */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-3">
             {data.schedule.map((entry) => {
               const isCurrent = activeEntry?.id === entry.id;
+              const isPast = isViewingToday && entry.endTime <= nowHHMM;
 
               return (
                 <div
@@ -510,7 +533,7 @@ export const TeacherTodayPage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <StatusPill status={isCurrent ? 'warning' : 'neutral'} label={isCurrent ? 'Up Next' : 'Scheduled'} />
+                    <StatusPill status={isCurrent && !isPast ? 'warning' : 'neutral'} label={isPast ? 'Done' : isCurrent ? 'Up Next' : 'Scheduled'} />
 
                     <Button
                       variant="outline"
