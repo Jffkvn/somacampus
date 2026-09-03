@@ -268,7 +268,13 @@ export const TeacherTodayPage: React.FC = () => {
         </div>
 
         {data.classResponsibilities.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div
+            className={`grid gap-4 ${
+              data.classResponsibilities.length > 1
+                ? 'grid-cols-1 md:grid-cols-2'
+                : 'grid-cols-1'
+            }`}
+          >
             {data.classResponsibilities.map((cr) => {
               const att = cr.todayDailyAttendance;
               const isRecorded = att && att.isRecorded;
