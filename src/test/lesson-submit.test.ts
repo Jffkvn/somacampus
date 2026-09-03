@@ -129,6 +129,19 @@ describe('lesson submit (Phase 2 Task 2)', () => {
     const reflectionPayload: any = insertedPayloads.teacher_reflections;
     expect(reflectionPayload).toBeDefined();
     expect(JSON.stringify(reflectionPayload)).toContain('I need to slow down');
+
+    expect(lessonPayload.started_at).toBeTruthy();
+    expect(lessonPayload.completed_at).toBeTruthy();
+
+    // Non-completed lessons leave completed_at null (schema nullable).
+    tableResponses.lessons = { data: { id: 'lesson-1b' }, error: null };
+    await submitLesson(
+      { ...sub, lessonId: 'lesson-1b', status: 'partial', privateReflection: undefined },
+      { schoolId: 'school-1', classId: 'class-1', subjectId: 'subj-math', teacherId: 'teacher-1' }
+    );
+    const partialPayload: any = insertedPayloads.lessons;
+    expect(partialPayload.started_at).toBeTruthy();
+    expect(partialPayload.completed_at).toBeNull();
   });
 
   it('still resolves when the reflection insert fails (warn path)', async () => {
@@ -154,5 +167,43 @@ describe('lesson submit (Phase 2 Task 2)', () => {
       })
     ).resolves.toBeDefined();
     warn.mockRestore();
+  });
+});
+
+describe('lesson mock-env stubs (no network)', () => {
+  it('returns a demo context without calling supabase', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    const ctx = await getLessonContext(ENTRY_ID, '2026-09-03');
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(ctx.timetableEntryId).toBe(ENTRY_ID);
+    expect(ctx.date).toBe('2026-09-03');
+    expect(ctx.subjectName).toBe('Demo Lesson');
+    expect(ctx.teacherName).toBe('Demo Teacher');
+    expect(ctx.className).toBe('Demo Class');
+    expect(ctx.curriculum.topic).toBe('Demo Topic');
+    expect(ctx.previousLessonSummary).toBeUndefined();
+    expect(ctx.relevantResourcesCount).toBe(0);
+    expect(ctx.startTime).toBe('08:00');
+    expect(ctx.endTime).toBe('09:00');
+  });
+
+  it('resolves a mock lesson id without touching supabase', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    const res = await submitLesson(
+      {
+        lessonId: 'lesson-mock-1',
+        timetableEntryId: ENTRY_ID,
+        status: 'completed' as const,
+        whatWasTaught: 'Fractions intro',
+        visibleLessonNote: 'Class went well.',
+        privateReflection: 'Private thought.',
+        submittedAt: '2026-09-03T10:00:00Z',
+        submittedBy: 'teacher-1',
+      },
+      { schoolId: 'school-1', classId: 'class-1', subjectId: 'subj-math', teacherId: 'teacher-1' }
+    );
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(res.lessonId.startsWith('mock-')).toBe(true);
   });
 });

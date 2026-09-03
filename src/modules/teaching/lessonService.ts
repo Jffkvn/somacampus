@@ -19,6 +19,13 @@ import { toHHMM } from '../teacher/scheduleUtils';
 
 const CURRICULUM_FRAMEWORK = 'Cambridge Primary';
 
+// Mock-env guard, mirroring teacherService: never attempt network without a
+// real Supabase URL (missing, placeholder, or mock).
+function isMockEnv(): boolean {
+  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  return !url || url.includes('placeholder') || url.includes('mock');
+}
+
 /** FK fields that LessonSubmission does not carry (resolved by the caller). */
 export interface LessonSubmitContext {
   schoolId: string;
@@ -40,13 +47,39 @@ function personName(teacher: any): string | null {
 
 /**
  * Load the context for teaching/submitting a scheduled lesson.
- * Entry errors throw (the page renders the message); a failed prior-lesson
- * lookup degrades to defaults (no previous summary, topic falls back).
+ * In mock env returns a clearly-marked demo stub (no network).
+ * Entry errors log the cause then throw (the page renders the message);
+ * a failed prior-lesson lookup degrades to defaults (no previous summary,
+ * topic falls back).
  */
 export async function getLessonContext(
   timetableEntryId: string,
   date: string
 ): Promise<LessonContext> {
+  if (isMockEnv()) {
+    return {
+      timetableEntryId,
+      schoolId: 'mock-school',
+      classId: 'mock-class',
+      className: 'Demo Class',
+      subjectId: 'mock-subject',
+      subjectName: 'Demo Lesson',
+      teacherId: 'mock-teacher',
+      teacherName: 'Demo Teacher',
+      date,
+      startTime: '08:00',
+      endTime: '09:00',
+      curriculum: {
+        framework: CURRICULUM_FRAMEWORK,
+        level: 'Demo Level',
+        topic: 'Demo Topic',
+        objective: 'Demo Objective',
+      },
+      previousLessonSummary: undefined,
+      relevantResourcesCount: 0,
+    };
+  }
+
   const { data: row, error } = await supabase
     .from('timetable_entries')
     .select(
@@ -56,6 +89,7 @@ export async function getLessonContext(
     .maybeSingle();
 
   if (error || !row) {
+    console.error('getLessonContext: timetable entry load failed:', error ?? new Error('no row returned'));
     throw new Error(
       `Could not load lesson context for timetable entry ${timetableEntryId}.`
     );
@@ -95,7 +129,7 @@ export async function getLessonContext(
     subjectId,
     subjectName,
     teacherId: r.teacher_id,
-    teacherName: personName(tch) ?? (tch ? 'Teacher' : 'Teacher'),
+    teacherName: personName(tch) ?? 'Teacher',
     date,
     startTime: toHHMM(r.start_time) ?? String(r.start_time ?? '').slice(0, 5),
     endTime: toHHMM(r.end_time) ?? String(r.end_time ?? '').slice(0, 5),
@@ -115,12 +149,19 @@ export async function getLessonContext(
  * Submit a lesson: insert the lessons row (never carrying reflection text),
  * then — only when a non-blank privateReflection is present — insert the
  * private text into teacher_reflections. A reflection failure warns and still
- * resolves; a lessons-insert failure throws.
+ * resolves; a lessons-insert failure logs the cause then throws.
+ * started_at is always now; completed_at is set only when status is
+ * 'completed', else null (schema nullable). In mock env resolves a fake id
+ * without touching supabase.
  */
 export async function submitLesson(
   sub: LessonSubmission,
   ctx: LessonSubmitContext
 ): Promise<{ lessonId: string }> {
+  if (isMockEnv()) {
+    return { lessonId: `mock-lesson-${Date.now()}` };
+  }
+
   const now = new Date().toISOString();
   const lessonRow: Record<string, unknown> = {
     school_id: ctx.schoolId,
@@ -134,7 +175,7 @@ export async function submitLesson(
     curriculum_topic: ctx.curriculumTopic ?? null,
     curriculum_objective: ctx.curriculumObjective ?? null,
     started_at: now,
-    completed_at: now,
+    completed_at: sub.status === 'completed' ? now : null,
   };
   if (ctx.streamId) lessonRow.stream_id = ctx.streamId;
   if (sub.attendanceSessionId) lessonRow.attendance_session_id = sub.attendanceSessionId;
@@ -146,6 +187,7 @@ export async function submitLesson(
     .single();
 
   if (error || !(data as any)?.id) {
+    console.error('submitLesson: lessons insert failed:', error ?? new Error('no id returned'));
     throw new Error('Could not submit lesson. Please try again.');
   }
   const lessonId = (data as any).id as string;
