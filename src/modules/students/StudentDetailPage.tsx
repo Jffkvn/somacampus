@@ -559,7 +559,7 @@ export const StudentDetailPage: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-bold text-slate-900">
-            Subject Performance &amp; Mastery Trajectory
+            Subject Performance &amp; Evidence Trajectory
           </CardTitle>
           <p className="text-xs text-slate-500 mt-0.5">
             Overview of academic evidence density, formal marks, and diagnostic participation across subjects.
@@ -574,7 +574,7 @@ export const StudentDetailPage: React.FC = () => {
                   <th className="py-2.5 px-3">Formal Average</th>
                   <th className="py-2.5 px-3">Diagnostic Completion</th>
                   <th className="py-2.5 px-3">Evidence Items</th>
-                  <th className="py-2.5 px-3">Mastery Trajectory</th>
+                  <th className="py-2.5 px-3">Evidence Trajectory</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

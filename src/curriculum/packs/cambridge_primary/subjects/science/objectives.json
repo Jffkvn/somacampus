@@ -1,0 +1,47 @@
+[
+  {
+    "code": "4ESw.01",
+    "stage_number": 4,
+    "strand_code": "ES",
+    "sub_strand_code": "ESw",
+    "title": "Identify states of water and boiling point",
+    "description": "Identify the boiling point of water and investigate evaporation from open and closed containers.",
+    "progression_order": 1
+  },
+  {
+    "code": "5Bp.01",
+    "stage_number": 5,
+    "strand_code": "B",
+    "sub_strand_code": "Bp",
+    "title": "Identify human digestive and circulatory systems",
+    "description": "Identify major human organs including the stomach, intestines, heart, and lungs, describing their primary functions.",
+    "progression_order": 1
+  },
+  {
+    "code": "5ESw.01",
+    "stage_number": 5,
+    "strand_code": "ES",
+    "sub_strand_code": "ESw",
+    "title": "Describe the water cycle and precipitation processes",
+    "description": "Describe the stages of the water cycle including evaporation, transpiration, condensation, and precipitation.",
+    "progression_order": 2
+  },
+  {
+    "code": "5Pf.01",
+    "stage_number": 5,
+    "strand_code": "P",
+    "sub_strand_code": "Pf",
+    "title": "Investigate friction, air resistance and gravity",
+    "description": "Investigate how friction, air resistance, and gravity act upon moving bodies in terrestrial environments.",
+    "progression_order": 3
+  },
+  {
+    "code": "6Cc.01",
+    "stage_number": 6,
+    "strand_code": "C",
+    "sub_strand_code": "Cc",
+    "title": "Distinguish between reversible and irreversible chemical changes",
+    "description": "Distinguish between physical dissolving/freezing and irreversible reactions that produce new substances such as gas.",
+    "progression_order": 1
+  }
+]

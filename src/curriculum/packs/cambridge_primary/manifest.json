@@ -1,0 +1,21 @@
+{
+  "pack_format_version": "1.0",
+  "framework_code": "CAMBRIDGE_PRIMARY",
+  "framework_name": "Cambridge Primary Curriculum Framework",
+  "version_code": "2026.1",
+  "release_year": 2026,
+  "valid_from": "2026-01-01",
+  "valid_to": null,
+  "is_current": true,
+  "is_authoritative": false,
+  "provenance_source": "Demonstration Fixture",
+  "subjects": [
+    "mathematics",
+    "english",
+    "science",
+    "global_perspectives",
+    "computing"
+  ],
+  "stages": [1, 2, 3, 4, 5, 6],
+  "checksum": "sha256:cambridge_primary_2026_demo_v1"
+}

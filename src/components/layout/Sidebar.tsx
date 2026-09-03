@@ -24,7 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const location = useLocation();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     teaching: true,
-    academics: false,
+    academics: true,
     students: false,
     finance: false,
     administration: false,

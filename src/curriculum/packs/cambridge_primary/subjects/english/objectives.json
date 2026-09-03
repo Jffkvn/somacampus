@@ -1,0 +1,56 @@
+[
+  {
+    "code": "4Rw.01",
+    "stage_number": 4,
+    "strand_code": "R",
+    "sub_strand_code": "Rw",
+    "title": "Use context clues to determine unfamiliar words",
+    "description": "Use knowledge of word origins and context clues to decode unfamiliar words in independent reading.",
+    "progression_order": 1
+  },
+  {
+    "code": "5Ri.01",
+    "stage_number": 5,
+    "strand_code": "R",
+    "sub_strand_code": "Ri",
+    "title": "Distinguish between explicit facts and implied meanings",
+    "description": "Distinguish between explicit fact and implicit subtext in non-fiction and persuasive argument texts.",
+    "progression_order": 1
+  },
+  {
+    "code": "5Wg.01",
+    "stage_number": 5,
+    "strand_code": "W",
+    "sub_strand_code": "Wg",
+    "title": "Use relative clauses with relative pronouns",
+    "description": "Construct compound and complex sentences using relative clauses with who, which, where, when, whose, that.",
+    "progression_order": 2
+  },
+  {
+    "code": "5Ws.01",
+    "stage_number": 5,
+    "strand_code": "W",
+    "sub_strand_code": "Ws",
+    "title": "Structure multi-paragraph non-chronological reports",
+    "description": "Organize paragraphs logically around a topic sentence with cohesive devices and subheadings.",
+    "progression_order": 3
+  },
+  {
+    "code": "5SLs.01",
+    "stage_number": 5,
+    "strand_code": "SL",
+    "sub_strand_code": "SLs",
+    "title": "Deliver persuasive speeches with rhetorical devices",
+    "description": "Deliver a planned oral presentation using persuasive rhetorical questions and deliberate pacing.",
+    "progression_order": 4
+  },
+  {
+    "code": "6Ri.01",
+    "stage_number": 6,
+    "strand_code": "R",
+    "sub_strand_code": "Ri",
+    "title": "Analyze figurative language and metaphor in poetry",
+    "description": "Analyze how an author's use of figurative language, metaphor, and simile shapes tone and theme.",
+    "progression_order": 1
+  }
+]

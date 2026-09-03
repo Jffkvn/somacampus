@@ -1,0 +1,47 @@
+[
+  {
+    "code": "4CT.01",
+    "stage_number": 4,
+    "strand_code": "CT",
+    "sub_strand_code": null,
+    "title": "Design simple block algorithms with loops",
+    "description": "Design, write and debug simple programs that accomplish specific goals, using sequence and repetition (loops).",
+    "progression_order": 1
+  },
+  {
+    "code": "5CT.01",
+    "stage_number": 5,
+    "strand_code": "CT",
+    "sub_strand_code": null,
+    "title": "Use selection and conditional logic in programs",
+    "description": "Design and construct algorithms that use selection (if/then/else conditions) to alter program flow based on user inputs.",
+    "progression_order": 1
+  },
+  {
+    "code": "5MD.01",
+    "stage_number": 5,
+    "strand_code": "MD",
+    "sub_strand_code": null,
+    "title": "Construct and query flat-file databases with filters",
+    "description": "Create a digital table structure with field types (text, number, date) and search records using criteria filters.",
+    "progression_order": 2
+  },
+  {
+    "code": "5NC.01",
+    "stage_number": 5,
+    "strand_code": "NC",
+    "sub_strand_code": null,
+    "title": "Evaluate security of online passwords and credentials",
+    "description": "Identify strategies for creating strong multi-character passphrases and recognize common phishing indicators.",
+    "progression_order": 3
+  },
+  {
+    "code": "6CT.01",
+    "stage_number": 6,
+    "strand_code": "CT",
+    "sub_strand_code": null,
+    "title": "Decompose complex challenges into modular functions",
+    "description": "Decompose a multi-step game or software problem into reusable sub-routines and custom procedures.",
+    "progression_order": 1
+  }
+]

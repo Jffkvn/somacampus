@@ -1,0 +1,8 @@
+[
+  { "stage_number": 1, "name": "Stage 1", "typical_age_range": "Age 5-6", "display_order": 1 },
+  { "stage_number": 2, "name": "Stage 2", "typical_age_range": "Age 6-7", "display_order": 2 },
+  { "stage_number": 3, "name": "Stage 3", "typical_age_range": "Age 7-8", "display_order": 3 },
+  { "stage_number": 4, "name": "Stage 4", "typical_age_range": "Age 8-9", "display_order": 4 },
+  { "stage_number": 5, "name": "Stage 5", "typical_age_range": "Age 9-10", "display_order": 5 },
+  { "stage_number": 6, "name": "Stage 6", "typical_age_range": "Age 10-11", "display_order": 6 }
+]

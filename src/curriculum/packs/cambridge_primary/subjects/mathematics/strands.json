@@ -1,0 +1,44 @@
+[
+  {
+    "code": "N",
+    "name": "Number",
+    "description": "Counting, integers, powers, fractions, decimals, and calculations.",
+    "display_order": 1,
+    "sub_strands": [
+      { "code": "Nn", "name": "Counting and integers", "display_order": 1 },
+      { "code": "Np", "name": "Powers and place value", "display_order": 2 },
+      { "code": "Nf", "name": "Fractions, decimals and percentages", "display_order": 3 }
+    ]
+  },
+  {
+    "code": "G",
+    "name": "Geometry & Measure",
+    "description": "Properties of shapes, symmetry, angles, perimeter, area, and volume.",
+    "display_order": 2,
+    "sub_strands": [
+      { "code": "Gg", "name": "2D and 3D shapes", "display_order": 1 },
+      { "code": "Gm", "name": "Position, direction and movement", "display_order": 2 },
+      { "code": "Gl", "name": "Measurement and units", "display_order": 3 }
+    ]
+  },
+  {
+    "code": "S",
+    "name": "Statistics & Probability",
+    "description": "Data collection, organization, representation, and likelihood.",
+    "display_order": 3,
+    "sub_strands": [
+      { "code": "Ss", "name": "Statistics and data handling", "display_order": 1 },
+      { "code": "Sp", "name": "Probability and chance", "display_order": 2 }
+    ]
+  },
+  {
+    "code": "TWM",
+    "name": "Thinking and Working Mathematically",
+    "description": "Characteristics and habits of mathematical thinkers.",
+    "display_order": 4,
+    "sub_strands": [
+      { "code": "TWMg", "name": "Generalising and specialising", "display_order": 1 },
+      { "code": "TWMc", "name": "Critiquing and improving", "display_order": 2 }
+    ]
+  }
+]

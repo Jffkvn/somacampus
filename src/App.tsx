@@ -13,6 +13,9 @@ import { StudentDetailPage } from './modules/students/StudentDetailPage';
 import { AssignmentsListPage } from './modules/teaching/AssignmentsListPage';
 import { AssignmentCreatePage } from './modules/teaching/AssignmentCreatePage';
 import { AssignmentReviewPage } from './modules/teaching/AssignmentReviewPage';
+import { CurriculumExplorerPage } from './modules/curriculum/CurriculumExplorerPage';
+import { SchemesOfWorkPage } from './modules/planning/SchemesOfWorkPage';
+import { SchemeDetailPage } from './modules/planning/SchemeDetailPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
 
@@ -150,6 +153,12 @@ export const App: React.FC = () => {
           />
 
           {/* Academics & Schedule Routes */}
+          {/* Phase 6 Curriculum Engine & Academic Planning */}
+          <Route path="curriculum" element={<CurriculumExplorerPage />} />
+          <Route path="curriculum/:frameworkCode" element={<CurriculumExplorerPage />} />
+          <Route path="planning/schemes" element={<SchemesOfWorkPage />} />
+          <Route path="planning/schemes/:schemeId" element={<SchemeDetailPage />} />
+
           <Route
             path="timetable"
             element={

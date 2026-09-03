@@ -167,6 +167,11 @@ export interface LessonContext {
     topic: string;     // e.g. "Water Cycle"
     objective: string; // e.g. "Explain evaporation and condensation"
   };
+  curriculumObjectiveId?: string;
+  curriculumObjectiveCode?: string;
+  curriculumObjectiveTitle?: string;
+  curriculumStageId?: string;
+  teachingSequenceId?: string;
   previousLessonSummary?: string;
   relevantResourcesCount: number;
 }
@@ -180,6 +185,8 @@ export interface LessonSubmission {
   visibleLessonNote: string;
   privateReflection?: string; // Strictly isolated from leadership view
   attendanceSessionId?: string;
+  objectiveIds?: string[];
+  teachingSequenceId?: string;
   submittedAt: string;
   submittedBy: string;
 }
@@ -404,6 +411,10 @@ export interface StudentIntervention {
   subjectName?: string;
   learningArea: string;
   topicName?: string;
+  curriculumObjectiveId?: string | null;
+  curriculumObjectiveCode?: string;
+  curriculumObjectiveTitle?: string;
+  /** @deprecated Use curriculumObjectiveId instead. Retained for historical migration. */
   curriculumObjectiveRef?: string | null;
   reason: string;
   strategyAction: string;
@@ -533,6 +544,197 @@ export interface PreLessonBriefing {
     prompt: string;
     evidenceBasis: string;
   }>;
+  curriculumObjectiveId?: string;
+  curriculumObjectiveCode?: string;
+  curriculumObjectiveTitle?: string;
+  prerequisiteObjectives?: Array<{
+    id: string;
+    code: string;
+    title: string;
+    relationshipType: string;
+  }>;
 }
 
+// ==============================================================================
+// PHASE 6: CURRICULUM ENGINE & ACADEMIC PLANNING CONTRACTS
+// ==============================================================================
 
+// 1. Global Curriculum Framework
+export interface CurriculumFramework {
+  id: string;
+  code: string; // e.g. 'CAMBRIDGE_PRIMARY'
+  name: string; // 'Cambridge Primary'
+  jurisdiction?: string | null; // 'International'
+  description?: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+// 2. Historically Safe Curriculum Version
+export interface CurriculumVersion {
+  id: string;
+  frameworkId: string;
+  versionCode: string; // e.g. '2026.1'
+  releaseYear: number;
+  validFrom: string;
+  validTo?: string | null;
+  isCurrent: boolean;
+  createdAt: string;
+}
+
+// 3. Curriculum Subject Standard
+export interface CurriculumSubject {
+  id: string;
+  versionId: string;
+  code: string; // 'MATH', 'ENG', 'SCI', 'GP', 'COMP'
+  name: string; // 'Mathematics', 'English', etc.
+  description?: string | null;
+  displayOrder: number;
+}
+
+// 4. Curriculum Stage
+export interface CurriculumStage {
+  id: string;
+  versionId: string;
+  stageNumber: number; // 1, 2, 3, 4, 5, 6
+  name: string; // 'Stage 1', 'Stage 5'
+  typicalAgeRange?: string | null; // 'Age 9-10'
+  displayOrder: number;
+}
+
+// 5. Curriculum Strand
+export interface CurriculumStrand {
+  id: string;
+  versionId: string;
+  subjectId: string;
+  stageId?: string | null;
+  code: string; // 'N', 'G', 'S', 'TWM'
+  name: string; // 'Number', 'Geometry & Measure'
+  description?: string | null;
+  displayOrder: number;
+}
+
+// 6. Curriculum Sub-Strand (Optional Depth per Guardrail H)
+export interface CurriculumSubStrand {
+  id: string;
+  versionId: string;
+  strandId: string;
+  code: string; // 'Nn', 'Nf'
+  name: string; // 'Fractions, Decimals and Percentages'
+  description?: string | null;
+  displayOrder: number;
+}
+
+// 7. Canonical Learning Objective
+export interface LearningObjective {
+  id: string;
+  versionId: string;
+  subjectId: string;
+  stageId: string;
+  strandId: string;
+  subStrandId?: string | null; // Nullable for flat subjects like GP/COMP
+  code: string; // '5Nn.01'
+  title: string;
+  description: string;
+  progressionOrder: number;
+  isAuthoritative: boolean;
+  provenanceSource?: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+// 8. Learning Objective Relationship
+export type LearningObjectiveRelationshipType =
+  | 'prerequisite'
+  | 'precursor'
+  | 'extension'
+  | 'cross_curricular';
+
+export interface LearningObjectiveRelationship {
+  id: string;
+  sourceObjectiveId: string;
+  targetObjectiveId: string;
+  relationshipType: LearningObjectiveRelationshipType;
+  notes?: string | null;
+}
+
+// 9. School Curriculum Adoption
+export interface SchoolCurriculumAdoption {
+  id: string;
+  schoolId: string;
+  frameworkId: string;
+  versionId: string;
+  status: 'active' | 'archived';
+  adoptedAt: string;
+}
+
+// 10. School Subject Mapping (Adoption-Scoped)
+export interface SchoolCurriculumSubjectMap {
+  id: string;
+  schoolId: string;
+  adoptionId: string;
+  subjectId: string; // Local school subject ID
+  curriculumSubjectId: string; // Global curriculum subject ID
+}
+
+// 11. Scheme of Work (Term Plan)
+export type SchemeOfWorkStatus = 'draft' | 'approved' | 'active' | 'archived';
+
+export interface SchemeOfWork {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  termId: string;
+  classId: string;
+  streamId?: string | null;
+  subjectId: string;
+  stageId: string;
+  createdByEmployeeId: string;
+  title: string;
+  overviewText?: string | null;
+  status: SchemeOfWorkStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 12. Medium-Term Plan (Curriculum Unit, e.g. Weeks 1-3)
+export interface MediumTermPlan {
+  id: string;
+  schemeId: string;
+  unitNumber: number;
+  title: string;
+  weekStart: number;
+  weekEnd: number;
+  learningFocus?: string | null;
+  estimatedPeriods?: number | null;
+  displayOrder: number;
+  createdAt: string;
+}
+
+// 13. Teaching Sequence (Planned Lesson in a Unit)
+export interface TeachingSequence {
+  id: string;
+  mediumTermPlanId: string;
+  sequenceNumber: number;
+  title: string;
+  suggestedActivities?: string | null;
+  suggestedResources?: string | null;
+  recommendedDurationMins: number;
+  displayOrder: number;
+}
+
+// 14. Teaching Sequence Objective Link
+export interface TeachingSequenceObjective {
+  teachingSequenceId: string;
+  learningObjectiveId: string;
+  isPrimary: boolean;
+}
+
+// 15. Lesson to Objectives Relational Link
+export interface LessonLearningObjective {
+  lessonId: string;
+  learningObjectiveId: string;
+  teachingSequenceId?: string | null;
+  isPrimary: boolean;
+  notes?: string | null;
+}

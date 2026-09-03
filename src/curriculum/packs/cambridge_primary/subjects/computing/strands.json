@@ -1,0 +1,32 @@
+[
+  {
+    "code": "CT",
+    "name": "Computational Thinking",
+    "description": "Decomposition, pattern recognition, abstraction, and algorithm design.",
+    "display_order": 1
+  },
+  {
+    "code": "MD",
+    "name": "Managing Data",
+    "description": "Structuring, organizing, storing, and analyzing digital data.",
+    "display_order": 2
+  },
+  {
+    "code": "NC",
+    "name": "Networks and Digital Communication",
+    "description": "Internet protocols, online safety, search techniques, and collaborative communication.",
+    "display_order": 3
+  },
+  {
+    "code": "CS",
+    "name": "Computer Systems",
+    "description": "Hardware, software, input/output devices, and operating systems.",
+    "display_order": 4
+  },
+  {
+    "code": "CM",
+    "name": "Creating Media",
+    "description": "Digital graphic design, audio editing, and multimedia presentations.",
+    "display_order": 5
+  }
+]

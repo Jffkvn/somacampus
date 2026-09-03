@@ -85,7 +85,7 @@ describe.skipIf(!hasAnon)('Phase 5 Learning Intelligence & Interventions RLS Sec
         learning_area: 'TEST_Leadership_Math_Intervention',
         reason: 'Identified by academic review',
         strategy_action: 'Peer tutoring twice weekly',
-        target_outcome: '80% mastery',
+        target_outcome: '80% accuracy',
         start_date: '2026-09-05',
         target_date: '2026-09-25',
         status: 'active',

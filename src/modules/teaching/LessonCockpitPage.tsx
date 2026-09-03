@@ -10,7 +10,8 @@ import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { AlertCircle, CheckCircle2, ArrowLeft, Sparkles, AlertTriangle, Lightbulb } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ArrowLeft, Sparkles, AlertTriangle, Lightbulb, BookOpen } from 'lucide-react';
+import { ObjectiveQuickChangeModal } from './ObjectiveQuickChangeModal';
 
 type LessonStatus = LessonSubmission['status'];
 
@@ -30,6 +31,8 @@ export const LessonCockpitPage: React.FC = () => {
   const [context, setContext] = useState<LessonContext | null>(null);
   const [coverage, setCoverage] = useState<DailyAttendanceCoverage | null>(null);
   const [briefing, setBriefing] = useState<PreLessonBriefing | null>(null);
+  const [selectedObjective, setSelectedObjective] = useState<any>(null);
+  const [isQuickPickerOpen, setIsQuickPickerOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -63,13 +66,22 @@ export const LessonCockpitPage: React.FC = () => {
         );
         setCoverage(cov);
 
-        // Phase 5: Load Pre-Lesson Learning Intelligence Briefing
+        // Phase 5 & 6: Load Pre-Lesson Learning Intelligence Briefing with objective context
         const b = await learningIntelligenceService.getPreLessonBriefing(
           ctx.classId,
           ctx.subjectId,
           ctx.curriculum.topic,
+          ctx.curriculumObjectiveId,
         );
         setBriefing(b);
+
+        if (ctx.curriculumObjectiveId) {
+          setSelectedObjective({
+            id: ctx.curriculumObjectiveId,
+            code: ctx.curriculumObjectiveCode ?? 'Objective',
+            title: ctx.curriculumObjectiveTitle ?? ctx.curriculum.objective,
+          });
+        }
       } catch (err: any) {
         setLoadError(err?.message ?? 'Could not load lesson context. Please try again.');
       } finally {
@@ -79,6 +91,23 @@ export const LessonCockpitPage: React.FC = () => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, entryId]);
+
+  const handleObjectiveSelected = async (obj: any) => {
+    setSelectedObjective(obj);
+    if (context) {
+      try {
+        const refreshedBriefing = await learningIntelligenceService.getPreLessonBriefing(
+          context.classId,
+          context.subjectId,
+          context.curriculum.topic,
+          obj.id
+        );
+        setBriefing(refreshedBriefing);
+      } catch (err) {
+        console.warn('Failed to refresh briefing for selected objective:', err);
+      }
+    }
+  };
 
   if (isLoading || (!context && !loadError)) {
     return <LoadingState label="Loading lesson cockpit..." />;
@@ -156,6 +185,10 @@ export const LessonCockpitPage: React.FC = () => {
       // stream_id is nullable in the lessons contract; it comes from the
       // timetable entry via LessonContext (no schedule lookup needed).
       const streamId = context.streamId ?? undefined;
+      const targetObjIds = selectedObjective
+        ? [selectedObjective.id]
+        : (context.curriculumObjectiveId ? [context.curriculumObjectiveId] : []);
+
       const sub: LessonSubmission = {
         lessonId: `lesson-${entryId}-${Date.now()}`,
         timetableEntryId: entryId,
@@ -164,6 +197,8 @@ export const LessonCockpitPage: React.FC = () => {
         visibleLessonNote,
         privateReflection: privateReflection.trim() ? privateReflection : undefined,
         attendanceSessionId,
+        objectiveIds: targetObjIds,
+        teachingSequenceId: context.teachingSequenceId,
         submittedAt: new Date().toISOString(),
         submittedBy: context.teacherId,
       };
@@ -174,7 +209,12 @@ export const LessonCockpitPage: React.FC = () => {
         teacherId: context.teacherId,
         ...(streamId ? { streamId } : {}),
         curriculumTopic: context.curriculum.topic,
-        curriculumObjective: context.curriculum.objective,
+        curriculumObjective: selectedObjective
+          ? `${selectedObjective.code} — ${selectedObjective.title}`
+          : context.curriculum.objective,
+        curriculumObjectiveId: targetObjIds[0],
+        teachingSequenceId: context.teachingSequenceId,
+        objectiveIds: targetObjIds,
       });
       setSubmittedLessonId(savedId);
     } catch (err: any) {
@@ -227,15 +267,51 @@ export const LessonCockpitPage: React.FC = () => {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Curriculum focus</CardTitle>
-          <StatusPill status="info" label={context.curriculum.framework} />
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-brand-teal" />
+            <CardTitle>Curriculum focus</CardTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusPill status="info" label={context.curriculum.framework} />
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => setIsQuickPickerOpen(true)}
+              className="text-xs h-7 px-2.5 border-teal-200 text-teal-800 hover:bg-teal-50"
+            >
+              Change Objective
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p className="font-semibold text-slate-800">{context.curriculum.topic}</p>
-          {context.curriculum.objective ? (
-            <p className="text-xs text-slate-500">{context.curriculum.objective}</p>
-          ) : null}
+        <CardContent className="space-y-3 text-sm">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Planned Topic</span>
+            <p className="font-semibold text-slate-800 mt-0.5">{context.curriculum.topic}</p>
+          </div>
+          <div className="pt-2 border-t border-slate-100">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Learning Objective</span>
+            {selectedObjective ? (
+              <div className="mt-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 font-mono text-xs font-bold rounded-lg bg-teal-50 text-teal-800 border border-teal-200">
+                    {selectedObjective.code}
+                  </span>
+                  <span className="font-semibold text-slate-800 text-xs">{selectedObjective.title}</span>
+                </div>
+                {selectedObjective.description && (
+                  <p className="text-xs text-slate-500 leading-relaxed">{selectedObjective.description}</p>
+                )}
+              </div>
+            ) : context.curriculum.objective ? (
+              <p className="text-xs text-slate-700 mt-1 font-medium">{context.curriculum.objective}</p>
+            ) : (
+              <p className="text-xs text-amber-700 mt-1 font-medium italic">
+                Curriculum objective not yet assigned &bull; You can still complete this lesson with 1 tap.
+              </p>
+            )}
+          </div>
           {context.previousLessonSummary ? (
             <p className="text-xs text-slate-500 pt-2 border-t border-slate-100">
               Previous lesson: {context.previousLessonSummary}
@@ -423,6 +499,13 @@ export const LessonCockpitPage: React.FC = () => {
           </form>
         </CardContent>
       </Card>
+
+      <ObjectiveQuickChangeModal
+        isOpen={isQuickPickerOpen}
+        onClose={() => setIsQuickPickerOpen(false)}
+        onSelectObjective={handleObjectiveSelected}
+        currentObjectiveId={selectedObjective?.id}
+      />
     </div>
   );
 };

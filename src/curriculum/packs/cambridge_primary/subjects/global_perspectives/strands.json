@@ -1,0 +1,38 @@
+[
+  {
+    "code": "RES",
+    "name": "Research",
+    "description": "Formulating inquiry questions, gathering evidence, and recording information.",
+    "display_order": 1
+  },
+  {
+    "code": "ANA",
+    "name": "Analysis",
+    "description": "Identifying patterns, analyzing perspectives, and exploring causes and consequences.",
+    "display_order": 2
+  },
+  {
+    "code": "EVA",
+    "name": "Evaluation",
+    "description": "Assessing sources of information, arguments, and claims.",
+    "display_order": 3
+  },
+  {
+    "code": "REF",
+    "name": "Reflection",
+    "description": "Reflecting on personal learning, values, and how perspectives develop over time.",
+    "display_order": 4
+  },
+  {
+    "code": "COL",
+    "name": "Collaboration",
+    "description": "Working cooperatively in diverse teams towards a shared outcome.",
+    "display_order": 5
+  },
+  {
+    "code": "COM",
+    "name": "Communication",
+    "description": "Communicating findings, viewpoints, and reasoning to diverse audiences.",
+    "display_order": 6
+  }
+]

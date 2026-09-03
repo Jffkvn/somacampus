@@ -1,0 +1,52 @@
+[
+  {
+    "code": "B",
+    "name": "Biology",
+    "description": "Living things, human organs, ecosystems, adaptations, and classification.",
+    "display_order": 1,
+    "sub_strands": [
+      { "code": "Bp", "name": "Life processes and organs", "display_order": 1 },
+      { "code": "Be", "name": "Ecosystems and habitats", "display_order": 2 }
+    ]
+  },
+  {
+    "code": "C",
+    "name": "Chemistry",
+    "description": "States of matter, changes of state, dissolving, separating, and chemical reactions.",
+    "display_order": 2,
+    "sub_strands": [
+      { "code": "Cm", "name": "Materials and properties", "display_order": 1 },
+      { "code": "Cc", "name": "Reversible and irreversible changes", "display_order": 2 }
+    ]
+  },
+  {
+    "code": "P",
+    "name": "Physics",
+    "description": "Forces, magnetism, light, sound, electricity, and energy transformations.",
+    "display_order": 3,
+    "sub_strands": [
+      { "code": "Pf", "name": "Forces and motion", "display_order": 1 },
+      { "code": "Pe", "name": "Electricity and conductors", "display_order": 2 }
+    ]
+  },
+  {
+    "code": "ES",
+    "name": "Earth and Space",
+    "description": "The solar system, water cycle, weathering, and planetary science.",
+    "display_order": 4,
+    "sub_strands": [
+      { "code": "ESw", "name": "Water cycle and weather", "display_order": 1 },
+      { "code": "ESs", "name": "Earth, Sun and Moon", "display_order": 2 }
+    ]
+  },
+  {
+    "code": "TWS",
+    "name": "Thinking and Working Scientifically",
+    "description": "Hypothesizing, controlling variables, scientific measurement, and evaluation.",
+    "display_order": 5,
+    "sub_strands": [
+      { "code": "TWSi", "name": "Scientific inquiry and variables", "display_order": 1 },
+      { "code": "TWSe", "name": "Evidence and evaluation", "display_order": 2 }
+    ]
+  }
+]

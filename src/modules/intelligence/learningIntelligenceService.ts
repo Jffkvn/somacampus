@@ -32,6 +32,8 @@ export interface CreateInterventionInput {
   subjectId: string;
   learningArea: string;
   topicName?: string;
+  curriculumObjectiveId?: string | null;
+  /** @deprecated Use curriculumObjectiveId instead */
   curriculumObjectiveRef?: string | null;
   reason: string;
   strategyAction: string;
@@ -410,7 +412,7 @@ export const learningIntelligenceService = {
             subjectName: group.name,
             learningArea: group.name,
             classification: 'observed_pattern',
-            summary: `Consistent mastery demonstrated across ${strengths.length} observations in ${group.name}.`,
+            summary: `Consistent strength observed across ${strengths.length} observations in ${group.name}.`,
             evidenceCount: totalItems,
             observationsCount: group.obs.length,
             evidenceReferences: evidenceReferences.slice(0, 6),
@@ -547,7 +549,12 @@ export const learningIntelligenceService = {
    * Returns previous lesson summary, students needing attention,
    * recent observations, and evidence-grounded retrieval prompts.
    */
-  async getPreLessonBriefing(classId: string, subjectId: string, topic?: string): Promise<PreLessonBriefing> {
+  async getPreLessonBriefing(
+    classId: string,
+    subjectId: string,
+    topic?: string,
+    objectiveId?: string
+  ): Promise<PreLessonBriefing> {
     if (isMockEnv()) {
       return {
         classId,
@@ -747,6 +754,48 @@ export const learningIntelligenceService = {
         });
       }
 
+      let objDetails: any = null;
+      let prereqObjs: Array<{ id: string; code: string; title: string; relationshipType: string }> = [];
+
+      if (objectiveId) {
+        try {
+          const { data: objData } = await supabase
+            .from('learning_objectives')
+            .select('id, code, title, description')
+            .eq('id', objectiveId)
+            .maybeSingle();
+
+          if (objData) {
+            objDetails = objData;
+            const { data: relData } = await supabase
+              .from('learning_objective_relationships')
+              .select('*, source:learning_objectives!learning_objective_relationships_source_objective_id_fkey(id, code, title)')
+              .eq('target_objective_id', objectiveId)
+              .eq('relationship_type', 'prerequisite');
+
+            if (relData) {
+              prereqObjs = relData.map((r: any) => ({
+                id: r.source.id,
+                code: r.source.code,
+                title: r.source.title,
+                relationshipType: r.relationship_type,
+              }));
+
+              // Prepend deterministic prerequisite retrieval warm-ups
+              for (const p of prereqObjs) {
+                suggestedRetrievalFocus.unshift({
+                  topic: `Prerequisite Review (${p.code})`,
+                  prompt: `5-Minute Retrieval Warm-Up: Check understanding of foundational concept "${p.title}" before introducing today's objective (${objData.code}).`,
+                  evidenceBasis: `Deterministic prerequisite link to ${objData.code}`,
+                });
+              }
+            }
+          }
+        } catch (objErr) {
+          console.warn('Failed to resolve objective/prerequisite in briefing:', objErr);
+        }
+      }
+
       return {
         classId,
         subjectId,
@@ -763,6 +812,10 @@ export const learningIntelligenceService = {
         studentsNeedingAttention,
         recentClassObservations,
         suggestedRetrievalFocus,
+        curriculumObjectiveId: objDetails?.id,
+        curriculumObjectiveCode: objDetails?.code,
+        curriculumObjectiveTitle: objDetails?.title,
+        prerequisiteObjectives: prereqObjs,
       };
     } catch (err) {
       console.warn('getPreLessonBriefing failed:', err);
@@ -810,6 +863,7 @@ export const learningIntelligenceService = {
         subject_id: input.subjectId,
         learning_area: input.learningArea,
         topic_name: input.topicName ?? null,
+        curriculum_objective_id: input.curriculumObjectiveId ?? null,
         curriculum_objective_ref: input.curriculumObjectiveRef ?? null,
         reason: input.reason,
         strategy_action: input.strategyAction,

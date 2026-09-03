@@ -1,0 +1,92 @@
+[
+  {
+    "code": "4Nn.01",
+    "stage_number": 4,
+    "strand_code": "N",
+    "sub_strand_code": "Nn",
+    "title": "Count on and back in steps of constant size",
+    "description": "Count on and back in steps of constant size, including through zero, and recognize negative numbers in context.",
+    "progression_order": 1
+  },
+  {
+    "code": "4Nn.02",
+    "stage_number": 4,
+    "strand_code": "N",
+    "sub_strand_code": "Nf",
+    "title": "Recognize simple equivalent fractions",
+    "description": "Recognize and show, using diagrams and visual models, families of common equivalent fractions.",
+    "progression_order": 2
+  },
+  {
+    "code": "5Nn.01",
+    "stage_number": 5,
+    "strand_code": "N",
+    "sub_strand_code": "Nf",
+    "title": "Understand and convert equivalent fractions",
+    "description": "Understand that equivalent fractions represent the same quantity, and convert between fractions, decimals and percentages.",
+    "progression_order": 1
+  },
+  {
+    "code": "5Nn.02",
+    "stage_number": 5,
+    "strand_code": "N",
+    "sub_strand_code": "Nf",
+    "title": "Order and compare fractions and mixed numbers",
+    "description": "Compare and order fractions whose denominators are all multiples of the same number.",
+    "progression_order": 2
+  },
+  {
+    "code": "5Np.01",
+    "stage_number": 5,
+    "strand_code": "N",
+    "sub_strand_code": "Np",
+    "title": "Multiply and divide whole numbers by 10, 100 and 1000",
+    "description": "Multiply and divide whole numbers and those involving decimals by 10, 100 and 1000, explaining place-value changes.",
+    "progression_order": 3
+  },
+  {
+    "code": "5Gg.01",
+    "stage_number": 5,
+    "strand_code": "G",
+    "sub_strand_code": "Gg",
+    "title": "Classify 2D polygons based on angles and side properties",
+    "description": "Distinguish between regular and irregular polygons based on reasoning about equal sides and equal angles.",
+    "progression_order": 4
+  },
+  {
+    "code": "5Gl.01",
+    "stage_number": 5,
+    "strand_code": "G",
+    "sub_strand_code": "Gl",
+    "title": "Calculate perimeter and area of compound rectilinear shapes",
+    "description": "Measure and calculate the perimeter of composite rectilinear shapes in centimeters and meters.",
+    "progression_order": 5
+  },
+  {
+    "code": "5Ss.01",
+    "stage_number": 5,
+    "strand_code": "S",
+    "sub_strand_code": "Ss",
+    "title": "Interpret line graphs and frequency tables",
+    "description": "Solve comparison, sum and difference problems using information presented in a line graph or frequency table.",
+    "progression_order": 6
+  },
+  {
+    "code": "6Nn.01",
+    "stage_number": 6,
+    "strand_code": "N",
+    "sub_strand_code": "Nf",
+    "title": "Multiply simple pairs of proper fractions",
+    "description": "Multiply simple pairs of proper fractions, writing the answer in its simplest form.",
+    "progression_order": 1
+  },
+  {
+    "code": "6Np.01",
+    "stage_number": 6,
+    "strand_code": "N",
+    "sub_strand_code": "Np",
+    "title": "Use negative numbers in context across zero",
+    "description": "Use negative numbers in context, and calculate intervals across zero.",
+    "progression_order": 2
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "source_objective_code": "4Nn.02",
+    "target_objective_code": "5Nn.01",
+    "relationship_type": "prerequisite",
+    "notes": "Recognizing simple equivalent fractions in Stage 4 is essential before converting between fractions, decimals and percentages in Stage 5."
+  },
+  {
+    "source_objective_code": "5Nn.01",
+    "target_objective_code": "6Nn.01",
+    "relationship_type": "prerequisite",
+    "notes": "Mastering fraction equivalence in Stage 5 is required before multiplying pairs of proper fractions in Stage 6."
+  },
+  {
+    "source_objective_code": "4ESw.01",
+    "target_objective_code": "5ESw.01",
+    "relationship_type": "prerequisite",
+    "notes": "Understanding liquid evaporation at Stage 4 provides the mechanical basis for explaining water cycle precipitation at Stage 5."
+  },
+  {
+    "source_objective_code": "4Rw.01",
+    "target_objective_code": "5Ri.01",
+    "relationship_type": "prerequisite",
+    "notes": "Decoding unfamiliar words in context is a foundational skill before distinguishing implicit subtext in Stage 5 non-fiction."
+  },
+  {
+    "source_objective_code": "4CT.01",
+    "target_objective_code": "5CT.01",
+    "relationship_type": "prerequisite",
+    "notes": "Constructing sequential loop algorithms is a prerequisite before adding branch selection logic (if/else) at Stage 5."
+  },
+  {
+    "source_objective_code": "5CT.01",
+    "target_objective_code": "6CT.01",
+    "relationship_type": "prerequisite",
+    "notes": "Conditional logic in Stage 5 is needed before functional decomposition and modular sub-routines in Stage 6."
+  },
+  {
+    "source_objective_code": "5Nn.01",
+    "target_objective_code": "5MD.01",
+    "relationship_type": "cross_curricular",
+    "notes": "Percentage calculations in Mathematics reinforce calculated digital fields in Computing database design."
+  }
+]

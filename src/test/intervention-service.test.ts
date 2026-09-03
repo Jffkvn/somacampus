@@ -103,13 +103,13 @@ describe('Intervention Service Unit Tests', () => {
     await learningIntelligenceService.updateInterventionStatus(
       'intervention-1',
       'completed',
-      'Target mastery achieved',
+      'Target outcome achieved',
     );
 
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'completed',
-        outcome_notes: 'Target mastery achieved',
+        outcome_notes: 'Target outcome achieved',
       }),
     );
   });

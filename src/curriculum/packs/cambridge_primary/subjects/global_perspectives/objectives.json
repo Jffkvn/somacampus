@@ -1,0 +1,47 @@
+[
+  {
+    "code": "4RES.01",
+    "stage_number": 4,
+    "strand_code": "RES",
+    "sub_strand_code": null,
+    "title": "Construct inquiry questions about a local issue",
+    "description": "Construct focused questions with support to guide an inquiry into a local community topic.",
+    "progression_order": 1
+  },
+  {
+    "code": "5RES.01",
+    "stage_number": 5,
+    "strand_code": "RES",
+    "sub_strand_code": null,
+    "title": "Identify suitable sources of information independently",
+    "description": "Identify and gather relevant information from more than one source to answer an inquiry question.",
+    "progression_order": 1
+  },
+  {
+    "code": "5ANA.01",
+    "stage_number": 5,
+    "strand_code": "ANA",
+    "sub_strand_code": null,
+    "title": "Identify different perspectives on a global challenge",
+    "description": "Identify and explain different perspectives, including personal, local and global viewpoints on a shared issue.",
+    "progression_order": 2
+  },
+  {
+    "code": "5COL.01",
+    "stage_number": 5,
+    "strand_code": "COL",
+    "sub_strand_code": null,
+    "title": "Contribute actively and fairly to a shared team task",
+    "description": "Divide tasks equitably within a group and listen constructively to team member contributions.",
+    "progression_order": 3
+  },
+  {
+    "code": "6EVA.01",
+    "stage_number": 6,
+    "strand_code": "EVA",
+    "sub_strand_code": null,
+    "title": "Evaluate the reliability and bias of online sources",
+    "description": "Assess the reliability and potential bias of different digital and print sources when gathering evidence.",
+    "progression_order": 1
+  }
+]
