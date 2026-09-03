@@ -6,8 +6,9 @@ describe('Remote Supabase Database Verification', () => {
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
+  const isMockEnv = !supabaseUrl || /mock|placeholder/i.test(supabaseUrl);
   const hasAdminCreds = Boolean(supabaseUrl && serviceRoleKey);
-  const hasAnonCreds = Boolean(supabaseUrl && anonKey);
+  const hasAnonCreds = Boolean(supabaseUrl && anonKey) && !isMockEnv;
 
   const anonClient = hasAnonCreds ? createClient(supabaseUrl, anonKey) : null;
   const adminClient = hasAdminCreds ? createClient(supabaseUrl, serviceRoleKey) : null;

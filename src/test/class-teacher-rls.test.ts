@@ -5,8 +5,8 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://vhivioulpbdyaynkq
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const hasAnon = Boolean(SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'placeholder-key');
-const hasAdmin = Boolean(SUPABASE_SERVICE_KEY && SUPABASE_SERVICE_KEY !== 'placeholder-key');
+const hasAnon = Boolean(SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'placeholder-key') && !/mock|placeholder/i.test(SUPABASE_URL);
+const hasAdmin = Boolean(SUPABASE_SERVICE_KEY && SUPABASE_SERVICE_KEY !== 'placeholder-key') && !/mock|placeholder/i.test(SUPABASE_URL);
 
 describe.skipIf(!hasAnon)('Class Teacher & Daily Attendance RLS Security Suite', () => {
   const schoolId = '22222222-2222-2222-2222-222222222222';

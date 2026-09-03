@@ -5,7 +5,8 @@ import { getRoleLandingRoute } from '../config/permissions';
 describe('SomaCampus Live Authentication & Role Landing Verification', () => {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
-  const hasAnonCreds = Boolean(supabaseUrl && anonKey);
+  const isMockEnv = !supabaseUrl || /mock|placeholder/i.test(supabaseUrl);
+  const hasAnonCreds = Boolean(supabaseUrl && anonKey) && !isMockEnv;
 
   const accounts = [
     { role: 'teacher', email: 'teacher@somacampus.ug', expectedLanding: '/teacher/today' },
