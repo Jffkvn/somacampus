@@ -1,6 +1,19 @@
 import { supabase } from '../../lib/supabase';
 import { TeacherTodayViewModel, TimetableEntry, ClassResponsibility, AttendanceSession, AttendanceAuditLog } from '../../types/domain';
 
+const VERIF = ['verified_gps', 'verified_manual', 'flagged'] as const;
+type VerificationMethod = (typeof VERIF)[number];
+
+const toHHMM = (v: unknown): string | null => {
+  const m = String(v ?? '').match(/(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : null;
+};
+
+const toVerif = (v: unknown): VerificationMethod =>
+  (VERIF as readonly string[]).includes(String(v))
+    ? (v as VerificationMethod)
+    : 'verified_manual';
+
 export const teacherService = {
   /**
    * Fetches the teacher's daily cockpit view model.
@@ -276,15 +289,16 @@ export const teacherService = {
           .eq('employee_id', employeeId)
           .eq('date', date)
           .maybeSingle();
-        if (attendanceRow) {
+        const clockedInAt = toHHMM((attendanceRow as any)?.clock_in);
+        if (attendanceRow && clockedInAt) {
           clockInStatus = {
             isClockedIn: true,
-            clockedInAt: String((attendanceRow as any).clock_in).slice(0, 5),
-            locationVerified: true,
-            verificationMethod: (attendanceRow as any).verification_status as 'verified_gps' | 'verified_manual' | 'flagged',
+            clockedInAt,
+            verificationMethod: toVerif((attendanceRow as any).verification_status),
           };
         }
-      } catch {
+      } catch (err) {
+        console.warn('getTeacherToday clock-in lookup fallback (teacher_attendance read failed):', err);
         clockInStatus = { isClockedIn: false };
       }
 
@@ -528,7 +542,7 @@ export const teacherService = {
     const stub = () => ({
       isClockedIn: true,
       clockedInAt: timeStr,
-      verificationMethod: 'verified_gps' as const,
+      verificationMethod: 'verified_manual' as const,
     });
 
     const isMockEnv = !import.meta.env.VITE_SUPABASE_URL ||
@@ -539,19 +553,20 @@ export const teacherService = {
     const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
     try {
-      // Resolve employeeId: UUID used directly, else look up employees (limit 5), fallback to teacherId.
+      // Resolve employeeId: UUID used directly, else match employees by id/email.
+      // No match → stub (never attribute to another employee's row).
       let employeeId = teacherId;
       if (!isUUID(teacherId)) {
         const { data: empData } = await supabase
           .from('employees')
           .select('id, person_id, people(first_name, last_name, email)')
           .limit(5);
-        if (empData && empData.length > 0) {
-          const matched = empData.find(
-            (e: any) => e.id === teacherId || e.people?.email === teacherId
-          ) || empData[0];
-          employeeId = matched.id;
-        }
+        const matched = (empData ?? []).find((e: any) => {
+          const person = Array.isArray(e.people) ? e.people[0] : e.people;
+          return e.id === teacherId || person?.email === teacherId;
+        });
+        if (!matched) return stub();
+        employeeId = matched.id;
       }
       // teacher_attendance.employee_id is a UUID FK — without a UUID we cannot persist.
       if (!isUUID(employeeId)) return stub();
@@ -564,11 +579,12 @@ export const teacherService = {
         .eq('date', today)
         .maybeSingle();
       if (selectErr) throw selectErr;
-      if (existing) {
+      const existingAt = toHHMM((existing as any)?.clock_in);
+      if (existing && existingAt) {
         return {
           isClockedIn: true,
-          clockedInAt: String(existing.clock_in).slice(0, 5),
-          verificationMethod: existing.verification_status as 'verified_gps' | 'verified_manual' | 'flagged',
+          clockedInAt: existingAt,
+          verificationMethod: toVerif((existing as any).verification_status),
         };
       }
 
@@ -587,8 +603,8 @@ export const teacherService = {
       if (inserted) {
         return {
           isClockedIn: true,
-          clockedInAt: String(inserted.clock_in).slice(0, 5),
-          verificationMethod: inserted.verification_status as 'verified_gps' | 'verified_manual' | 'flagged',
+          clockedInAt: toHHMM((inserted as any).clock_in) ?? timeStr,
+          verificationMethod: toVerif((inserted as any).verification_status),
         };
       }
       return stub();
