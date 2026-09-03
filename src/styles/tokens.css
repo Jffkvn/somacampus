@@ -1,0 +1,60 @@
+:root {
+  /* Brand Identity */
+  --brand-teal: #006c8b;
+  --brand-teal-light: #008bb3;
+  --brand-teal-dark: #004f66;
+
+  /* Navigation System (Dark Teal) */
+  --nav-rail: #003847;
+  --nav-deep: #002732;
+  --nav-surface: #004658;
+  --nav-hover: rgba(255, 255, 255, 0.08);
+  --nav-active: rgba(0, 108, 139, 0.35);
+  --nav-text: #f8fafc;
+  --nav-muted: #94a3b8;
+
+  /* Semantic Status Tokens */
+  --status-success: #10b981;
+  --status-success-bg: #ecfdf5;
+  --status-success-border: #a7f3d0;
+
+  --status-pending: #f59e0b;
+  --status-pending-bg: #fffbeb;
+  --status-pending-border: #fde68a;
+
+  --status-warning: #f97316;
+  --status-warning-bg: #fff7ed;
+  --status-warning-border: #fed7aa;
+
+  --status-critical: #ef4444;
+  --status-critical-bg: #fef2f2;
+  --status-critical-border: #fecaca;
+
+  --status-info: #0284c7;
+  --status-info-bg: #f0f9ff;
+  --status-info-border: #bae6fd;
+
+  --status-neutral: #64748b;
+  --status-neutral-bg: #f8fafc;
+  --status-neutral-border: #e2e8f0;
+
+  /* Glassmorphism System */
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-backdrop-blur: 16px;
+  --glass-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.04);
+}
+
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--glass-backdrop-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-nav-item-active {
+  background: var(--nav-active);
+  border-left: 3px solid var(--brand-teal-light);
+  color: #ffffff;
+}

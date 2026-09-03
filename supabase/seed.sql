@@ -1,0 +1,186 @@
+-- ==============================================================================
+-- SOMACAMPUS SEED DATA
+-- Grace's Cambridge Centre (Pilot Deployment)
+-- ==============================================================================
+
+-- 1. Organisation & School
+INSERT INTO organisations (id, name, status)
+VALUES ('11111111-1111-1111-1111-111111111111', 'Grace Educational Foundation', 'active')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO schools (id, organisation_id, name, code, brand_color, country, timezone)
+VALUES (
+  '22222222-2222-2222-2222-222222222222',
+  '11111111-1111-1111-1111-111111111111',
+  'Grace''s Cambridge Centre',
+  'GCC',
+  '#006c8b',
+  'UG',
+  'Africa/Kampala'
+)
+ON CONFLICT (code) DO NOTHING;
+
+-- 2. Roles
+INSERT INTO roles (id, name, description)
+VALUES
+  ('admin', 'Administrator', 'Full institutional and technical configuration'),
+  ('principal', 'Principal / Director', 'Executive academic and operational oversight'),
+  ('teacher', 'Teacher', 'Classroom instruction, attendance, and lesson records'),
+  ('bursar', 'Finance / Bursar', 'Fee collection, payment reconciliation, and student accounts'),
+  ('parent', 'Parent / Guardian', 'Family dashboard for children progress and fees'),
+  ('student', 'Student', 'Learning materials, assignments, and diagnostic quizzes')
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. Academic Year & Term
+INSERT INTO academic_years (id, school_id, name, start_date, end_date, is_current)
+VALUES (
+  '33333333-3333-3333-3333-333333333333',
+  '22222222-2222-2222-2222-222222222222',
+  'Academic Year 2026-2027',
+  '2026-09-01',
+  '2027-07-15',
+  true
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO terms (id, academic_year_id, name, term_number, start_date, end_date, is_current)
+VALUES (
+  '44444444-4444-4444-4444-444444444444',
+  '33333333-3333-3333-3333-333333333333',
+  'Term 1',
+  1,
+  '2026-09-01',
+  '2026-12-18',
+  true
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 4. Classes & Streams
+INSERT INTO classes (id, school_id, name, stage_level)
+VALUES
+  ('55555555-5555-5555-5555-555555555551', '22222222-2222-2222-2222-222222222222', 'Stage 5', 'Stage 5'),
+  ('55555555-5555-5555-5555-555555555552', '22222222-2222-2222-2222-222222222222', 'Stage 6', 'Stage 6')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO streams (id, class_id, name, default_room)
+VALUES
+  ('66666666-6666-6666-6666-666666666661', '55555555-5555-5555-5555-555555555551', 'Blue', 'Classroom 5B'),
+  ('66666666-6666-6666-6666-666666666662', '55555555-5555-5555-5555-555555555552', 'Red', 'Classroom 6A')
+ON CONFLICT (id) DO NOTHING;
+
+-- 5. Subjects
+INSERT INTO subjects (id, school_id, name, code)
+VALUES
+  ('77777777-7777-7777-7777-777777777771', '22222222-2222-2222-2222-222222222222', 'Mathematics', 'MATH'),
+  ('77777777-7777-7777-7777-777777777772', '22222222-2222-2222-2222-222222222222', 'English', 'ENG'),
+  ('77777777-7777-7777-7777-777777777773', '22222222-2222-2222-2222-222222222222', 'Science', 'SCI')
+ON CONFLICT (id) DO NOTHING;
+
+-- 6. Teacher Person & Employee
+INSERT INTO people (id, first_name, last_name, email, phone)
+VALUES (
+  '88888888-8888-8888-8888-888888888881',
+  'Sarah',
+  'Namukasa',
+  'sarah.n@graceschool.ac.ug',
+  '+256770123456'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO employees (id, person_id, school_id, employee_number, role, department, is_teacher, status)
+VALUES (
+  '99999999-9999-9999-9999-999999999991',
+  '88888888-8888-8888-8888-888888888881',
+  '22222222-2222-2222-2222-222222222222',
+  'TCH-001',
+  'teacher',
+  'Academics',
+  true,
+  'active'
+)
+ON CONFLICT (school_id, employee_number) DO NOTHING;
+
+-- 7. Timetable & Entries
+INSERT INTO timetables (id, school_id, term_id, name, is_active)
+VALUES (
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  '22222222-2222-2222-2222-222222222222',
+  '44444444-4444-4444-4444-444444444444',
+  'Primary Timetable Term 1',
+  true
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO timetable_entries (id, timetable_id, class_id, stream_id, subject_id, teacher_id, room_name, day_of_week, start_time, end_time)
+VALUES
+  (
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    '55555555-5555-5555-5555-555555555551',
+    '66666666-6666-6666-6666-666666666661',
+    '77777777-7777-7777-7777-777777777771',
+    '99999999-9999-9999-9999-999999999991',
+    'Lab Block Room 3',
+    2,
+    '08:00',
+    '09:00'
+  ),
+  (
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    '55555555-5555-5555-5555-555555555551',
+    '66666666-6666-6666-6666-666666666661',
+    '77777777-7777-7777-7777-777777777772',
+    '99999999-9999-9999-9999-999999999991',
+    'Classroom 5B',
+    2,
+    '09:00',
+    '10:00'
+  ),
+  (
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    '55555555-5555-5555-5555-555555555551',
+    '66666666-6666-6666-6666-666666666661',
+    '77777777-7777-7777-7777-777777777773',
+    '99999999-9999-9999-9999-999999999991',
+    'Science Lab 1',
+    2,
+    '11:00',
+    '12:00'
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- 8. School Calendar Events
+INSERT INTO school_calendars (id, school_id, academic_year_id, name)
+VALUES (
+  'cccccccc-cccc-cccc-cccc-cccccccccccc',
+  '22222222-2222-2222-2222-222222222222',
+  '33333333-3333-3333-3333-333333333333',
+  'School Official Calendar 2026'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO calendar_events (id, school_calendar_id, title, description, event_type, start_datetime, end_datetime, location)
+VALUES
+  (
+    'dddddddd-dddd-dddd-dddd-ddddddddddd1',
+    'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    'Cambridge Primary Staff Briefing',
+    'Weekly teacher alignment and curriculum tracking briefing',
+    'meeting',
+    '2026-09-03 07:45:00+03',
+    '2026-09-03 08:00:00+03',
+    'Staff Common Room'
+  ),
+  (
+    'dddddddd-dddd-dddd-dddd-ddddddddddd2',
+    'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    'Parents'' Consultation Evening',
+    'Term 1 academic and pastoral consultations',
+    'assembly',
+    '2026-09-03 15:30:00+03',
+    '2026-09-03 18:00:00+03',
+    'Main Assembly Hall'
+  )
+ON CONFLICT (id) DO NOTHING;
