@@ -4,12 +4,13 @@ import { getLessonContext, submitLesson } from './lessonService';
 import { getDailyAttendanceCoverage, type DailyAttendanceCoverage } from '../teacher/attendanceCoverage';
 import { resolveCockpitAttendanceStrip, formatCockpitStripMessage } from './cockpitAttendance';
 import { toHHMM, toLocalYYYYMMDD } from '../teacher/scheduleUtils';
-import type { LessonContext, LessonSubmission } from '../../types/domain';
+import { learningIntelligenceService } from '../intelligence/learningIntelligenceService';
+import type { LessonContext, LessonSubmission, PreLessonBriefing } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ArrowLeft, Sparkles, AlertTriangle, Lightbulb } from 'lucide-react';
 
 type LessonStatus = LessonSubmission['status'];
 
@@ -28,6 +29,7 @@ export const LessonCockpitPage: React.FC = () => {
 
   const [context, setContext] = useState<LessonContext | null>(null);
   const [coverage, setCoverage] = useState<DailyAttendanceCoverage | null>(null);
+  const [briefing, setBriefing] = useState<PreLessonBriefing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -60,6 +62,14 @@ export const LessonCockpitPage: React.FC = () => {
           today,
         );
         setCoverage(cov);
+
+        // Phase 5: Load Pre-Lesson Learning Intelligence Briefing
+        const b = await learningIntelligenceService.getPreLessonBriefing(
+          ctx.classId,
+          ctx.subjectId,
+          ctx.curriculum.topic,
+        );
+        setBriefing(b);
       } catch (err: any) {
         setLoadError(err?.message ?? 'Could not load lesson context. Please try again.');
       } finally {
@@ -231,6 +241,97 @@ export const LessonCockpitPage: React.FC = () => {
               Previous lesson: {context.previousLessonSummary}
             </p>
           ) : null}
+        </CardContent>
+      </Card>
+
+      {/* Phase 5: Before You Teach — Learning Intelligence Briefing */}
+      <Card className="border-teal-200/80 bg-teal-50/20">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-brand-teal" />
+              <CardTitle className="text-base font-bold text-slate-900">
+                Before You Teach &bull; Learning Intelligence Briefing
+              </CardTitle>
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">
+              Grounded Evidence
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Class-wide evidence context, learners needing targeted attention, and retrieval focus prompts.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0 text-xs">
+          {/* Class Evidence Trend */}
+          <div className="p-3 rounded-xl bg-white border border-slate-200">
+            <span className="text-[10px] font-bold uppercase text-slate-500 tracking-wider block mb-1">
+              Class Evidence Context ({context.subjectName})
+            </span>
+            <p className="text-slate-800 leading-relaxed">
+              {briefing?.recentClassEvidence.summaryText ||
+                'No recent evidence aggregated for this subject yet.'}
+            </p>
+          </div>
+
+          {/* Students Needing Attention */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-bold uppercase text-slate-500 tracking-wider block">
+              Learners Needing Targeted Attention ({briefing?.studentsNeedingAttention.length ?? 0})
+            </span>
+            {!briefing?.studentsNeedingAttention || briefing.studentsNeedingAttention.length === 0 ? (
+              <p className="text-slate-500 italic p-2.5 rounded-lg bg-white border border-slate-200">
+                All learners in this class currently on track with no open misconception alerts.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {briefing.studentsNeedingAttention.map((student) => (
+                  <div
+                    key={student.studentId}
+                    className="p-3 rounded-lg bg-amber-50/50 border border-amber-200 flex items-start gap-2.5"
+                  >
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <Link
+                          to={`/students/${student.studentId}`}
+                          className="font-bold text-slate-900 hover:text-brand-teal hover:underline truncate"
+                        >
+                          {student.studentName}
+                        </Link>
+                        {student.activeInterventionId && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-amber-200 text-amber-900 shrink-0">
+                            Intervention
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-700 mt-0.5 leading-snug">
+                        {student.reason}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Suggested 5-Minute Retrieval Warm-up */}
+          {briefing?.suggestedRetrievalFocus && briefing.suggestedRetrievalFocus.length > 0 && (
+            <div className="p-3 rounded-xl bg-white border border-teal-200 space-y-2">
+              <div className="flex items-center gap-1.5 text-brand-teal font-bold text-xs">
+                <Lightbulb className="w-4 h-4 text-brand-teal" />
+                <span>Suggested 5-Minute Retrieval Warm-Up</span>
+              </div>
+              <div className="space-y-2">
+                {briefing.suggestedRetrievalFocus.map((retrieval, rIdx) => (
+                  <div key={rIdx} className="space-y-0.5">
+                    <p className="font-semibold text-slate-800">{retrieval.prompt}</p>
+                    <p className="text-[10px] text-slate-400 italic">{retrieval.evidenceBasis}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

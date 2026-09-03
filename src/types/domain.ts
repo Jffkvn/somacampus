@@ -368,3 +368,171 @@ export interface StudentAcademicEvidence {
   }>;
 }
 
+// -----------------------------------------------------------------------------
+// 10. PHASE 5: LEARNING INTELLIGENCE & LONGITUDINAL EVIDENCE CONTRACTS
+// -----------------------------------------------------------------------------
+
+export type InterventionStatus = 'draft' | 'active' | 'completed' | 'abandoned';
+export type InterventionOutcome = 'improved' | 'partially_improved' | 'unchanged' | 'declined';
+export type InterventionEvidenceType = 'submission' | 'observation' | 'lesson' | 'formal_assessment';
+export type PatternClassification =
+  | 'observed_pattern'
+  | 'possible_pattern'
+  | 'teacher_confirmed'
+  | 'ai_suggested'
+  | 'insufficient_evidence';
+
+export interface EvidenceReference {
+  type: InterventionEvidenceType;
+  id: string;
+  titleOrSnippet: string;
+  date: string;
+}
+
+export interface StudentIntervention {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName?: string;
+  teacherId: string;
+  teacherName?: string;
+  classId: string;
+  className?: string;
+  streamId?: string | null;
+  streamName?: string;
+  subjectId: string;
+  subjectName?: string;
+  learningArea: string;
+  topicName?: string;
+  curriculumObjectiveRef?: string | null;
+  reason: string;
+  strategyAction: string;
+  targetOutcome: string;
+  startDate: string;
+  targetDate: string;
+  status: InterventionStatus;
+  outcome?: InterventionOutcome | null;
+  outcomeNotes?: string | null;
+  followUpNotes?: string | null;
+  evidenceReferences: EvidenceReference[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InterventionEvidenceRecord {
+  id: string;
+  schoolId: string;
+  interventionId: string;
+  evidenceType: InterventionEvidenceType;
+  evidenceId: string;
+  createdAt: string;
+}
+
+export interface InterventionAuditLog {
+  id: string;
+  schoolId: string;
+  interventionId: string;
+  previousStatus?: string | null;
+  newStatus: string;
+  changedByUserId: string;
+  changedByUserName?: string;
+  reason?: string | null;
+  changedAt: string;
+}
+
+export interface LearningAreaPattern {
+  subjectId: string;
+  subjectName: string;
+  learningArea: string;
+  topicName?: string;
+  classification: PatternClassification;
+  summary: string;
+  evidenceCount: number;
+  observationsCount: number;
+  evidenceReferences: EvidenceReference[];
+  requiresAttention: boolean;
+}
+
+export interface StudentLongitudinalProfile {
+  studentId: string;
+  fullName: string;
+  admissionNumber: string;
+  className: string;
+  streamName?: string;
+  academicOverview: {
+    formalAveragePct: number | null;
+    formalAssessmentsCount: number;
+    diagnosticParticipationPct: number;
+    diagnosticCount: number;
+    observationsCount: number;
+    attendancePercentage: number;
+    activeInterventionsCount: number;
+  };
+  subjectTrajectories: Array<{
+    subjectId: string;
+    subjectName: string;
+    formalAveragePct: number | null;
+    diagnosticParticipationPct: number;
+    evidenceCount: number;
+    status: 'steady' | 'support_needed' | 'insufficient_evidence';
+  }>;
+  emergingPatterns: LearningAreaPattern[];
+  activeInterventions: StudentIntervention[];
+  pastInterventions: StudentIntervention[];
+  evidenceTimeline: Array<{
+    id: string;
+    date: string;
+    type: 'formal_assessment' | 'diagnostic_work' | 'teacher_observation' | 'intervention_action';
+    subjectName: string;
+    title: string;
+    details: string;
+    provenanceId: string;
+    provenanceType: InterventionEvidenceType;
+    badge: {
+      label: string;
+      variant: 'success' | 'warning' | 'info' | 'critical';
+    };
+  }>;
+}
+
+export interface PreLessonBriefing {
+  classId: string;
+  subjectId: string;
+  className: string;
+  subjectName: string;
+  curriculumTopic: string;
+  previousLesson?: {
+    date: string;
+    topic: string;
+    visibleLessonNote: string;
+    status: string;
+  };
+  recentClassEvidence: {
+    totalSubmissions: number;
+    averageFormalScorePct: number | null;
+    summaryText: string;
+    hasInsufficientEvidence: boolean;
+  };
+  studentsNeedingAttention: Array<{
+    studentId: string;
+    studentName: string;
+    reason: string;
+    activeInterventionId?: string;
+    recentMisconceptionSnippet?: string;
+    evidenceReferences: EvidenceReference[];
+  }>;
+  recentClassObservations: Array<{
+    id: string;
+    studentName: string;
+    type: ObservationType;
+    text: string;
+    date: string;
+  }>;
+  suggestedRetrievalFocus: Array<{
+    topic: string;
+    prompt: string;
+    evidenceBasis: string;
+  }>;
+}
+
+
