@@ -33,6 +33,17 @@ export const SchoolDashboardPage: React.FC = () => {
     return <LoadingState label="Loading school leadership cockpit..." />;
   }
 
+  const latestTrend = data.attendanceTrend[data.attendanceTrend.length - 1];
+  const staffSubValue = latestTrend ? `${latestTrend.staffRate}% staff present` : 'No attendance yet';
+  const completionSubValue =
+    data.stats.lessonsExpected > 0
+      ? `${Math.round((data.stats.lessonsCompleted / data.stats.lessonsExpected) * 100)}% completion rate`
+      : '—';
+  const attendanceDelta =
+    data.attendanceTrend.length >= 2
+      ? data.attendanceTrend[data.attendanceTrend.length - 1].studentRate - data.attendanceTrend[0].studentRate
+      : null;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Leadership Header Context */}
@@ -62,23 +73,31 @@ export const SchoolDashboardPage: React.FC = () => {
         <StatCard
           label="Active Teaching Staff"
           value={data.stats.activeTeachers}
-          subValue="100% clocked in today"
+          subValue={staffSubValue}
           icon={GraduationCap}
           href="/administration/hr"
         />
         <StatCard
           label="Student Attendance"
           value={`${data.stats.attendanceRate}%`}
-          trend={{ value: '+1.2% this week', direction: 'up', isPositive: true }}
+          trend={
+            attendanceDelta !== null
+              ? {
+                  value: `${attendanceDelta >= 0 ? '+' : ''}${attendanceDelta.toFixed(1)}% this week`,
+                  direction: attendanceDelta > 0 ? 'up' : attendanceDelta < 0 ? 'down' : 'neutral',
+                  isPositive: attendanceDelta >= 0,
+                }
+              : undefined
+          }
           icon={CheckCircle2}
           href="/students/attendance"
         />
         <StatCard
           label="Lessons Completed"
           value={`${data.stats.lessonsCompleted} / ${data.stats.lessonsExpected}`}
-          subValue="95.3% completion rate"
+          subValue={completionSubValue}
           icon={CheckCircle2}
-          href="/dashboard/school/teaching"
+          href="/teacher/today"
         />
       </div>
 
@@ -127,7 +146,7 @@ export const SchoolDashboardPage: React.FC = () => {
                 </CardDescription>
               </div>
               <button
-                onClick={() => navigate('/dashboard/school/teaching')}
+                onClick={() => navigate('/teacher/today')}
                 className="text-xs font-semibold text-brand-teal hover:text-brand-tealDark flex items-center gap-1"
               >
                 <span>View all lessons</span>
@@ -135,6 +154,9 @@ export const SchoolDashboardPage: React.FC = () => {
               </button>
             </CardHeader>
             <CardContent className="pt-0">
+              {data.activeLessons.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-500">No lessons submitted today yet.</p>
+              ) : (
               <div className="divide-y divide-slate-100">
                 {data.activeLessons.map((lesson) => (
                   <div key={lesson.lessonId} className="py-4 space-y-2">
@@ -163,6 +185,7 @@ export const SchoolDashboardPage: React.FC = () => {
                   </div>
                 ))}
               </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -178,7 +201,10 @@ export const SchoolDashboardPage: React.FC = () => {
               <CardDescription>Exceptions requiring administrative action</CardDescription>
             </CardHeader>
             <CardContent className="pt-0 space-y-3">
-              {data.alerts.map((alert) => (
+              {data.alerts.length === 0 ? (
+                <p className="py-4 text-center text-xs text-slate-500">No alerts. All clear.</p>
+              ) : (
+              data.alerts.map((alert) => (
                 <div
                   key={alert.id}
                   className="p-3.5 rounded-xl border border-slate-200/80 bg-white hover:border-slate-300 transition-colors text-xs space-y-2"
@@ -202,7 +228,8 @@ export const SchoolDashboardPage: React.FC = () => {
                     </button>
                   )}
                 </div>
-              ))}
+              ))
+              )}
             </CardContent>
           </Card>
         </div>

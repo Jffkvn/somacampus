@@ -184,16 +184,21 @@ export const leadershipService = {
         schoolName = FALLBACK_SCHOOL_NAME;
       }
 
-      // Academic term (graceful fallback)
+      // Academic term, scoped to this school (graceful fallback)
       let academicTerm = FALLBACK_TERM;
       try {
         const { data: termRows } = await supabase
           .from('terms')
-          .select('name, term_number, academic_years(school_id, name)')
+          .select('name, term_number, academic_years!inner(school_id, name)')
           .eq('is_current', true)
+          .eq('academic_years.school_id', effectiveSchool)
           .limit(1);
         const list = Array.isArray(termRows) ? termRows : termRows ? [termRows] : [];
-        const term = one(list[0] ?? null);
+        const scoped = list.filter((t: any) => {
+          const year = one(t?.academic_years);
+          return !year || !year.school_id || year.school_id === effectiveSchool;
+        });
+        const term = one(scoped[0] ?? null);
         if (term?.name) {
           const yearName = one(term.academic_years)?.name ?? '';
           const year = String(yearName).replace(/^Academic Year\s+/i, '').trim();

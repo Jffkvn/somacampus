@@ -37,7 +37,7 @@ const builderFor = (table: string) => {
 const baseResponses = () => ({
   schools: { data: { id: SCHOOL_ID, name: "Grace's Cambridge Centre" }, error: null },
   terms: {
-    data: [{ id: 'term-1', name: 'Term 1', academic_years: { name: 'Academic Year 2026-2027' } }],
+    data: [{ id: 'term-1', name: 'Term 1', academic_years: { school_id: SCHOOL_ID, name: 'Academic Year 2026-2027' } }],
     error: null,
   },
   student_enrolments: {
@@ -149,6 +149,9 @@ describe('leadership live dashboard (Phase 2 Task 4 RED)', () => {
     // 27 present / 30 total = 90
     expect(vm.stats.attendanceRate).toBe(90);
 
+    // Term scoped to this school
+    expect(vm.academicTerm).toBe('Term 1, 2026-2027');
+
     // Lessons derived from rows
     expect(vm.activeLessons).toHaveLength(2);
     const ids = vm.activeLessons.map((l) => l.lessonId);
@@ -182,5 +185,16 @@ describe('leadership live dashboard (Phase 2 Task 4 RED)', () => {
     expect(vm.stats.lessonsCompleted).toBe(0);
     expect(vm.stats.enrolledStudents).toBe(3);
     expect(vm.stats.enrolledStudents).not.toBe(1204);
+  });
+
+  it('ignores current terms belonging to other schools', async () => {
+    tableResponses.terms = {
+      data: [{ id: 'term-x', name: 'Term 2', academic_years: { school_id: 'other-school-id', name: 'Academic Year 2026-2027' } }],
+      error: null,
+    };
+    const vm = await leadershipService.getSchoolLeadershipDashboard(SCHOOL_ID, DATE);
+
+    expect(vm.academicTerm).toBe('Term 1, 2026-2027');
+    expect(vm.stats.enrolledStudents).toBe(3);
   });
 });
