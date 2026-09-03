@@ -426,6 +426,28 @@ export const teacherService = {
         clockInStatus = { isClockedIn: false };
       }
 
+      // 5. Completed lessons: today's submitted timetable_entry_ids (never breaks the view).
+      let completedLessonIds: string[] = [];
+      try {
+        const { data: lessonRows, error: lessonErr } = await supabase
+          .from('lessons')
+          .select('timetable_entry_id')
+          .eq('teacher_id', employeeId)
+          .gte('submitted_at', `${date}T00:00:00`);
+        if (!lessonErr && Array.isArray(lessonRows)) {
+          completedLessonIds = [
+            ...new Set(
+              (lessonRows as any[])
+                .map((r) => r.timetable_entry_id)
+                .filter((id): id is string => typeof id === 'string' && id.length > 0)
+            ),
+          ];
+        }
+      } catch (err) {
+        console.warn('getTeacherToday completed-lessons lookup fallback (lessons read failed):', err);
+        completedLessonIds = [];
+      }
+
       return {
         teacherId: employeeId,
         teacherName,
@@ -436,7 +458,7 @@ export const teacherService = {
         schedule,
         activeClassIndex: 0,
         activeTimetableEntry: activeEntry,
-        completedLessonIds: [],
+        completedLessonIds,
         dailyEvents: [
           {
             id: 'event-01',

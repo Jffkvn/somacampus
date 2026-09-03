@@ -207,3 +207,41 @@ describe('lesson mock-env stubs (no network)', () => {
     expect(res.lessonId.startsWith('mock-')).toBe(true);
   });
 });
+
+import { teacherService } from '../modules/teacher/teacherService';
+
+describe('lesson completion wiring (Phase 2 Task 3)', () => {
+  it('getTeacherToday completedLessonIds includes submitted timetable_entry_id', async () => {
+    // gte-capable builder (shared stub above has no .gte); reads shared tableResponses.
+    mockFrom.mockImplementation((table: string) => {
+      const respond = () => {
+        const r: any = tableResponses[table];
+        if (r instanceof Error) return Promise.reject(r);
+        return Promise.resolve(r ?? { data: null, error: null });
+      };
+      const builder: any = {};
+      builder.select = () => builder;
+      builder.eq = () => builder;
+      builder.gte = () => builder;
+      builder.order = () => builder;
+      builder.limit = () => builder;
+      builder.lte = () => builder;
+      builder.is = () => builder;
+      builder.in = () => builder;
+      builder.insert = (payload: unknown) => {
+        insertedPayloads[table] = payload;
+        return builder;
+      };
+      builder.single = () => respond();
+      builder.maybeSingle = () => respond();
+      builder.then = (resolve: any, reject: any) => respond().then(resolve, reject);
+      return builder;
+    });
+    tableResponses.lessons = { data: [{ timetable_entry_id: 'X' }], error: null };
+    const vm = await teacherService.getTeacherToday(
+      '99999999-9999-9999-9999-999999999991',
+      '2026-09-03'
+    );
+    expect(vm.completedLessonIds).toEqual(['X']);
+  });
+});

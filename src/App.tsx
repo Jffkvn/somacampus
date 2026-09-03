@@ -6,6 +6,7 @@ import { SchoolDashboardPage } from './modules/leadership/SchoolDashboardPage';
 import { FeesPage } from './modules/fees/FeesPage';
 import { ModulePlaceholder } from './components/ui/ModulePlaceholder';
 import { LoginPage } from './modules/auth/LoginPage';
+import { LessonCockpitPage } from './modules/teaching/LessonCockpitPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
 
@@ -87,14 +88,7 @@ export const App: React.FC = () => {
           />
           <Route
             path="teaching/classes/:classId/lessons/:lessonId"
-            element={
-              <ModulePlaceholder
-                title="Active Lesson Cockpit"
-                moduleName="Teaching Loop"
-                description="Lesson delivery, teaching notes, student attendance linkage, and completion submission."
-                scheduledPhase="Phase 2 (Teacher Daily Slice)"
-              />
-            }
+            element={<LessonCockpitPage />}
           />
           <Route
             path="teaching/classes/:classId/attendance"
