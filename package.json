@@ -10,6 +10,7 @@
     "typecheck": "tsc -b --pretty false",
     "lint": "tsc -b --pretty false",
     "test": "vitest run",
+    "test:ci": "vitest run",
     "test:unit": "vitest run src/test/design-system.test.tsx",
     "test:watch": "vitest"
   },
