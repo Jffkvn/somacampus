@@ -230,3 +230,141 @@ export interface StudentLearningSummary {
   feeClearanceStatus: 'cleared' | 'partial' | 'overdue';
   feeBalance: number;
 }
+
+// -----------------------------------------------------------------------------
+// 9. PHASE 4: TEACHING LOOP & LEARNING EVIDENCE CONTRACTS
+// -----------------------------------------------------------------------------
+
+export type EvidenceTrack = 'formal_graded' | 'diagnostic_evidence';
+export type SubmissionType = 'classwork' | 'homework' | 'worksheet' | 'quiz' | 'project' | 'practical';
+export type AssignmentStatus = 'draft' | 'published' | 'closed' | 'archived';
+export type ParticipationStatus = 'expected' | 'excused' | 'not_required';
+export type SubmissionStatus = 'pending' | 'submitted' | 'late' | 'missing';
+export type WorkType = 'notebook' | 'written' | 'oral' | 'file_reference' | 'photo_reference' | 'captured_evidence';
+export type TeacherReviewStatus = 'unreviewed' | 'reviewed' | 'revision_requested';
+export type ObservationType = 'learning_progress' | 'misconception' | 'strength' | 'support_need' | 'participation' | 'behaviour';
+export type ObservationVisibility = 'academic_team' | 'internal_only' | 'parent_visible';
+
+export interface Assignment {
+  id: string;
+  schoolId: string;
+  teacherId: string;
+  teacherName?: string;
+  classId: string;
+  className?: string;
+  streamId?: string | null;
+  streamName?: string;
+  subjectId: string;
+  subjectName?: string;
+  lessonId?: string | null;
+  title: string;
+  instructions: string;
+  assignedDate: string;
+  dueDate: string;
+  submissionType: SubmissionType;
+  evidenceTrack: EvidenceTrack;
+  maxScore?: number | null;
+  status: AssignmentStatus;
+  expectedCount?: number;
+  submittedCount?: number;
+  missingCount?: number;
+  excusedCount?: number;
+  reviewedCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudentSubmission {
+  id: string;
+  schoolId: string;
+  assignmentId: string;
+  studentId: string;
+  studentName?: string;
+  admissionNumber?: string;
+  participationStatus: ParticipationStatus;
+  submissionStatus: SubmissionStatus;
+  submittedAt?: string | null;
+  workType: WorkType;
+  workSummary?: string | null;
+  workReferenceLocation?: string | null;
+  workMetadata?: Record<string, unknown>;
+  teacherReviewStatus: TeacherReviewStatus;
+  teacherFeedback?: string | null;
+  score?: number | null;
+  reviewedByTeacherId?: string | null;
+  reviewedByTeacherName?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeacherObservation {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName?: string;
+  teacherId: string;
+  teacherName?: string;
+  classId: string;
+  className?: string;
+  streamId?: string | null;
+  streamName?: string;
+  subjectId?: string | null;
+  subjectName?: string;
+  lessonId?: string | null;
+  assignmentId?: string | null;
+  observationType: ObservationType;
+  observationText: string;
+  visibility: ObservationVisibility;
+  observedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AcademicAssessmentAuditLog {
+  id: string;
+  schoolId: string;
+  submissionId: string;
+  studentId: string;
+  previousScore?: number | null;
+  newScore?: number | null;
+  changedByTeacherId: string;
+  changedByTeacherName?: string;
+  changedAt: string;
+  reason: string;
+}
+
+export interface StudentAcademicEvidence {
+  formalAssessments: Array<{
+    id: string;
+    assignmentId: string;
+    title: string;
+    subjectName: string;
+    score: number;
+    maxScore: number;
+    date: string;
+    teacherFeedback?: string;
+  }>;
+  diagnosticEvidence: Array<{
+    id: string;
+    assignmentId: string;
+    title: string;
+    subjectName: string;
+    submissionType: SubmissionType;
+    participationStatus: ParticipationStatus;
+    submissionStatus: SubmissionStatus;
+    workType: WorkType;
+    teacherFeedback?: string;
+    score?: number | null;
+    date: string;
+  }>;
+  observations: Array<{
+    id: string;
+    teacherName: string;
+    type: ObservationType;
+    text: string;
+    subjectName?: string;
+    date: string;
+  }>;
+}
+

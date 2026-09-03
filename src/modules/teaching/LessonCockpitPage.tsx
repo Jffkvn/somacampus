@@ -95,6 +95,8 @@ export const LessonCockpitPage: React.FC = () => {
   }
 
   if (submittedLessonId) {
+    const createAssignmentUrl = `/teaching/assignments/new?lessonId=${submittedLessonId}&classId=${context.classId}&streamId=${context.streamId ?? ''}&subjectId=${context.subjectId}&topic=${encodeURIComponent(context.curriculum?.topic || '')}`;
+
     return (
       <Card>
         <CardHeader>
@@ -106,11 +108,18 @@ export const LessonCockpitPage: React.FC = () => {
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             {context.subjectName} for {context.className} was recorded.
           </p>
-          <Link to="/teacher/today">
-            <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-4 h-4" />}>
-              Back to Today view
-            </Button>
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <Link to={createAssignmentUrl}>
+              <Button variant="primary" size="sm" className="bg-teal-700 hover:bg-teal-800 text-white">
+                + Create Assignment / Homework
+              </Button>
+            </Link>
+            <Link to="/teacher/today">
+              <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-4 h-4" />}>
+                Back to Today view
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     );

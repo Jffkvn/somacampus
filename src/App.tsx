@@ -10,6 +10,9 @@ import { LoginPage } from './modules/auth/LoginPage';
 import { LessonCockpitPage } from './modules/teaching/LessonCockpitPage';
 import { StudentDirectoryPage } from './modules/students/StudentDirectoryPage';
 import { StudentDetailPage } from './modules/students/StudentDetailPage';
+import { AssignmentsListPage } from './modules/teaching/AssignmentsListPage';
+import { AssignmentCreatePage } from './modules/teaching/AssignmentCreatePage';
+import { AssignmentReviewPage } from './modules/teaching/AssignmentReviewPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
 
@@ -94,17 +97,9 @@ export const App: React.FC = () => {
               />
             }
           />
-          <Route
-            path="teaching/assignments"
-            element={
-              <ModulePlaceholder
-                title="Homework & Assignments"
-                moduleName="Teaching Loop"
-                description="Create and assign homework linked directly to completed lessons."
-                scheduledPhase="Phase 5 (Teaching Acceleration)"
-              />
-            }
-          />
+          <Route path="teaching/assignments" element={<AssignmentsListPage />} />
+          <Route path="teaching/assignments/new" element={<AssignmentCreatePage />} />
+          <Route path="teaching/assignments/:assignmentId" element={<AssignmentReviewPage />} />
           <Route
             path="teaching/worksheets"
             element={

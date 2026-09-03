@@ -82,7 +82,7 @@ export const StudentDetailPage: React.FC = () => {
     );
   }
 
-  const { profile, attendance, recentRecords } = data;
+  const { profile, attendance, recentRecords, academicEvidence } = data;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -98,7 +98,15 @@ export const StudentDetailPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center shrink-0">
-            <GraduationCap className="w-7 h-7 text-brand-teal" />
+            {profile.photoUrl ? (
+              <img
+                src={profile.photoUrl}
+                alt={profile.fullName}
+                className="w-14 h-14 rounded-2xl object-cover"
+              />
+            ) : (
+              <GraduationCap className="w-7 h-7 text-brand-teal" />
+            )}
           </div>
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
@@ -108,13 +116,21 @@ export const StudentDetailPage: React.FC = () => {
               {profile.fullName}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {profile.admissionNumber} • {profile.className}
+              {profile.admissionNumber} &bull; {profile.className}
             </p>
           </div>
         </div>
         <StatusPill
-          status={attendance.total > 0 && attendance.percentage >= 80 ? 'success' : attendance.total > 0 ? 'warning' : 'neutral'}
-          label={attendance.total > 0 ? `${attendance.percentage}% attendance` : 'No attendance yet'}
+          status={
+            attendance.total > 0 && attendance.percentage >= 80
+              ? 'success'
+              : attendance.total > 0
+              ? 'warning'
+              : 'neutral'
+          }
+          label={
+            attendance.total > 0 ? `${attendance.percentage}% attendance` : 'No attendance yet'
+          }
         />
       </div>
 
@@ -151,7 +167,13 @@ export const StudentDetailPage: React.FC = () => {
           <CardContent className="py-4 flex items-center justify-between">
             <span className="text-sm font-semibold text-slate-700">Fee clearance</span>
             <StatusPill
-              status={data.feeClearanceStatus === 'cleared' ? 'success' : data.feeClearanceStatus === 'partial' ? 'warning' : 'critical'}
+              status={
+                data.feeClearanceStatus === 'cleared'
+                  ? 'success'
+                  : data.feeClearanceStatus === 'partial'
+                  ? 'warning'
+                  : 'critical'
+              }
               label={data.feeClearanceStatus}
             />
           </CardContent>
@@ -184,12 +206,197 @@ export const StudentDetailPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Phase 4 placeholders — honest, no fake data */}
+      {/* Phase 4: Formal Academic Standing */}
       <Card>
-        <CardContent className="py-5">
-          <p className="text-xs text-slate-500">
-            Strengths, interventions, and learning evidence are coming in Phase 4.
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+              Track A
+            </span>
+            <CardTitle className="text-base font-bold text-slate-900">
+              Formal Academic Standing
+            </CardTitle>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Authoritative scored tests and formal assessments entered by subject teachers.
           </p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {!academicEvidence?.formalAssessments ||
+          academicEvidence.formalAssessments.length === 0 ? (
+            <p className="text-xs text-slate-400 py-3 italic">
+              No formal graded assessments recorded yet.
+            </p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {academicEvidence.formalAssessments.map((a) => {
+                const pct = Math.round((a.score / a.maxScore) * 100);
+                return (
+                  <div key={a.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900">{a.title}</p>
+                        <span className="text-xs font-medium text-slate-500">&bull; {a.subjectName}</span>
+                      </div>
+                      {a.teacherFeedback && (
+                        <p className="text-xs text-slate-600 mt-0.5 italic">
+                          &ldquo;{a.teacherFeedback}&rdquo;
+                        </p>
+                      )}
+                      <p className="text-[10px] text-slate-400 mt-0.5">Assessed: {a.date}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="text-base font-bold text-indigo-900">
+                          {a.score} / {a.maxScore}
+                        </span>
+                        <span className="text-xs font-semibold text-indigo-600 ml-1.5">
+                          ({pct}%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Phase 4: Diagnostic Learning Evidence & Formative Context */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+              Track B
+            </span>
+            <CardTitle className="text-base font-bold text-slate-900">
+              Learning Evidence &amp; Formative Context
+            </CardTitle>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Diagnostic classwork, homework, worksheets, and practice activities.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {!academicEvidence?.diagnosticEvidence ||
+          academicEvidence.diagnosticEvidence.length === 0 ? (
+            <p className="text-xs text-slate-400 py-3 italic">
+              No diagnostic learning evidence submitted yet.
+            </p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {academicEvidence.diagnosticEvidence.map((d) => (
+                <div key={d.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">{d.title}</p>
+                      <span className="text-xs font-medium text-slate-500">&bull; {d.subjectName}</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-400">
+                        ({d.submissionType})
+                      </span>
+                    </div>
+                    {d.teacherFeedback && (
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        Feedback: <span className="italic">&ldquo;{d.teacherFeedback}&rdquo;</span>
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Work: {d.workType} &bull; Date: {d.date}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusPill
+                      status={
+                        d.submissionStatus === 'submitted'
+                          ? 'success'
+                          : d.submissionStatus === 'missing'
+                          ? 'critical'
+                          : d.participationStatus === 'excused'
+                          ? 'warning'
+                          : 'pending'
+                      }
+                      label={
+                        d.participationStatus === 'excused'
+                          ? 'Excused'
+                          : d.submissionStatus === 'submitted'
+                          ? 'Submitted'
+                          : d.submissionStatus === 'missing'
+                          ? 'Missing'
+                          : 'Pending'
+                      }
+                      size="sm"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Phase 4: Contextual Teacher Observations Timeline */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-bold text-slate-900">
+            Teacher Observations Timeline
+          </CardTitle>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Durable qualitative evidence recorded by teachers during lessons and reviews.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {!academicEvidence?.observations ||
+          academicEvidence.observations.length === 0 ? (
+            <p className="text-xs text-slate-400 py-3 italic">
+              No teacher observations recorded yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {academicEvidence.observations.map((obs) => {
+                const isMisconception = obs.type === 'misconception';
+                const isStrength = obs.type === 'strength';
+                const isSupport = obs.type === 'support_need';
+
+                const badgeBg = isMisconception
+                  ? 'bg-amber-100 text-amber-800 border-amber-200'
+                  : isStrength
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                  : isSupport
+                  ? 'bg-sky-100 text-sky-800 border-sky-200'
+                  : 'bg-slate-100 text-slate-800 border-slate-200';
+
+                return (
+                  <div
+                    key={obs.id}
+                    className="p-3 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${badgeBg}`}
+                        >
+                          {obs.type.replace('_', ' ')}
+                        </span>
+                        {obs.subjectName && (
+                          <span className="text-xs font-semibold text-slate-700">
+                            {obs.subjectName}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400">{obs.date}</span>
+                    </div>
+                    <p className="text-xs text-slate-800 leading-relaxed font-normal">
+                      {obs.text}
+                    </p>
+                    <p className="text-[10px] text-slate-500 pt-0.5">
+                      Observed by: <span className="font-medium text-slate-700">{obs.teacherName}</span>
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import type { StudentAcademicEvidence } from '../../types/domain';
 
 export interface StudentDirectoryRow {
   studentId: string;
@@ -35,6 +36,7 @@ export interface StudentProfile {
   recentRecords: StudentAttendanceRecord[];
   feeClearanceStatus?: 'cleared' | 'partial' | 'overdue';
   feeBalance?: number;
+  academicEvidence?: StudentAcademicEvidence;
 }
 
 const isMockEnv = (): boolean =>
@@ -177,6 +179,108 @@ export const studentService = {
         // hidden-on-empty: leave undefined
       }
 
+      // Phase 4: Academic Learning Evidence
+      const academicEvidence: StudentAcademicEvidence = {
+        formalAssessments: [],
+        diagnosticEvidence: [],
+        observations: [],
+      };
+
+      try {
+        const { data: subData } = await supabase
+          .from('student_submissions')
+          .select(`
+            id,
+            assignment_id,
+            participation_status,
+            submission_status,
+            work_type,
+            score,
+            teacher_feedback,
+            created_at,
+            assignment:assignments!student_submissions_assignment_id_fkey(
+              id, title, due_date, evidence_track, max_score, submission_type,
+              subjects(name)
+            )
+          `)
+          .eq('student_id', studentId)
+          .order('created_at', { ascending: false });
+
+        if (Array.isArray(subData)) {
+          for (const s of subData) {
+            const a = one(s.assignment);
+            if (!a) continue;
+            const subj = one(a.subjects);
+            const subjectName = subj?.name ?? 'General';
+
+            if (a.evidence_track === 'formal_graded') {
+              if (s.score !== null && s.score !== undefined) {
+                academicEvidence.formalAssessments.push({
+                  id: s.id,
+                  assignmentId: a.id,
+                  title: a.title,
+                  subjectName,
+                  score: Number(s.score),
+                  maxScore: Number(a.max_score ?? 100),
+                  date: String(a.due_date ?? s.created_at).slice(0, 10),
+                  teacherFeedback: s.teacher_feedback ?? undefined,
+                });
+              }
+            } else {
+              academicEvidence.diagnosticEvidence.push({
+                id: s.id,
+                assignmentId: a.id,
+                title: a.title,
+                subjectName,
+                submissionType: a.submission_type,
+                participationStatus: s.participation_status,
+                submissionStatus: s.submission_status,
+                workType: s.work_type,
+                teacherFeedback: s.teacher_feedback ?? undefined,
+                score: s.score !== null && s.score !== undefined ? Number(s.score) : undefined,
+                date: String(a.due_date ?? s.created_at).slice(0, 10),
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Student academic submissions lookup fallback:', err);
+      }
+
+      try {
+        const { data: obsData } = await supabase
+          .from('teacher_observations')
+          .select(`
+            id,
+            observation_type,
+            observation_text,
+            observed_at,
+            teacher:employees(people(first_name, last_name)),
+            subjects(name)
+          `)
+          .eq('student_id', studentId)
+          .order('observed_at', { ascending: false });
+
+        if (Array.isArray(obsData)) {
+          for (const o of obsData) {
+            const tch = one(o.teacher);
+            const person = one(tch?.people);
+            const teacherName = person ? `${person.first_name} ${person.last_name}`.trim() : 'Teacher';
+            const subj = one(o.subjects);
+            academicEvidence.observations.push({
+              id: o.id,
+              teacherName,
+              type: o.observation_type,
+              text: o.observation_text,
+              subjectName: subj?.name ?? undefined,
+              date: String(o.observed_at).slice(0, 10),
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Student observations lookup fallback:', err);
+      }
+
       return {
         profile: {
           studentId: (student as any).id,
@@ -190,6 +294,7 @@ export const studentService = {
         attendance: { total, present, absent, late, excused, percentage },
         recentRecords,
         ...(feeClearanceStatus ? { feeClearanceStatus, feeBalance } : {}),
+        academicEvidence,
       };
     } catch {
       return null;
