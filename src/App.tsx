@@ -7,6 +7,8 @@ import { FeesPage } from './modules/fees/FeesPage';
 import { ModulePlaceholder } from './components/ui/ModulePlaceholder';
 import { LoginPage } from './modules/auth/LoginPage';
 import { LessonCockpitPage } from './modules/teaching/LessonCockpitPage';
+import { StudentDirectoryPage } from './modules/students/StudentDirectoryPage';
+import { StudentDetailPage } from './modules/students/StudentDetailPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
 
@@ -147,17 +149,8 @@ export const App: React.FC = () => {
           />
 
           {/* Students & Learning Routes */}
-          <Route
-            path="students"
-            element={
-              <ModulePlaceholder
-                title="Student Directory"
-                moduleName="Students"
-                description="Enrolled student directory with academic, attendance, and family filters."
-                scheduledPhase="Phase 4 (Student Profile & Evidence)"
-              />
-            }
-          />
+          <Route path="students" element={<StudentDirectoryPage />} />
+          <Route path="students/:studentId" element={<StudentDetailPage />} />
           <Route
             path="students/attendance"
             element={
