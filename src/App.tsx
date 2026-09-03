@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { TeacherTodayPage } from './modules/teacher/TeacherTodayPage';
 import { SchoolDashboardPage } from './modules/leadership/SchoolDashboardPage';
+import { LiveLessonsMonitorPage } from './modules/leadership/LiveLessonsMonitorPage';
 import { FeesPage } from './modules/fees/FeesPage';
 import { ModulePlaceholder } from './components/ui/ModulePlaceholder';
 import { LoginPage } from './modules/auth/LoginPage';
@@ -77,17 +78,7 @@ export const App: React.FC = () => {
           />
 
           {/* Teaching Slice Routes */}
-          <Route
-            path="teaching/lessons"
-            element={
-              <ModulePlaceholder
-                title="Live Lessons Monitor"
-                moduleName="Academics"
-                description="Live teaching monitor showing scheduled, active, and completed class periods."
-                scheduledPhase="Phase 3 (Leadership Monitoring)"
-              />
-            }
-          />
+          <Route path="teaching/lessons" element={<LiveLessonsMonitorPage />} />
           <Route
             path="teaching/classes/:classId/lessons/:lessonId"
             element={<LessonCockpitPage />}

@@ -441,17 +441,33 @@ export const leadershipService = {
   },
 };
 
+/**
+ * One scheduled class period for the live lessons monitor.
+ *
+ * Pending rows are NOT lessons: they share this type for list rendering but
+ * have `periodState === 'pending'` and `lessonId === 'pending-<timetableEntryId>'`.
+ * There is no lesson detail route for pending rows — consumers MUST branch on
+ * `periodState` (never link a pending row to lesson detail).
+ */
 export interface LiveLessonPeriod extends LeadershipLessonSummary {
   periodState: 'submitted' | 'pending';
   startTime: string;
   endTime: string;
 }
 
+/**
+ * Live monitor counts for one school day.
+ *
+ * `expected` is the scheduled period count. `submitted + pending` may exceed
+ * `expected` when orphan submissions exist (lessons with no timetable_entry_id);
+ * those extras are counted separately in `extraSubmissions`.
+ */
 export interface LiveLessonsMonitorResult {
   expected: number;
   submitted: number;
   pending: number;
   missingAttendance: number;
+  extraSubmissions: number;
   periods: LiveLessonPeriod[];
 }
 
@@ -519,7 +535,7 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
         endTime: '10:00',
       },
     ];
-    return { expected: 3, submitted: 2, pending: 1, missingAttendance: 0, periods };
+    return { expected: 3, submitted: 2, pending: 1, missingAttendance: 0, extraSubmissions: 0, periods };
   }
 
   try {
@@ -632,6 +648,7 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
 
     const lessonByEntry = new Map<string, any>();
     const orphanLessons: any[] = [];
+    // lessonRows is sorted newest-first, so the first row seen per entry wins.
     for (const r of lessonRows) {
       if (typeof r?.timetable_entry_id === 'string' && r.timetable_entry_id) {
         if (!lessonByEntry.has(r.timetable_entry_id)) lessonByEntry.set(r.timetable_entry_id, r);
@@ -703,8 +720,9 @@ export async function getLiveLessonsMonitor(schoolId: string, date: string): Pro
     const submitted = periods.filter((p) => p.periodState === 'submitted').length;
     const pending = periods.filter((p) => p.periodState === 'pending').length;
     const missingAttendance = periods.filter((p) => p.periodState === 'submitted' && !p.hasAttendanceRecorded).length;
-    return { expected: scheduledRows.length, submitted, pending, missingAttendance, periods };
+    const extraSubmissions = orphanLessons.length;
+    return { expected: scheduledRows.length, submitted, pending, missingAttendance, extraSubmissions, periods };
   } catch {
-    return { expected: 0, submitted: 0, pending: 0, missingAttendance: 0, periods: [] };
+    return { expected: 0, submitted: 0, pending: 0, missingAttendance: 0, extraSubmissions: 0, periods: [] };
   }
 }

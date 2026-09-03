@@ -176,5 +176,24 @@ describe('live lessons monitor (Phase 3 Task 1 RED)', () => {
     expect(result.submitted).toBe(0);
     expect(result.pending).toBe(0);
     expect(result.missingAttendance).toBe(0);
+    expect(result.extraSubmissions).toBe(0);
+  });
+
+  it('collapses duplicate lessons for the same entry into a single period with newest winning', async () => {
+    tableResponses.lessons = {
+      data: [
+        lessonRow({ id: 'les-old', submitted_at: `${DATE}T08:10:00+03:00`, visible_lesson_note: 'Older note.' }),
+        lessonRow({ id: 'les-new', submitted_at: `${DATE}T08:58:00+03:00`, visible_lesson_note: 'Newer note.' }),
+      ],
+      error: null,
+    };
+
+    const result = await getLiveLessonsMonitor(SCHOOL_ID, DATE);
+
+    const submitted = result.periods.filter((p) => p.periodState === 'submitted');
+    expect(submitted).toHaveLength(1);
+    expect(submitted[0]?.lessonId).toBe('les-new');
+    expect(submitted[0]?.visibleLessonNote).toBe('Newer note.');
+    expect(result.periods.filter((p) => p.lessonId === 'les-old')).toHaveLength(0);
   });
 });
