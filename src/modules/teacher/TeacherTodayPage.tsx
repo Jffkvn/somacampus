@@ -184,6 +184,8 @@ export const TeacherTodayPage: React.FC = () => {
 
   const { isClockedIn, clockedInAt, verificationMethod } = data.clockInStatus;
   const activeEntry = data.activeTimetableEntry;
+  const completedIds = data.completedLessonIds ?? [];
+  const isActiveSubmitted = activeEntry ? completedIds.includes(activeEntry.id) : false;
   const isViewingToday = data.date === toLocalYYYYMMDD();
   const nowHHMM = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
   const verificationLabel =
@@ -424,7 +426,10 @@ export const TeacherTodayPage: React.FC = () => {
                   Current Scheduled Lesson
                 </span>
               </div>
-              <StatusPill status="info" label={`${activeEntry.startTime} - ${activeEntry.endTime}`} />
+              <div className="flex items-center gap-2">
+                <StatusPill status="info" label={`${activeEntry.startTime} - ${activeEntry.endTime}`} />
+                {isActiveSubmitted && <StatusPill status="success" label="Submitted" />}
+              </div>
             </CardHeader>
 
             <CardContent className="pt-0">
@@ -500,6 +505,7 @@ export const TeacherTodayPage: React.FC = () => {
             {data.schedule.map((entry) => {
               const isCurrent = activeEntry?.id === entry.id;
               const isPast = isViewingToday && entry.endTime <= nowHHMM;
+              const isSubmitted = completedIds.includes(entry.id);
 
               return (
                 <div
@@ -533,7 +539,7 @@ export const TeacherTodayPage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <StatusPill status={isCurrent && !isPast ? 'warning' : 'neutral'} label={isPast ? 'Done' : isCurrent ? 'Up Next' : 'Scheduled'} />
+                    <StatusPill status={isSubmitted ? 'success' : isCurrent && !isPast ? 'warning' : 'neutral'} label={isSubmitted || isPast ? 'Done' : isCurrent ? 'Up Next' : 'Scheduled'} />
 
                     <Button
                       variant="outline"
