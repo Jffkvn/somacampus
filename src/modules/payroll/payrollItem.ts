@@ -6,9 +6,12 @@
  * unpaid leave adjustments) calls buildPayrollItem. Nothing derives net_pay itself.
  *
  * Guarantees:
- * 1. Gross Earnings - Employee Deductions === Net Pay
- * 2. Net Pay >= 0 (clamped so high advance recoveries cannot produce negative net pay)
- * 3. Consistent reconciliation across UI, database, PDF payslips, and exports
+ * 1. Gross Earnings - Deductions Recovered === Net Pay
+ * 2. Deductions Recovered + Outstanding Deductions === Total Deductions
+ *    (unrecovered excess is an explicit outstanding liability — never silently
+ *    dropped, never over-deducted)
+ * 3. Net Pay >= 0 (clamped so high advance recoveries cannot produce negative net pay)
+ * 4. Consistent reconciliation across UI, database, PDF payslips, and exports
  */
 
 import { calculateUgandaPayslip, PayslipCalculationParams } from './calculations';
@@ -40,6 +43,7 @@ export interface PayrollItemRecord {
   wht_amount: number;
   advance_deduction: number;
   unpaid_leave_deduction: number;
+  outstanding_deductions: number;
   net_pay: number;
   employee_type: TaxTreatment;
   pct_month_worked: number;
@@ -81,8 +85,16 @@ export function buildPayrollItem({
   const advance = num(advanceDeduction);
   const unpaid = num(unpaidLeaveDeduction);
 
-  // Post-tax deductions reduce net pay, clamped at 0
-  const netPay = Math.max(0, calc.netPay - advance - unpaid);
+  // Coherent recovery split: only min(total deductions, gross) can be
+  // recovered from this payslip; the excess is an explicit outstanding
+  // liability (never silently dropped, never over-deducted).
+  // Post-tax deductions reduce net pay, clamped at 0 (net is gross − recovered,
+  // naturally >= 0 by construction; the clamp is retained as the guarantee).
+  const gross = calc.totalGross;
+  const total = calc.totalDeductions + advance + unpaid;
+  const recovered = Math.min(total, gross);
+  const outstanding = total - recovered;
+  const netPay = Math.max(0, gross - recovered);
 
   return {
     gross_salary: calc.grossSalary,
@@ -96,6 +108,7 @@ export function buildPayrollItem({
     wht_amount: calc.whtAmount || 0,
     advance_deduction: advance,
     unpaid_leave_deduction: unpaid,
+    outstanding_deductions: outstanding,
     net_pay: netPay,
     employee_type: (calc.employeeType as TaxTreatment) || 'local',
     pct_month_worked: calc.pctMonthWorked,
@@ -124,10 +137,36 @@ export function totalEarningsOf(item: Partial<PayrollItemRecord> | null | undefi
 }
 
 /**
- * Reconciles check: Total Earnings - Total Deductions === Net Pay (within 1 UGX rounding tolerance).
+ * Deductions recovered from this payslip: min(total deductions, gross).
+ * The remainder (if any) is the outstanding liability, never over-deducted.
+ */
+export function recoveredDeductionsOf(item: Partial<PayrollItemRecord> | null | undefined): number {
+  return Math.min(totalDeductionsOf(item), totalEarningsOf(item));
+}
+
+/**
+ * Outstanding (unrecovered) deductions: explicit liability carried forward.
+ * Always >= 0 on items produced by buildPayrollItem.
+ */
+export function outstandingDeductionsOf(item: Partial<PayrollItemRecord> | null | undefined): number {
+  return num(item?.outstanding_deductions);
+}
+
+/**
+ * Reconciles check — BOTH equalities must hold (within rounding tolerance):
+ * 1. Total Earnings - Deductions Recovered === Net Pay
+ * 2. Deductions Recovered + Outstanding Deductions === Total Deductions
+ *
+ * A merely non-negative net pay is NOT sufficient: an item whose clamped
+ * liability was silently dropped fails check 2.
  */
 export function reconciles(item: Partial<PayrollItemRecord> | null | undefined, tolerance: number = 1): boolean {
   if (!item) return false;
-  const calculatedNet = totalEarningsOf(item) - totalDeductionsOf(item);
-  return Math.abs(calculatedNet - num(item.net_pay)) <= tolerance;
+  const gross = totalEarningsOf(item);
+  const total = totalDeductionsOf(item);
+  const outstanding = outstandingDeductionsOf(item);
+  const recovered = Math.min(total, gross);
+  const netOk = Math.abs(gross - recovered - num(item.net_pay)) <= tolerance;
+  const splitOk = Math.abs(recovered + outstanding - total) <= tolerance;
+  return netOk && splitOk;
 }
