@@ -1197,3 +1197,225 @@ export interface InstitutionalMoneyPicture {
   collectionRatePercentage: number;
 }
 
+// ==============================================================================
+// PHASE 8A: PARENT PORTAL PROJECTIONS
+// ==============================================================================
+//
+// Parent-scoped allowlist projections mirroring ActivityParticipantProjection
+// (see ACTIVITY_PROJECTION_ALLOWLIST above). Each projection is built
+// server-side through its allowlist — the UI never filters full objects.
+// Guarantees: no teacher internals, no payroll/expenses/school totals, no
+// phone numbers, no charge/payment ids outside the finance statement, and no
+// sibling data (every projection carries exactly one studentId).
+//
+// --- Linked child summary ---
+export interface ParentChildSummary {
+  studentId: string;
+  name: string;
+  admission: string;
+  class: string;
+}
+
+// --- Academic: visible lesson notes + parent_visible observations + assignments w/ status ---
+export const PARENT_ACADEMIC_PROJECTION_ALLOWLIST = [
+  'studentId',
+  'recentLessonNotes',
+  'observations',
+  'assignments',
+] as const;
+
+export const PARENT_LESSON_NOTE_ALLOWLIST = [
+  'date',
+  'subjectName',
+  'visibleNote',
+] as const;
+
+export const PARENT_ACADEMIC_OBSERVATION_ALLOWLIST = [
+  'id',
+  'date',
+  'teacherName',
+  'text',
+  'subjectName',
+] as const;
+
+export const PARENT_ACADEMIC_ASSIGNMENT_ALLOWLIST = [
+  'assignmentId',
+  'title',
+  'subjectName',
+  'dueDate',
+  'submissionStatus',
+  'teacherFeedback',
+] as const;
+
+export interface ParentLessonNote {
+  date: string;
+  subjectName: string;
+  visibleNote: string;
+}
+
+export interface ParentAcademicObservation {
+  id: string;
+  date: string;
+  teacherName: string;
+  text: string;
+  subjectName: string;
+}
+
+export interface ParentAcademicAssignment {
+  assignmentId: string;
+  title: string;
+  subjectName: string;
+  dueDate: string;
+  submissionStatus: string;
+  teacherFeedback: string | null;
+}
+
+export interface ParentAcademicProjection {
+  studentId: string;
+  recentLessonNotes: ParentLessonNote[];
+  observations: ParentAcademicObservation[];
+  assignments: ParentAcademicAssignment[];
+}
+
+// --- Attendance: aggregates + recent history, no teacher/session/recorder fields ---
+export const PARENT_ATTENDANCE_PROJECTION_ALLOWLIST = [
+  'studentId',
+  'percentage',
+  'present',
+  'absent',
+  'late',
+  'excused',
+  'total',
+  'recentRecords',
+] as const;
+
+export const PARENT_ATTENDANCE_RECORD_ALLOWLIST = [
+  'date',
+  'status',
+  'remarks',
+] as const;
+
+export interface ParentAttendanceRecord {
+  date: string;
+  status: string;
+  remarks: string | null;
+}
+
+export interface ParentAttendanceProjection {
+  studentId: string;
+  percentage: number;
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  total: number;
+  recentRecords: ParentAttendanceRecord[];
+}
+
+// --- Finance: own-child statement only (read-only). No payroll, expenses,
+// school totals, phone numbers, or sibling data. ---
+export const PARENT_FINANCE_PROJECTION_ALLOWLIST = [
+  'studentId',
+  'studentName',
+  'admissionNumber',
+  'className',
+  'totalAssessed',
+  'totalPaid',
+  'balance',
+  'clearanceStatus',
+  'charges',
+  'payments',
+] as const;
+
+export const PARENT_FINANCE_CHARGE_ALLOWLIST = [
+  'id',
+  'description',
+  'amount',
+  'currency',
+  'dueDate',
+  'categoryName',
+  'paidAmount',
+  'balance',
+] as const;
+
+export const PARENT_FINANCE_PAYMENT_ALLOWLIST = [
+  'id',
+  'amount',
+  'currency',
+  'paymentDate',
+  'paymentChannel',
+  'receiptNumber',
+  'status',
+] as const;
+
+export interface ParentFinanceCharge {
+  id: string;
+  description: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  categoryName: string | null;
+  paidAmount: number;
+  balance: number;
+}
+
+export interface ParentFinancePayment {
+  id: string;
+  amount: number;
+  currency: string;
+  paymentDate: string;
+  paymentChannel: string;
+  receiptNumber: string | null;
+  status: string;
+}
+
+export interface ParentFinanceProjection {
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  className: string;
+  totalAssessed: number;
+  totalPaid: number;
+  balance: number;
+  clearanceStatus: 'cleared' | 'partial' | 'overdue';
+  charges: ParentFinanceCharge[];
+  payments: ParentFinancePayment[];
+}
+
+// --- Activities: participation + clearance labels, NO amounts (mirrors the
+// teacher firewall allowlist exactly). ---
+export const PARENT_ACTIVITY_PROJECTION_ALLOWLIST = [
+  'studentId',
+  'studentName',
+  'className',
+  'streamName',
+  'activityId',
+  'activityName',
+  'clearanceStatus',
+  'clearanceLabel',
+  'validUntil',
+  'operationalNote',
+] as const;
+
+export interface ParentActivityProjection {
+  studentId: string;
+  studentName: string;
+  className: string;
+  streamName?: string | null;
+  activityId: string;
+  activityName: string;
+  clearanceStatus: ClearanceStatus;
+  clearanceLabel: string;
+  validUntil?: string | null;
+  operationalNote?: string | null;
+}
+
+// --- Full per-child overview assembled by parentService ---
+export interface ParentChildOverview {
+  child: ParentChildSummary;
+  academic: ParentAcademicProjection;
+  attendance: ParentAttendanceProjection;
+  finance: ParentFinanceProjection | null;
+  activities: ParentActivityProjection[];
+}
+

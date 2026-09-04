@@ -19,6 +19,7 @@ import { SchemeDetailPage } from './modules/planning/SchemeDetailPage';
 import { PayrollDashboardPage } from './modules/payroll/PayrollDashboardPage';
 import { MyHRPage } from './modules/hr/MyHRPage';
 import { ActivitiesPage } from './modules/activities/ActivitiesPage';
+import { ParentHomePage } from './modules/parent/ParentHomePage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
@@ -244,12 +245,9 @@ export const App: React.FC = () => {
           <Route
             path="parent/home"
             element={
-              <ModulePlaceholder
-                title="Family Portal & Child Progress"
-                moduleName="Parent Portal"
-                description="Monitor children learning progress, attendance records, and fee payment clearance."
-                scheduledPhase="Phase 4 (Student Profile & Evidence)"
-              />
+              <RequireAccess path="/parent/home">
+                <ParentHomePage />
+              </RequireAccess>
             }
           />
           <Route
