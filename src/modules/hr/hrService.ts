@@ -160,8 +160,8 @@ export const hrService = {
         color: r.color,
         displayOrder: r.display_order,
       }));
-    } catch {
-      return mockLeaveTypes;
+    } catch (err) {
+      throw new Error('Failed to fetch leave types', { cause: err });
     }
   },
 
@@ -225,8 +225,8 @@ export const hrService = {
       if (error) throw error;
 
       return buildEffectiveLeaveBalances(types, entitlements || [], requests);
-    } catch {
-      return buildEffectiveLeaveBalances(types, [], requests);
+    } catch (err) {
+      throw new Error('Failed to fetch leave entitlements', { cause: err });
     }
   },
 
@@ -265,8 +265,8 @@ export const hrService = {
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       }));
-    } catch {
-      return mockLeaveRequests;
+    } catch (err) {
+      throw new Error('Failed to fetch leave requests', { cause: err });
     }
   },
 
@@ -371,8 +371,8 @@ export const hrService = {
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       }));
-    } catch {
-      return mockAdvances;
+    } catch (err) {
+      throw new Error('Failed to fetch staff advances', { cause: err });
     }
   },
 
@@ -459,17 +459,19 @@ export const hrService = {
       };
     }
     try {
-      const { data: leaves } = await supabase
+      const { data: leaves, error: leavesError } = await supabase
         .from('leave_requests')
         .select(`*, leave_type:leave_types(name), employee:employees(job_title, person:people(first_name, last_name))`)
         .eq('school_id', schoolId)
         .eq('status', 'pending');
+      if (leavesError) throw leavesError;
 
-      const { data: advs } = await supabase
+      const { data: advs, error: advsError } = await supabase
         .from('staff_advances')
         .select(`*, employee:employees(job_title, person:people(first_name, last_name))`)
         .eq('school_id', schoolId)
         .eq('status', 'pending');
+      if (advsError) throw advsError;
 
       return {
         leaveRequests: (leaves || []).map((l: any) => ({
@@ -482,8 +484,8 @@ export const hrService = {
           employeeName: `${a.employee?.person?.first_name} ${a.employee?.person?.last_name}`,
         })),
       };
-    } catch {
-      return { leaveRequests: [], advances: [] };
+    } catch (err) {
+      throw new Error('Failed to fetch pending HR approvals', { cause: err });
     }
   },
 

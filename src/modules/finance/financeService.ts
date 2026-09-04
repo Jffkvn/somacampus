@@ -174,8 +174,8 @@ export const financeService = {
         isMandatory: c.is_mandatory,
         createdAt: c.created_at,
       }));
-    } catch {
-      return mockFeeCategories;
+    } catch (err) {
+      throw new Error('Failed to fetch fee categories', { cause: err });
     }
   },
 
@@ -233,8 +233,8 @@ export const financeService = {
         clearanceStatus: a.clearance_status,
         updatedAt: a.updated_at,
       }));
-    } catch {
-      return [];
+    } catch (err) {
+      throw new Error('Failed to fetch student fee accounts', { cause: err });
     }
   },
 
@@ -341,47 +341,138 @@ export const financeService = {
    * Get detailed student fee statement for parent or bursar
    */
   async getStudentFeeStatement(studentId: string): Promise<StudentFeeStatement | null> {
-    const studentMeta = mockStudentsMetadata.find((s) => s.id === studentId) || {
-      id: studentId,
-      admissionNumber: '2026/0142',
-      fullName: 'Amari Kyomugisha',
-      className: 'Stage 5 Blue',
-    };
-
-    const charges = mockCharges.filter((c) => c.studentId === studentId);
-    const payments = mockPayments.filter((p) => p.studentId === studentId);
-
-    let totalAssessed = 0;
-    let totalPaid = 0;
-
-    const chargesWithBalance = charges.map((chg) => {
-      totalAssessed += chg.amount;
-      const allocs = mockAllocations.filter((a) => a.chargeId === chg.id);
-      const paidAmount = allocs.reduce((sum, a) => sum + a.amount, 0);
-      totalPaid += paidAmount;
-      return {
-        ...chg,
-        paidAmount,
-        balance: Math.max(0, chg.amount - paidAmount),
+    if (isMockEnv()) {
+      const studentMeta = mockStudentsMetadata.find((s) => s.id === studentId) || {
+        id: studentId,
+        admissionNumber: '2026/0142',
+        fullName: 'Amari Kyomugisha',
+        className: 'Stage 5 Blue',
       };
-    });
 
-    const balance = Math.max(0, totalAssessed - totalPaid);
-    let clearanceStatus: 'cleared' | 'partial' | 'overdue' = 'overdue';
-    if (balance === 0 && totalAssessed > 0) clearanceStatus = 'cleared';
-    else if (totalPaid > 0) clearanceStatus = 'partial';
+      const charges = mockCharges.filter((c) => c.studentId === studentId);
+      const payments = mockPayments.filter((p) => p.studentId === studentId);
 
-    return {
-      studentId,
-      studentName: studentMeta.fullName,
-      admissionNumber: studentMeta.admissionNumber,
-      className: studentMeta.className,
-      totalAssessed,
-      totalPaid,
-      balance,
-      clearanceStatus,
-      charges: chargesWithBalance,
-      payments,
-    };
+      let totalAssessed = 0;
+      let totalPaid = 0;
+
+      const chargesWithBalance = charges.map((chg) => {
+        totalAssessed += chg.amount;
+        const allocs = mockAllocations.filter((a) => a.chargeId === chg.id);
+        const paidAmount = allocs.reduce((sum, a) => sum + a.amount, 0);
+        totalPaid += paidAmount;
+        return {
+          ...chg,
+          paidAmount,
+          balance: Math.max(0, chg.amount - paidAmount),
+        };
+      });
+
+      const balance = Math.max(0, totalAssessed - totalPaid);
+      let clearanceStatus: 'cleared' | 'partial' | 'overdue' = 'overdue';
+      if (balance === 0 && totalAssessed > 0) clearanceStatus = 'cleared';
+      else if (totalPaid > 0) clearanceStatus = 'partial';
+
+      return {
+        studentId,
+        studentName: studentMeta.fullName,
+        admissionNumber: studentMeta.admissionNumber,
+        className: studentMeta.className,
+        totalAssessed,
+        totalPaid,
+        balance,
+        clearanceStatus,
+        charges: chargesWithBalance,
+        payments,
+      };
+    }
+
+    // Live Supabase implementation: derive the statement from authoritative rows.
+    try {
+      const { data: chargeRows, error: chargesError } = await supabase
+        .from('student_charges')
+        .select('*')
+        .eq('student_id', studentId);
+      if (chargesError) throw chargesError;
+
+      const { data: paymentRows, error: paymentsError } = await supabase
+        .from('fee_payments')
+        .select('*')
+        .eq('student_id', studentId);
+      if (paymentsError) throw paymentsError;
+
+      const chargeIds = (chargeRows || []).map((c: any) => c.id);
+      let allocationRows: any[] = [];
+      if (chargeIds.length > 0) {
+        const { data: allocData, error: allocError } = await supabase
+          .from('payment_allocations')
+          .select('*')
+          .in('charge_id', chargeIds);
+        if (allocError) throw allocError;
+        allocationRows = allocData || [];
+      }
+
+      const charges: StudentCharge[] = (chargeRows || []).map((c: any) => ({
+        id: c.id,
+        schoolId: c.school_id,
+        studentId: c.student_id,
+        academicYearId: c.academic_year_id,
+        termId: c.term_id,
+        feeCategoryId: c.fee_category_id,
+        description: c.description,
+        amount: Number(c.amount),
+        currency: c.currency,
+        dueDate: c.due_date,
+        createdAt: c.created_at,
+      }));
+
+      const payments: FeePayment[] = (paymentRows || []).map((p: any) => ({
+        id: p.id,
+        schoolId: p.school_id,
+        studentId: p.student_id,
+        amount: Number(p.amount),
+        currency: p.currency,
+        paymentDate: p.payment_date,
+        paymentChannel: p.payment_channel,
+        paymentReference: p.payment_reference,
+        payerName: p.payer_name,
+        payerPhone: p.payer_phone,
+        unallocatedAmount: Number(p.unallocated_amount || 0),
+        receiptNumber: p.receipt_number,
+        status: p.status,
+        notes: p.notes,
+        createdAt: p.created_at,
+      }));
+
+      let totalAssessed = 0;
+      let totalPaid = 0;
+      const chargesWithBalance = charges.map((chg) => {
+        totalAssessed += chg.amount;
+        const paidAmount = allocationRows
+          .filter((a: any) => a.charge_id === chg.id)
+          .reduce((sum: number, a: any) => sum + Number(a.amount), 0);
+        totalPaid += paidAmount;
+        return { ...chg, paidAmount, balance: Math.max(0, chg.amount - paidAmount) };
+      });
+
+      const balance = Math.max(0, totalAssessed - totalPaid);
+      let clearanceStatus: 'cleared' | 'partial' | 'overdue' = 'overdue';
+      if (balance === 0 && totalAssessed > 0) clearanceStatus = 'cleared';
+      else if (totalPaid > 0) clearanceStatus = 'partial';
+
+      return {
+        studentId,
+        studentName: studentId,
+        admissionNumber: studentId,
+        className: '',
+        totalAssessed,
+        totalPaid,
+        balance,
+        clearanceStatus,
+        charges: chargesWithBalance,
+        payments,
+      };
+    } catch (err) {
+      throw new Error('Failed to fetch student fee statement', { cause: err });
+    }
   },
 };

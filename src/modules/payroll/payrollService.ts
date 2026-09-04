@@ -231,8 +231,8 @@ export const payrollService = {
         isClosed: r.is_closed,
         createdAt: r.created_at,
       }));
-    } catch {
-      return [...mockPeriods];
+    } catch (err) {
+      throw new Error('Failed to fetch payroll periods', { cause: err });
     }
   },
 
@@ -328,8 +328,8 @@ export const payrollService = {
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       }));
-    } catch {
-      return [...mockRuns];
+    } catch (err) {
+      throw new Error('Failed to fetch payroll runs', { cause: err });
     }
   },
 
@@ -416,8 +416,10 @@ export const payrollService = {
       });
 
       return { run, items };
-    } catch {
-      return null;
+    } catch (err: any) {
+      // NO_DATA (unknown run id) resolves to null; DATABASE_ERROR must throw.
+      if (err?.code === 'PGRST116') return null;
+      throw new Error('Failed to fetch payroll run details', { cause: err });
     }
   },
 
@@ -564,8 +566,8 @@ export const payrollService = {
         .in('run.status', ['approved', 'finalized']);
       if (error) throw error;
       return data || [];
-    } catch {
-      return [];
+    } catch (err) {
+      throw new Error('Failed to fetch payslips', { cause: err });
     }
   },
 

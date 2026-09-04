@@ -115,8 +115,8 @@ export const expenseService = {
         code: c.code,
         createdAt: c.created_at,
       }));
-    } catch {
-      return mockCategories;
+    } catch (err) {
+      throw new Error('Failed to fetch expense categories', { cause: err });
     }
   },
 
@@ -161,8 +161,8 @@ export const expenseService = {
         status: e.status,
         createdAt: e.created_at,
       }));
-    } catch {
-      return mockExpenses;
+    } catch (err) {
+      throw new Error('Failed to fetch school expenses', { cause: err });
     }
   },
 
