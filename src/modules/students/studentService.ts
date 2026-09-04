@@ -34,8 +34,6 @@ export interface StudentProfile {
     percentage: number;
   };
   recentRecords: StudentAttendanceRecord[];
-  feeClearanceStatus?: 'cleared' | 'partial' | 'overdue';
-  feeBalance?: number;
   academicEvidence?: StudentAcademicEvidence;
 }
 
@@ -161,24 +159,6 @@ export const studentService = {
           ...(r.remarks ? { remarks: r.remarks } : {}),
         }));
 
-      // Fee line: best-effort only. No read policies exist → expected to
-      // fail → undefined → UI hides the fee row. Never throws.
-      let feeClearanceStatus: StudentProfile['feeClearanceStatus'];
-      let feeBalance: number | undefined;
-      try {
-        const { data: fee, error: feeErr } = await supabase
-          .from('student_fee_accounts')
-          .select('clearance_status, balance')
-          .eq('student_id', studentId)
-          .maybeSingle();
-        if (!feeErr && fee && ['cleared', 'partial', 'overdue'].includes((fee as any).clearance_status)) {
-          feeClearanceStatus = (fee as any).clearance_status;
-          feeBalance = Number((fee as any).balance ?? 0);
-        }
-      } catch {
-        // hidden-on-empty: leave undefined
-      }
-
       // Phase 4: Academic Learning Evidence
       const academicEvidence: StudentAcademicEvidence = {
         formalAssessments: [],
@@ -293,7 +273,6 @@ export const studentService = {
         },
         attendance: { total, present, absent, late, excused, percentage },
         recentRecords,
-        ...(feeClearanceStatus ? { feeClearanceStatus, feeBalance } : {}),
         academicEvidence,
       };
     } catch {

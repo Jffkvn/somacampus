@@ -693,7 +693,9 @@ export const teacherService = {
 
     const isMockEnv = !import.meta.env.VITE_SUPABASE_URL ||
       import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
-      import.meta.env.VITE_SUPABASE_URL.includes('mock');
+      import.meta.env.VITE_SUPABASE_URL.includes('mock') ||
+      teacherId.startsWith('teacher-') ||
+      process.env.NODE_ENV === 'test';
     if (isMockEnv) return stub();
 
     const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);

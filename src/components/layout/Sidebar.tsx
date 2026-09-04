@@ -28,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     students: false,
     finance: false,
     administration: false,
+    staff_portal: false,
   });
 
   // Auto-expand accordion if child route is active

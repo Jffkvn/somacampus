@@ -8,18 +8,27 @@ import { Users, GraduationCap, CheckCircle2, AlertTriangle, ArrowRight, External
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { toLocalYYYYMMDD } from '../teacher/scheduleUtils';
+import { moneyMovementService } from '../finance/moneyMovementService';
+import { InstitutionalMoneyPicture } from '../../types/domain';
+import { formatUGX } from '../payroll/calculations';
+import { DollarSign, TrendingUp, TrendingDown, ArrowUpRight } from 'lucide-react';
 
 export const SchoolDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<LeadershipDashboardViewModel | null>(null);
+  const [moneyPicture, setMoneyPicture] = useState<InstitutionalMoneyPicture | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
         setIsLoading(true);
-        const res = await leadershipService.getSchoolLeadershipDashboard('22222222-2222-2222-2222-222222222222', toLocalYYYYMMDD(new Date()));
+        const [res, money] = await Promise.all([
+          leadershipService.getSchoolLeadershipDashboard('22222222-2222-2222-2222-222222222222', toLocalYYYYMMDD(new Date())),
+          moneyMovementService.getInstitutionalMoneyPicture('school-default', 'term-1'),
+        ]);
         setData(res);
+        setMoneyPicture(money);
       } catch (err) {
         console.error('Failed to load leadership dashboard data', err);
       } finally {
@@ -190,8 +199,106 @@ export const SchoolDashboardPage: React.FC = () => {
           </Card>
         </div>
 
-        {/* Right Sidebar: Attention Alerts & Exceptions (1 Col) */}
+        {/* Right Sidebar: Institutional Money Picture & Operational Alerts (1 Col) */}
         <div className="space-y-6">
+          {/* Institutional Cash Movement Card */}
+          {moneyPicture && (
+            <Card className="border-teal-100 bg-gradient-to-b from-teal-50/30 to-white">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-teal-800 flex items-center gap-1">
+                    <DollarSign className="w-3.5 h-3.5" /> Institutional Cash Flow
+                  </span>
+                  <span className="text-xs px-2 py-0.5 bg-teal-100 text-teal-800 rounded font-medium">
+                    {moneyPicture.termName}
+                  </span>
+                </div>
+                <CardTitle className="text-base font-bold text-slate-900 mt-1">
+                  Money In vs. Money Out
+                </CardTitle>
+                <CardDescription>Operational cash balance for the term</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-4">
+                {/* Net Operational Movement */}
+                <div className="p-3.5 rounded-xl bg-slate-900 text-white flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-slate-400 uppercase tracking-wider block">Net Cash Movement</span>
+                    <span className={`text-lg font-bold ${moneyPicture.netOperationalMovement >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {moneyPicture.netOperationalMovement >= 0 ? '+' : ''}{formatUGX(moneyPicture.netOperationalMovement)}
+                    </span>
+                  </div>
+                  <div className={`p-2 rounded-lg ${moneyPicture.netOperationalMovement >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                    {moneyPicture.netOperationalMovement >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                  </div>
+                </div>
+
+                {/* In / Out Breakdown */}
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-100">
+                    <span className="text-emerald-800 font-semibold block">Money In</span>
+                    <span className="font-bold text-slate-900 text-sm block mt-0.5">
+                      {formatUGX(moneyPicture.moneyIn.totalCollected)}
+                    </span>
+                    <span className="text-slate-500 text-[11px] block mt-0.5">
+                      {moneyPicture.collectionRatePercentage}% collection rate
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-rose-50/70 border border-rose-100">
+                    <span className="text-rose-800 font-semibold block">Money Out</span>
+                    <span className="font-bold text-slate-900 text-sm block mt-0.5">
+                      {formatUGX(moneyPicture.moneyOut.totalExpenditure)}
+                    </span>
+                    <span className="text-slate-500 text-[11px] block mt-0.5">
+                      Payroll & operations
+                    </span>
+                  </div>
+                </div>
+
+                {/* Sub-breakdown rows */}
+                <div className="text-xs text-slate-600 space-y-1.5 pt-1 border-t border-slate-100 font-sans">
+                  <div className="flex justify-between">
+                    <span>Staff Payroll Disbursed</span>
+                    <span className="font-medium text-slate-900">{formatUGX(moneyPicture.moneyOut.staffPayroll)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Operating Expenses (Lunch/Bills)</span>
+                    <span className="font-medium text-slate-900">{formatUGX(moneyPicture.moneyOut.schoolOperations)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Outstanding Student Arrears</span>
+                    <span className="font-medium text-rose-600">{formatUGX(moneyPicture.outstandingStudentCharges)}</span>
+                  </div>
+                </div>
+
+                {/* Quick Navigation Links */}
+                <div className="pt-2 flex items-center justify-between border-t border-slate-100 text-xs">
+                  <button
+                    onClick={() => navigate('/fees')}
+                    className="text-brand-teal font-semibold hover:underline flex items-center gap-0.5"
+                  >
+                    <span>Fees Ledger</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => navigate('/expenses')}
+                    className="text-brand-teal font-semibold hover:underline flex items-center gap-0.5"
+                  >
+                    <span>Expenses</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => navigate('/payroll')}
+                    className="text-brand-teal font-semibold hover:underline flex items-center gap-0.5"
+                  >
+                    <span>Payroll</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm font-bold">

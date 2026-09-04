@@ -129,8 +129,8 @@ describe('student profile (Phase 2 Task 5)', () => {
     expect(profile!.attendance.percentage).toBe(50);
     expect(profile!.recentRecords).toHaveLength(4);
     expect(profile!.recentRecords[0]).toMatchObject({ date: '2026-09-03', status: 'present' });
-    // Fee line degrades to hidden: failed fee lookup → undefined, never throws.
-    expect(profile!.feeClearanceStatus).toBeUndefined();
+    // Teacher financial privacy firewall: fee status is completely excluded from StudentProfile
+    expect((profile as any)?.feeClearanceStatus).toBeUndefined();
   });
 
   it('zero-division guard: real student with no records → valid 0% profile (not null)', async () => {

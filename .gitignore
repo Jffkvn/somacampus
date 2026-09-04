@@ -11,3 +11,4 @@ supabase/.temp/
 *.tsbuildinfo
 .DS_Store
 .supabase_home/
+.reference_repos/

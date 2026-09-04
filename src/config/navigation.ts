@@ -7,6 +7,7 @@ import {
   MessageSquare,
   ShieldAlert,
   Clock,
+  UserCheck,
 } from 'lucide-react';
 import type { UserRole } from './permissions';
 
@@ -55,6 +56,20 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     ],
   },
   {
+    id: 'academics',
+    label: 'Academics',
+    icon: Calendar,
+    roles: ['teacher', 'admin', 'principal'],
+    subItems: [
+      { label: 'Curriculum Explorer', href: '/curriculum', roles: ['teacher', 'admin', 'principal'] },
+      { label: 'Schemes of Work', href: '/planning/schemes', roles: ['teacher', 'admin', 'principal'] },
+      { label: 'School Activities & Sports', href: '/activities', roles: ['teacher', 'admin', 'principal'] },
+      { label: 'Timetable', href: '/timetable' },
+      { label: 'School Calendar', href: '/calendar' },
+      { label: 'Class & Streams', href: '/classes', roles: ['admin', 'principal'] },
+    ],
+  },
+  {
     id: 'students',
     label: 'Students',
     icon: Users,
@@ -65,25 +80,14 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     ],
   },
   {
-    id: 'academics',
-    label: 'Academics',
-    icon: Calendar,
-    roles: ['teacher', 'admin', 'principal'],
-    subItems: [
-      { label: 'Curriculum Explorer', href: '/curriculum', roles: ['teacher', 'admin', 'principal'] },
-      { label: 'Schemes of Work', href: '/planning/schemes', roles: ['teacher', 'admin', 'principal'] },
-      { label: 'Timetable', href: '/timetable' },
-      { label: 'School Calendar', href: '/calendar' },
-      { label: 'Class & Streams', href: '/classes', roles: ['admin', 'principal'] },
-    ],
-  },
-  {
     id: 'finance',
     label: 'Finance',
     icon: DollarSign,
     roles: ['bursar', 'admin', 'principal'],
     subItems: [
       { label: 'Fee Accounts', href: '/fees' },
+      { label: 'Operating Expenses', href: '/expenses' },
+      { label: 'Payroll Engine', href: '/payroll' },
       { label: 'Payment Imports', href: '/fees/import', roles: ['bursar', 'admin'] },
     ],
   },
@@ -103,10 +107,19 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     roles: ['admin', 'principal'],
     subItems: [
       { label: 'School Setup', href: '/admin/overview', roles: ['admin'] },
-      { label: 'Staff & HR', href: '/administration/hr' },
-      { label: 'Payroll', href: '/administration/payroll', roles: ['admin'] },
       { label: 'Inventory & Assets', href: '/administration/inventory' },
       { label: 'Audit Log', href: '/administration/audit', roles: ['admin'] },
+    ],
+  },
+  {
+    id: 'staff_portal',
+    label: 'My HR & Payslips',
+    icon: UserCheck,
+    roles: ['teacher', 'admin', 'principal', 'bursar'],
+    subItems: [
+      { label: 'Leave & Balances', href: '/people/hr/leave' },
+      { label: 'Salary Advances', href: '/people/hr/advances' },
+      { label: 'My Payslips', href: '/people/hr/payslips' },
     ],
   },
 ];

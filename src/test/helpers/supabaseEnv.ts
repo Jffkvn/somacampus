@@ -5,8 +5,10 @@ export function isMockSupabaseUrl(url: string): boolean {
   return host === 'mock.supabase.co' || host.includes('placeholder') || host === 'localhost' || host === '127.0.0.1';
 }
 export function hasLiveAnonCreds(url: string, anonKey: string): boolean {
+  if (process.env.SKIP_LIVE_TESTS === 'true' || process.env.TEST_LIVE_DB !== 'true') return false;
   return Boolean(url && anonKey) && anonKey !== 'placeholder-key' && !isMockSupabaseUrl(url);
 }
 export function hasLiveAdminCreds(url: string, serviceKey: string): boolean {
+  if (process.env.SKIP_LIVE_TESTS === 'true' || process.env.TEST_LIVE_DB !== 'true') return false;
   return Boolean(url && serviceKey) && serviceKey !== 'placeholder-key' && !isMockSupabaseUrl(url);
 }

@@ -16,6 +16,10 @@ import { AssignmentReviewPage } from './modules/teaching/AssignmentReviewPage';
 import { CurriculumExplorerPage } from './modules/curriculum/CurriculumExplorerPage';
 import { SchemesOfWorkPage } from './modules/planning/SchemesOfWorkPage';
 import { SchemeDetailPage } from './modules/planning/SchemeDetailPage';
+import { PayrollDashboardPage } from './modules/payroll/PayrollDashboardPage';
+import { MyHRPage } from './modules/hr/MyHRPage';
+import { ActivitiesPage } from './modules/activities/ActivitiesPage';
+import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
 
@@ -158,6 +162,7 @@ export const App: React.FC = () => {
           <Route path="curriculum/:frameworkCode" element={<CurriculumExplorerPage />} />
           <Route path="planning/schemes" element={<SchemesOfWorkPage />} />
           <Route path="planning/schemes/:schemeId" element={<SchemeDetailPage />} />
+          <Route path="activities" element={<ActivitiesPage />} />
 
           <Route
             path="timetable"
@@ -194,6 +199,8 @@ export const App: React.FC = () => {
           />
 
           {/* Finance Routes */}
+          <Route path="expenses" element={<ExpensesPage />} />
+          <Route path="payroll" element={<PayrollDashboardPage />} />
           <Route
             path="fees/import"
             element={
@@ -205,6 +212,12 @@ export const App: React.FC = () => {
               />
             }
           />
+
+          {/* Staff & HR Portal Submenu Routes (Native submenus, no OneHub tabs) */}
+          <Route path="people/hr" element={<Navigate to="/people/hr/leave" replace />} />
+          <Route path="people/hr/leave" element={<MyHRPage section="leave" />} />
+          <Route path="people/hr/advances" element={<MyHRPage section="advances" />} />
+          <Route path="people/hr/payslips" element={<MyHRPage section="payslips" />} />
 
           {/* Parent & Student Portal Routes */}
           <Route
@@ -255,28 +268,8 @@ export const App: React.FC = () => {
               />
             }
           />
-          <Route
-            path="administration/hr"
-            element={
-              <ModulePlaceholder
-                title="Staff Directory & HR Workflows"
-                moduleName="Operational Systems"
-                description="Staff profiles, leave requests, advances, and employment records (JantaHR proven logic)."
-                scheduledPhase="Phase 7 (Operational Systems)"
-              />
-            }
-          />
-          <Route
-            path="administration/payroll"
-            element={
-              <ModulePlaceholder
-                title="Payroll Computation Engine"
-                moduleName="Operational Systems"
-                description="Salary calculation, statutory PAYE/NSSF deductions, and payslip generation."
-                scheduledPhase="Phase 7 (Operational Systems)"
-              />
-            }
-          />
+          <Route path="administration/hr" element={<MyHRPage />} />
+          <Route path="administration/payroll" element={<PayrollDashboardPage />} />
           <Route
             path="administration/inventory"
             element={

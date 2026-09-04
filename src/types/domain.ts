@@ -234,8 +234,6 @@ export interface StudentLearningSummary {
   }>;
   recentEvidenceCount: number;
   activeInterventionsCount: number;
-  feeClearanceStatus: 'cleared' | 'partial' | 'overdue';
-  feeBalance: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -738,3 +736,444 @@ export interface LessonLearningObjective {
   isPrimary: boolean;
   notes?: string | null;
 }
+
+// -----------------------------------------------------------------------------
+// 12. PHASE 7: SCHOOL FINANCE, PAYROLL, HR & OPERATIONAL MONEY CONTRACTS
+// -----------------------------------------------------------------------------
+
+// --- Fee Structure & Student Charges ---
+export interface FeeCategory {
+  id: string;
+  schoolId: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  isMandatory: boolean;
+  createdAt: string;
+}
+
+export interface FeeStructure {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  termId: string;
+  classId?: string | null;
+  feeCategoryId: string;
+  amount: number;
+  currency: string;
+  categoryName?: string;
+  createdAt: string;
+}
+
+export interface StudentCharge {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  academicYearId: string;
+  termId: string;
+  feeCategoryId: string;
+  feeStructureId?: string | null;
+  description: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  categoryName?: string;
+  createdAt: string;
+}
+
+export interface FeePayment {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  amount: number;
+  currency: string;
+  paymentDate: string;
+  paymentChannel: 'bank_deposit' | 'mobile_money' | 'cash' | 'bank_transfer' | 'cheque' | 'other';
+  paymentReference?: string | null;
+  payerName?: string | null;
+  payerPhone?: string | null;
+  unallocatedAmount: number;
+  recordedBy?: string | null;
+  receiptNumber?: string | null;
+  status: 'verified' | 'unallocated' | 'partially_allocated' | 'fully_allocated' | 'reversed';
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface PaymentAllocation {
+  id: string;
+  schoolId: string;
+  paymentId: string;
+  chargeId: string;
+  amount: number;
+  allocatedAt: string;
+  allocatedBy?: string | null;
+}
+
+export interface FeeAdjustment {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  chargeId: string;
+  adjustmentType: 'waiver' | 'scholarship' | 'discount' | 'correction' | 'bad_debt_writeoff';
+  amount: number;
+  reason: string;
+  authorizedBy: string;
+  createdAt: string;
+}
+
+export interface StudentFeeAccount {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  academicYearId: string;
+  termId: string;
+  assessedAmount: number;
+  paidAmount: number;
+  balance: number;
+  clearanceStatus: 'cleared' | 'partial' | 'overdue';
+  updatedAt: string;
+}
+
+export interface StudentFeeStatement {
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  className: string;
+  totalAssessed: number;
+  totalPaid: number;
+  balance: number;
+  clearanceStatus: 'cleared' | 'partial' | 'overdue';
+  charges: Array<StudentCharge & { paidAmount: number; balance: number }>;
+  payments: FeePayment[];
+}
+
+// --- Activities, Clubs & Decoupled Operational Clearance ---
+export interface SchoolActivity {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  termId: string;
+  name: string;
+  category: 'sports' | 'arts' | 'academic_club' | 'excursion' | 'special_service';
+  isPaid: boolean;
+  feeAmount: number;
+  leadTeacherId?: string | null;
+  leadTeacherName?: string | null;
+  capacity?: number | null;
+  enrolledCount?: number;
+  status: 'active' | 'completed' | 'cancelled';
+  createdAt: string;
+}
+
+export interface ActivityEnrolment {
+  id: string;
+  schoolId: string;
+  activityId: string;
+  studentId: string;
+  studentName?: string;
+  className?: string;
+  chargeId?: string | null;
+  status: 'enrolled' | 'withdrawn' | 'suspended';
+  enrolledAt: string;
+}
+
+export type ClearanceStatus = 'cleared' | 'not_cleared' | 'pending_review';
+export type ClearanceBasis = 'paid' | 'waived' | 'sponsored' | 'promise_to_pay' | 'included' | 'administrative_approval';
+
+export interface ActivityClearance {
+  id: string;
+  schoolId: string;
+  activityId: string;
+  studentId: string;
+  status: ClearanceStatus;
+  basis: ClearanceBasis;
+  clearedBy?: string | null;
+  clearedAt: string;
+  validUntil?: string | null;
+  operationalNote?: string | null;
+}
+
+// The Teacher Financial Privacy Firewall Projection
+// Exposes operational clearance without ANY monetary figures
+export interface ActivityParticipantProjection {
+  studentId: string;
+  studentName: string;
+  className: string;
+  activityId: string;
+  activityName: string;
+  clearanceStatus: ClearanceStatus;
+  clearanceLabel: string; // e.g. "✓ Cleared • Promise to Pay"
+  validUntil?: string | null;
+  operationalNote?: string | null;
+}
+
+// --- School Expenses (Money Out) ---
+export interface SchoolExpenseCategory {
+  id: string;
+  schoolId: string;
+  name: string;
+  code: string;
+  createdAt: string;
+}
+
+export interface SchoolExpense {
+  id: string;
+  schoolId: string;
+  categoryId: string;
+  categoryName?: string;
+  amount: number;
+  currency: string;
+  spentOn: string;
+  paymentChannel: 'bank_transfer' | 'cash' | 'mobile_money' | 'cheque';
+  recipientPayee: string;
+  description: string;
+  referenceNumber?: string | null;
+  receiptAttachmentUrl?: string | null;
+  academicYearId?: string | null;
+  termId?: string | null;
+  recordedBy?: string | null;
+  status: 'recorded' | 'approved' | 'reconciled' | 'voided';
+  createdAt: string;
+}
+
+// --- Native Payroll Domain ---
+export type PayBasis = 'salaried' | 'hourly';
+export type TaxTreatment = 'local' | 'global' | 'contractor' | 'exempt';
+export type PayrollRunStatus = 'draft' | 'calculated' | 'under_review' | 'approved' | 'finalized' | 'trashed';
+
+export interface PayrollTaxBand {
+  min: number;
+  max: number | null;
+  rate: number;
+}
+
+export interface PayrollTaxConfiguration {
+  id: string;
+  schoolId?: string | null;
+  name: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  payeBands: PayrollTaxBand[];
+  surchargeThreshold: number;
+  surchargeRate: number;
+  nssfEmployeeRate: number;
+  nssfEmployerRate: number;
+  overtimeMultiplier: number;
+  standardMonthlyHours: number;
+  defaultWhtRate: number;
+  createdAt: string;
+}
+
+export interface EmployeePayrollProfile {
+  id: string;
+  schoolId: string;
+  employeeId: string;
+  employeeName?: string;
+  jobTitle?: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  payBasis: PayBasis;
+  taxTreatment: TaxTreatment;
+  baseSalary: number;
+  hourlyRate?: number | null;
+  currency: string;
+  nssfApplicable: boolean;
+  customWhtRate?: number | null;
+  customOvertimeRate?: number | null;
+  paymentMethod: 'bank_transfer' | 'mobile_money' | 'cash' | 'cheque';
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  mobileMoneyNumber?: string | null;
+  mobileMoneyProvider?: 'mtn' | 'airtel' | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayrollPeriod {
+  id: string;
+  schoolId: string;
+  periodStart: string;
+  periodEnd: string;
+  periodMonth: string; // 'YYYY-MM'
+  label: string;       // e.g. 'September 2026'
+  isClosed: boolean;
+  createdAt: string;
+}
+
+export interface SchoolPayrollRun {
+  id: string;
+  schoolId: string;
+  periodId: string;
+  taxConfigurationId?: string | null;
+  periodMonth: string;
+  periodLabel: string;
+  runNumber: number;
+  runType: 'regular' | 'supplemental' | 'correction';
+  status: PayrollRunStatus;
+  calculationSettings: Record<string, any>;
+  totalGross: number;
+  totalPaye: number;
+  totalNssfEmployee: number;
+  totalNssfEmployer: number;
+  totalWht: number;
+  totalDeductions: number;
+  totalNet: number;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  finalizedBy?: string | null;
+  finalizedAt?: string | null;
+  itemsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SchoolPayrollItem {
+  id: string;
+  schoolId: string;
+  payrollRunId: string;
+  employeeId: string;
+  employeeName: string;
+  employeeNumber?: string;
+  jobTitle?: string;
+  grossSalary: number;
+  overtimeHours: number;
+  overtimeAmount: number;
+  allowances: number;
+  otherDeductions: number;
+  paye: number;
+  nssfEmployee: number;
+  nssfEmployer: number;
+  whtAmount: number;
+  advanceDeduction: number;
+  unpaidLeaveDeduction: number;
+  netPay: number;
+  employeeType: TaxTreatment;
+  pctMonthWorked: number;
+  createdAt: string;
+}
+
+// --- Staff HR Domain ---
+export interface LeaveType {
+  id: string;
+  schoolId: string;
+  code: string;
+  name: string;
+  isPaid: boolean;
+  defaultEntitlementDays?: number | null;
+  requiresEvidence: boolean;
+  color: string;
+  displayOrder: number;
+}
+
+export interface PublicHoliday {
+  id: string;
+  schoolId?: string | null;
+  holidayDate: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface LeaveEntitlement {
+  id: string;
+  schoolId: string;
+  employeeId: string;
+  leaveTypeId: string;
+  leaveYear: number;
+  entitledDays: number;
+  usedDays?: number;
+  remainingDays?: number;
+}
+
+export type DayPortion = 'full' | 'morning' | 'afternoon';
+export type LeaveRequestStatus = 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'cancelled';
+
+export interface LeaveRequest {
+  id: string;
+  schoolId: string;
+  employeeId: string;
+  employeeName?: string;
+  leaveTypeId: string;
+  leaveTypeName?: string;
+  startDate: string;
+  endDate: string;
+  workingDays: number;
+  dayPortion: DayPortion;
+  reason: string;
+  status: LeaveRequestStatus;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  decisionReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EffectiveLeaveBalanceItem {
+  leaveTypeId: string;
+  code: string;
+  name: string;
+  color: string;
+  isPaid: boolean;
+  entitledDays: number;
+  usedDays: number;
+  pendingDays: number;
+  availableDays: number;
+  isDefault: boolean;
+}
+
+export type AdvanceStatus = 'pending' | 'active' | 'paid_off' | 'rejected' | 'flagged' | 'voided';
+
+export interface StaffAdvance {
+  id: string;
+  schoolId: string;
+  employeeId: string;
+  employeeName?: string;
+  amount: number;
+  balanceRemaining: number;
+  monthlyDeduction: number;
+  numInstalments: number;
+  reason: string;
+  status: AdvanceStatus;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  decisionReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdvanceRepayment {
+  id: string;
+  schoolId: string;
+  advanceId: string;
+  employeeId: string;
+  payrollRunId?: string | null;
+  payrollPeriodId: string;
+  amount: number;
+  source: 'payroll' | 'manual' | 'exit';
+  notes?: string | null;
+  paidAt: string;
+}
+
+// --- Institutional Money Movement View Models ---
+export interface InstitutionalMoneyPicture {
+  academicYearName: string;
+  termName: string;
+  moneyIn: {
+    tuitionFees: number;
+    activityFees: number;
+    otherIncome: number;
+    totalCollected: number;
+  };
+  moneyOut: {
+    staffPayroll: number;
+    schoolOperations: number;
+    totalExpenditure: number;
+  };
+  netOperationalMovement: number;
+  totalAssessedCharges: number;
+  outstandingStudentCharges: number;
+  collectionRatePercentage: number;
+}
+
