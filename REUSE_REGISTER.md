@@ -1,5 +1,9 @@
 # SomaCampus: Proven Code Reuse Register
 
+> **Authority on reuse boundaries:** `docs/ADR-001-standalone-repository.md` is the authoritative
+> record that SomaCampus is a standalone repository — OneHub/JantaHR are business-logic references
+> only, and zero legacy UI is reused, not even a bit.
+
 > **Mandate:** SomaCampus reuses proven backend logic, database schemas, calculation routines, and validation rules from legacy repositories. **Zero legacy UI components, layouts, forms, sidebars, or stylesheets are reused or inherited.**
 
 ---

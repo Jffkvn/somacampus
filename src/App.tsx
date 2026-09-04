@@ -71,7 +71,7 @@ export const App: React.FC = () => {
                 title="Assigned Classes"
                 moduleName="Teacher Workspace"
                 description="View assigned class rosters, curriculum progress, and subject allocations."
-                scheduledPhase="Phase 2 (Teacher Daily Slice)"
+                scheduledPhase="Backlog (deferred past Phase 2)"
               />
             }
           />
@@ -82,7 +82,7 @@ export const App: React.FC = () => {
                 title="Teacher Weekly Timetable"
                 moduleName="Schedule & Context"
                 description="Full weekly recurring timetable schedule and classroom allocations."
-                scheduledPhase="Phase 2 (Teacher Daily Slice)"
+                scheduledPhase="Backlog (deferred past Phase 2)"
               />
             }
           />
@@ -100,7 +100,7 @@ export const App: React.FC = () => {
                 title="Fast Bulk Attendance Register"
                 moduleName="Attendance Engine"
                 description="Mark all present in one click, adjust exceptions, and persist to student longitudinal records."
-                scheduledPhase="Phase 2 (Teacher Daily Slice)"
+                scheduledPhase="Backlog (deferred past Phase 2)"
               />
             }
           />
@@ -171,7 +171,7 @@ export const App: React.FC = () => {
                 title="School Master Timetable"
                 moduleName="Schedule & Context"
                 description="School-wide recurring schedule, room allocations, and conflict detection."
-                scheduledPhase="Phase 2 (Teacher Daily Slice)"
+                scheduledPhase="Backlog (deferred past Phase 2)"
               />
             }
           />
@@ -182,7 +182,7 @@ export const App: React.FC = () => {
                 title="School Calendar & Events"
                 moduleName="Calendar Engine"
                 description="Whole-school and targeted events: Sports Day, exams, meetings, and term dates."
-                scheduledPhase="Phase 2 (Teacher Daily Slice)"
+                scheduledPhase="Backlog (deferred past Phase 2)"
               />
             }
           />
@@ -208,7 +208,7 @@ export const App: React.FC = () => {
                 title="Payment Statement Import & Reconciliation"
                 moduleName="Finance & Reconciliation"
                 description="Excel/CSV statement upload, deterministic admission number matching, and exception resolution."
-                scheduledPhase="Phase 6 (Finance & Reconciliation)"
+                scheduledPhase="Backlog (Phase 6 scope, unbuilt)"
               />
             }
           />
