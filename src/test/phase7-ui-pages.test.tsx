@@ -8,6 +8,24 @@ import { ActivitiesPage } from '../modules/activities/ActivitiesPage';
 import { ExpensesPage } from '../modules/expenses/ExpensesPage';
 import { SchoolDashboardPage } from '../modules/leadership/SchoolDashboardPage';
 
+// Mock auth identity: MyHRPage resolves the viewer via useAuth +
+// resolveMyEmployeeId. Headless tests run the mock-env DEMO path with the
+// pinned demo teacher (no provider needed).
+vi.mock('../lib/authContext', () => ({
+  useAuth: () => ({
+    user: { id: 'user-1' },
+    session: null,
+    role: 'teacher',
+    fullName: 'Sarah Nabwire',
+    schoolId: 'school-default',
+    isLoading: false,
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    switchDevRole: vi.fn(),
+  }),
+  AuthProvider: ({ children }: any) => children,
+}));
+
 // Mock recharts ResponsiveContainer to avoid jsdom zero-dimension warnings
 vi.mock('recharts', async () => {
   const original = await vi.importActual<any>('recharts');

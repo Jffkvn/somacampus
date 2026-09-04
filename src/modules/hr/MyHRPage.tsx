@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { hrService } from './hrService';
 import { payrollService } from '../payroll/payrollService';
+import { useAuth } from '../../lib/authContext';
+import { resolveMyEmployeeId } from '../auth/identity';
 import {
   EffectiveLeaveBalanceItem,
   LeaveRequest,
@@ -27,8 +29,26 @@ export interface MyHRPageProps {
   section?: 'leave' | 'advances' | 'payslips';
 }
 
+// DEMO ONLY: mock env has no authenticated employee row, so previews and the
+// mock test suite pin the demo teacher explicitly. NEVER used on the live
+// path — live resolution below fails closed instead of falling back.
+const DEMO_EMPLOYEE_ID = 'emp-teacher-1';
+const DEMO_EMPLOYEE_NAME = 'Sarah Nabwire';
+const DEMO_SCHOOL_ID = 'school-default';
+
+function isMockEnv(): boolean {
+  return (
+    process.env.NODE_ENV === 'test' ||
+    !import.meta.env.VITE_SUPABASE_URL ||
+    import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
+    import.meta.env.VITE_SUPABASE_URL.includes('mock')
+  );
+}
+
 export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   const location = useLocation();
+  const { schoolId: authSchoolId, fullName } = useAuth();
+  const schoolId = authSchoolId ?? DEMO_SCHOOL_ID;
 
   const activeTab: 'leave' | 'advances' | 'payslips' = propSection || (
     location.pathname.includes('/advances')
@@ -62,19 +82,60 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   // Payslip Modal
   const [selectedPayslip, setSelectedPayslip] = useState<SchoolPayrollItem | null>(null);
 
-  // Current logged in teacher identity
-  const currentEmployeeId = 'emp-teacher-1';
-  const currentEmployeeName = 'Sarah Nabwire';
+  // Viewer identity (Issue 1): resolved per session via the school-scoped
+  // helper — never hardcoded, never another employee's id.
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState(true);
+
+  // Live UI shows the viewer's own name from auth; the mock demo keeps its
+  // pinned demo label so previews render without a session.
+  const currentEmployeeName = isMockEnv() ? DEMO_EMPLOYEE_NAME : (fullName ?? DEMO_EMPLOYEE_NAME);
   const baseSalary = 1800000;
 
-  async function loadData() {
+  useEffect(() => {
+    let cancelled = false;
+    async function resolveViewer() {
+      setIsResolving(true);
+      setResolveError(null);
+      try {
+        if (isMockEnv()) {
+          if (!cancelled) setEmployeeId(DEMO_EMPLOYEE_ID);
+          return;
+        }
+        const id = await resolveMyEmployeeId(schoolId);
+        if (cancelled) return;
+        if (!id) {
+          // Fail closed: surface an error, NEVER fall back to another id.
+          setEmployeeId(null);
+          setResolveError('Could not resolve your employee record');
+        } else {
+          setEmployeeId(id);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to resolve employee identity', err);
+          setEmployeeId(null);
+          setResolveError('Could not resolve your employee record');
+        }
+      } finally {
+        if (!cancelled) setIsResolving(false);
+      }
+    }
+    resolveViewer();
+    return () => {
+      cancelled = true;
+    };
+  }, [schoolId]);
+
+  async function loadData(empId: string) {
     try {
       setIsLoading(true);
       const [effBalances, myReqs, myAdvs, mySlips] = await Promise.all([
-        hrService.getEffectiveBalances('school-default', currentEmployeeId),
-        hrService.getMyLeaveRequests(currentEmployeeId),
-        hrService.getMyAdvances(currentEmployeeId),
-        payrollService.getMyPayslips(currentEmployeeId),
+        hrService.getEffectiveBalances(schoolId, empId),
+        hrService.getMyLeaveRequests(empId),
+        hrService.getMyAdvances(empId),
+        payrollService.getMyPayslips(empId),
       ]);
       setBalances(effBalances);
       setRequests(myReqs);
@@ -88,16 +149,19 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   }
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (employeeId) {
+      loadData(employeeId);
+    }
+  }, [employeeId]);
 
   const handleApplyLeave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!employeeId) return;
     try {
       setIsSubmittingLeave(true);
       await hrService.submitLeaveRequest({
-        schoolId: 'school-default',
-        employeeId: currentEmployeeId,
+        schoolId,
+        employeeId,
         employeeName: currentEmployeeName,
         leaveTypeId: selectedLeaveTypeId,
         startDate,
@@ -107,7 +171,7 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
       });
       setShowLeaveModal(false);
       setLeaveReason('');
-      await loadData();
+      if (employeeId) await loadData(employeeId);
     } catch (err: any) {
       alert(err?.message || 'Failed to submit leave request');
     } finally {
@@ -117,11 +181,12 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
 
   const handleApplyAdvance = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!employeeId) return;
     try {
       setIsSubmittingAdvance(true);
       await hrService.submitAdvanceRequest({
-        schoolId: 'school-default',
-        employeeId: currentEmployeeId,
+        schoolId,
+        employeeId,
         employeeName: currentEmployeeName,
         amount: parseFloat(advanceAmount) || 0,
         numInstalments: instalments,
@@ -130,7 +195,7 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
       });
       setShowAdvanceModal(false);
       setAdvanceReason('');
-      await loadData();
+      if (employeeId) await loadData(employeeId);
     } catch (err: any) {
       alert(err?.message || 'Failed to submit advance request');
     } finally {
@@ -148,8 +213,24 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
     dayPortion
   );
 
-  if (isLoading && balances.length === 0) {
+  if (isResolving || (isLoading && balances.length === 0 && !resolveError)) {
     return <LoadingState label="Loading staff HR self-service..." />;
+  }
+
+  // Fail closed: an unresolvable viewer sees an error, NEVER another
+  // employee's leave, advances, or payslips.
+  if (resolveError || !employeeId) {
+    return (
+      <div className="max-w-lg mx-auto mt-12 bg-white border border-rose-200 rounded-2xl p-8 text-center space-y-3">
+        <h1 className="text-lg font-bold text-slate-900">HR self-service unavailable</h1>
+        <p className="text-sm text-slate-600">
+          {resolveError ?? 'Could not resolve your employee record'}
+        </p>
+        <p className="text-xs text-slate-400">
+          Please contact your school administrator to link your sign-in to a staff record.
+        </p>
+      </div>
+    );
   }
 
   return (

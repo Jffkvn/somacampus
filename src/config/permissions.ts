@@ -31,7 +31,9 @@ export type PermissionCode =
   | 'student.learning.view'
   | 'fees.view_accounts'
   | 'fees.import_reconcile'
+  | 'expenses.view'
   | 'hr.staff.view'
+  | 'hr.payroll.view'
   | 'hr.payroll.manage'
   | 'inventory.manage'
   | 'reports.view_official';
@@ -52,7 +54,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionCode[]> = {
     'student.learning.view',
     'fees.view_accounts',
     'fees.import_reconcile',
+    'expenses.view',
     'hr.staff.view',
+    'hr.payroll.view',
     'hr.payroll.manage',
     'inventory.manage',
     'reports.view_official',
@@ -67,7 +71,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionCode[]> = {
     'student.profile.view',
     'student.learning.view',
     'fees.view_accounts',
+    'expenses.view',
     'hr.staff.view',
+    'hr.payroll.view',
     'inventory.manage',
     'reports.view_official',
   ],
@@ -87,6 +93,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionCode[]> = {
     'calendar.view',
     'fees.view_accounts',
     'fees.import_reconcile',
+    'expenses.view',
+    'hr.payroll.view',
     'reports.view_official',
   ],
   parent: [

@@ -47,7 +47,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
  * read institutional cash, payroll and fee ledgers. Denied roles fall back
  * to their own landing route. Academic + self-service HR paths stay open.
  */
-const RequireAccess: React.FC<{ path: string; children: React.ReactNode }> = ({ path, children }) => {
+// Exported for the router-level gate tests (teacher-privacy.test.tsx);
+// behavior unchanged.
+export const RequireAccess: React.FC<{ path: string; children: React.ReactNode }> = ({ path, children }) => {
   const { role } = useAuth();
   if (!canAccessPath(role, path)) {
     return <Navigate to={getRoleLandingRoute(role)} replace />;
