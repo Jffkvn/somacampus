@@ -551,4 +551,41 @@ VALUES
   )
 ON CONFLICT (id) DO NOTHING;
 
+-- 11. Phase 8A: Parent Guardian Link (Florence Kyomugisha -> Amari Kyomugisha)
+INSERT INTO people (id, first_name, last_name, email)
+VALUES
+  ('11111111-0000-0000-0000-000000000009', 'Florence', 'Kyomugisha', 'parent@somacampus.ug'),
+  ('11111111-0000-0000-0000-000000000010', 'Amari', 'Kyomugisha', 'student@somacampus.ug')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO students (id, person_id, admission_number, status)
+VALUES (
+  '22222222-0000-0000-0000-000000000009',
+  '11111111-0000-0000-0000-000000000010',
+  'GCC-2024-009',
+  'active'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO student_enrolments (id, student_id, school_id, academic_year_id, class_id, stream_id, status)
+VALUES (
+  '33333333-0000-0000-0000-000000000009',
+  '22222222-0000-0000-0000-000000000009',
+  '22222222-2222-2222-2222-222222222222',
+  '33333333-3333-3333-3333-333333333333',
+  '55555555-5555-5555-5555-555555555551',
+  '66666666-6666-6666-6666-666666666661',
+  'active'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO student_guardians (student_id, guardian_person_id, relationship, is_primary)
+VALUES (
+  '22222222-0000-0000-0000-000000000009',
+  '11111111-0000-0000-0000-000000000009',
+  'mother',
+  true
+)
+ON CONFLICT (student_id, guardian_person_id) DO NOTHING;
+
 
