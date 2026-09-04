@@ -100,6 +100,10 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   // viewer's own leave/advances/payslips (service layer is employee_id +
   // school_id scoped with RLS deny->throw). Teachers reach the same data
   // via /people/hr/*.
+  // Phase 8A parent portal: parent-only, matching the family_portal nav
+  // group. Admin support access (view-as-family troubleshooting) is
+  // deferred — admins use /admin/overview until that flow is specified.
+  { prefix: '/parent', roles: ['parent'] },
 ];
 
 /** Longest-prefix match so /fees/import wins over /fees. */

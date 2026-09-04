@@ -39,6 +39,7 @@ import {
   toParentFinanceProjection,
   toParentActivityProjection,
 } from '../modules/parent/parentService';
+import { canAccessPath } from '../lib/teacherPrivacy';
 
 // ---------------------------------------------------------------------------
 // Supabase stub idiom (mirrors parent-identity.test.ts): per-table canned
@@ -729,5 +730,32 @@ describe('parentService env + membership', () => {
     await expect(parentService.getParentChildren('school-1')).resolves.toEqual([
       { studentId: 'stu-A', name: 'Amina Child', admission: '2026/0201', class: 'Stage 5 Blue' },
     ]);
+  });
+
+  it('live: DB/RLS error throws (D1 rule — never silent [] or leaked rows)', async () => {
+    forceLiveEnv();
+    mockResolveMyChildIds.mockResolvedValue(['stu-A']);
+    const deny = { data: null, error: { code: '42501', message: 'permission denied for table (RLS)' } };
+    tableResponses.students = deny;
+    await expect(parentService.getParentChildren('school-1')).rejects.toThrow(
+      'Failed to load linked children.',
+    );
+    await expect(parentService.getChildOverview('school-1', 'stu-A')).rejects.toThrow(
+      'Failed to load child overview.',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Route gate: /parent/* is parent-only (matches the family_portal nav group).
+// ---------------------------------------------------------------------------
+describe('parent route guard', () => {
+  it('teacher (and other non-parent roles) are denied on /parent/home; parent allowed', () => {
+    expect(canAccessPath('teacher', '/parent/home')).toBe(false);
+    expect(canAccessPath('principal', '/parent/home')).toBe(false);
+    expect(canAccessPath('bursar', '/parent/home')).toBe(false);
+    expect(canAccessPath('admin', '/parent/home')).toBe(false);
+    expect(canAccessPath('student', '/parent/home')).toBe(false);
+    expect(canAccessPath('parent', '/parent/home')).toBe(true);
   });
 });
