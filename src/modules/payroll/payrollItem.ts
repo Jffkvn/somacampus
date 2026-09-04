@@ -115,6 +115,71 @@ export function buildPayrollItem({
   };
 }
 
+export interface CalculationSnapshotInput {
+  baseSalary?: number;
+  overtimeHours?: number;
+  allowances?: number;
+  otherDeductions?: number;
+  employeeType?: TaxTreatment;
+  pctMonthWorked?: number;
+  whtRate?: number | null;
+  customOvertimeRate?: number | null;
+  advanceDeduction?: number;
+  unpaidLeaveDeduction?: number;
+  statutoryVersion?: string;
+  taxConfigurationId?: string | null;
+  settings?: PayslipCalculationParams['settings'];
+}
+
+/**
+ * D4: freeze the calculation inputs behind a payroll item at computation
+ * time (draft/calculated). Pure data capture — no tax math, no live reads.
+ * The stored snapshot is what finalized renders/audits reproduce from, so
+ * later profile or tax-config changes cannot rewrite history.
+ */
+export function buildCalculationSnapshot({
+  baseSalary = 0,
+  overtimeHours = 0,
+  allowances = 0,
+  otherDeductions = 0,
+  employeeType = 'local',
+  pctMonthWorked = 100,
+  whtRate = null,
+  customOvertimeRate = null,
+  advanceDeduction = 0,
+  unpaidLeaveDeduction = 0,
+  statutoryVersion = '2026.1',
+  taxConfigurationId = null,
+  settings = {},
+}: CalculationSnapshotInput = {}): Record<string, any> {
+  const s = settings || {};
+  return {
+    version: 1,
+    statutoryVersion,
+    taxConfigurationId,
+    inputs: {
+      baseSalary: num(baseSalary),
+      overtimeHours: num(overtimeHours),
+      allowances: num(allowances),
+      otherDeductions: num(otherDeductions),
+      employeeType: employeeType || 'local',
+      pctMonthWorked: pctMonthWorked ?? 100,
+      whtRate: whtRate ?? null,
+      customOvertimeRate: customOvertimeRate ?? null,
+      advanceDeduction: num(advanceDeduction),
+      unpaidLeaveDeduction: num(unpaidLeaveDeduction),
+    },
+    rates: {
+      // settings carry percent-scale NSSF rates (5/10); snapshot stores decimals.
+      nssfEmployeeRate: s.nssf_employee_rate != null ? num(s.nssf_employee_rate) / 100 : 0.05,
+      nssfEmployerRate: s.nssf_employer_rate != null ? num(s.nssf_employer_rate) / 100 : 0.1,
+      overtimeMultiplier: s.overtime_multiplier != null ? num(s.overtime_multiplier) : 1.5,
+      standardMonthlyHours: s.standard_monthly_hours != null ? num(s.standard_monthly_hours) : 173.33,
+    },
+    settings: s,
+  };
+}
+
 /**
  * Total employee deductions: statutory (PAYE + employee NSSF + WHT) + other deductions + advance + unpaid leave.
  */

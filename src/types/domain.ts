@@ -1049,9 +1049,13 @@ export interface SchoolPayrollItem {
   whtAmount: number;
   advanceDeduction: number;
   unpaidLeaveDeduction: number;
+  outstandingDeductions?: number;
   netPay: number;
   employeeType: TaxTreatment;
   pctMonthWorked: number;
+  // D4: frozen calculation inputs captured at computation time (draft/calculated).
+  // Finalized reads render this stored snapshot — never live profiles/config.
+  calculationSnapshot?: Record<string, any> | null;
   createdAt: string;
 }
 

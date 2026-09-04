@@ -18,7 +18,7 @@ import {
   EmployeePayrollProfile,
   PayrollRunStatus,
 } from '../../types/domain';
-import { buildPayrollItem } from './payrollItem';
+import { buildPayrollItem, buildCalculationSnapshot } from './payrollItem';
 
 const isMockEnv = (): boolean =>
   process.env.NODE_ENV === 'test' ||
@@ -198,9 +198,16 @@ let mockItems: Record<string, SchoolPayrollItem[]> = {
       whtAmount: computed.wht_amount,
       advanceDeduction: computed.advance_deduction,
       unpaidLeaveDeduction: computed.unpaid_leave_deduction,
+      outstandingDeductions: computed.outstanding_deductions,
       netPay: computed.net_pay,
       employeeType: computed.employee_type,
       pctMonthWorked: computed.pct_month_worked,
+      // D4: frozen inputs captured at computation time — finalized reads
+      // render this stored snapshot, never live profiles/config.
+      calculationSnapshot: buildCalculationSnapshot({
+        baseSalary: p.baseSalary,
+        employeeType: p.taxTreatment,
+      }),
       createdAt: '2026-09-02T11:00:00Z',
     };
   }),
@@ -408,9 +415,13 @@ export const payrollService = {
           whtAmount: Number(item.wht_amount || 0),
           advanceDeduction: Number(item.advance_deduction || 0),
           unpaidLeaveDeduction: Number(item.unpaid_leave_deduction || 0),
+          outstandingDeductions: Number(item.outstanding_deductions || 0),
           netPay: Number(item.net_pay || 0),
           employeeType: item.employee_type,
           pctMonthWorked: Number(item.pct_month_worked || 100),
+          // D4: stored snapshot is authoritative at render — never re-read
+          // live employee_payroll_profiles / payroll_tax_configurations here.
+          calculationSnapshot: item.calculation_snapshot || null,
           createdAt: item.created_at,
         };
       });
@@ -467,9 +478,14 @@ export const payrollService = {
           whtAmount: computed.wht_amount,
           advanceDeduction: computed.advance_deduction,
           unpaidLeaveDeduction: computed.unpaid_leave_deduction,
+          outstandingDeductions: computed.outstanding_deductions,
           netPay: computed.net_pay,
           employeeType: computed.employee_type,
           pctMonthWorked: computed.pct_month_worked,
+          calculationSnapshot: buildCalculationSnapshot({
+            baseSalary: p.baseSalary,
+            employeeType: p.taxTreatment,
+          }),
           createdAt: new Date().toISOString(),
         };
       });
