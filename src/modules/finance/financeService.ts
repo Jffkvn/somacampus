@@ -420,7 +420,7 @@ export const financeService = {
         feeCategoryId: c.fee_category_id,
         description: c.description,
         amount: Number(c.amount),
-        currency: c.currency,
+        currency: c.currency ?? 'UGX',
         dueDate: c.due_date,
         createdAt: c.created_at,
       }));
@@ -430,7 +430,8 @@ export const financeService = {
         schoolId: p.school_id,
         studentId: p.student_id,
         amount: Number(p.amount),
-        currency: p.currency,
+        // fee_payments has no currency column: PostgREST returns undefined.
+        currency: p.currency ?? 'UGX',
         paymentDate: p.payment_date,
         paymentChannel: p.payment_channel,
         paymentReference: p.payment_reference,
@@ -459,11 +460,39 @@ export const financeService = {
       if (balance === 0 && totalAssessed > 0) clearanceStatus = 'cleared';
       else if (totalPaid > 0) clearanceStatus = 'partial';
 
+      // Live student identity: join students -> people for the display name
+      // and student_enrolments -> classes for the class name. Query errors
+      // still throw; only absent join rows fall back to placeholders.
+      const { data: studentRow, error: studentError } = await supabase
+        .from('students')
+        .select('admission_number, person:people(first_name, last_name)')
+        .eq('id', studentId)
+        .maybeSingle();
+      if (studentError) throw studentError;
+
+      const { data: enrolRow, error: enrolError } = await supabase
+        .from('student_enrolments')
+        .select('class:classes(name)')
+        .eq('student_id', studentId)
+        .limit(1)
+        .maybeSingle();
+      if (enrolError) throw enrolError;
+
+      const person = Array.isArray((studentRow as any)?.person)
+        ? (studentRow as any).person[0]
+        : (studentRow as any)?.person;
+      const personName = [person?.first_name, person?.last_name]
+        .filter(Boolean)
+        .join(' ');
+      const cls = Array.isArray((enrolRow as any)?.class)
+        ? (enrolRow as any).class[0]
+        : (enrolRow as any)?.class;
+
       return {
         studentId,
-        studentName: studentId,
-        admissionNumber: studentId,
-        className: '',
+        studentName: personName || studentId,
+        admissionNumber: (studentRow as any)?.admission_number ?? studentId,
+        className: cls?.name ?? '',
         totalAssessed,
         totalPaid,
         balance,

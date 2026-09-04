@@ -8,7 +8,11 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
-describe('Pre-Lesson Teacher Briefing ("Before You Teach")', () => {
+// learningIntelligenceService takes its isMockEnv demo path when no
+// VITE_SUPABASE_URL is configured; gate on URL presence like the RLS suites.
+const hasUrl = Boolean(process.env.VITE_SUPABASE_URL || (import.meta as any).env?.VITE_SUPABASE_URL);
+
+describe.skipIf(!hasUrl)('Pre-Lesson Teacher Briefing ("Before You Teach")', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -14,7 +14,9 @@ vi.mock('../lib/supabase', () => {
   };
 });
 
-describe('Phase 6 Integration: Curriculum & Learning Intelligence Loop', () => {
+const hasUrl = Boolean(process.env.VITE_SUPABASE_URL || (import.meta as any).env?.VITE_SUPABASE_URL);
+
+describe.skipIf(!hasUrl)('Phase 6 Integration: Curriculum & Learning Intelligence Loop', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

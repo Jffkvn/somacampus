@@ -96,21 +96,40 @@ export const feesService = {
     try {
       const { data, error } = await supabase
         .from('student_fee_accounts')
-        .select('*')
+        .select('*, student:students(admission_number, person:people(first_name, last_name))')
         .eq('school_id', schoolId)
         .eq('term_id', termId);
       if (error) throw error;
+
+      // Resolve class names via enrolments. Lookup errors still throw;
+      // only absent rows fall back to ''.
+      const studentIds = [...new Set((data || []).map((a: any) => a.student_id))];
+      const classByStudent = new Map<string, string>();
+      if (studentIds.length > 0) {
+        const { data: enrolRows, error: enrolError } = await supabase
+          .from('student_enrolments')
+          .select('student_id, class:classes(name)')
+          .in('student_id', studentIds);
+        if (enrolError) throw enrolError;
+        for (const e of (enrolRows || []) as any[]) {
+          const cls = Array.isArray(e.class) ? e.class[0] : e.class;
+          if (cls?.name) classByStudent.set(e.student_id, cls.name);
+        }
+      }
 
       const accounts: FeeAccountSummaryItem[] = (data || []).map((a: any) => {
         const assessed = Number(a.assessed_amount || 0);
         const paid = Number(a.paid_amount || 0);
         const balance = Number(a.balance ?? Math.max(0, assessed - paid));
+        const student = Array.isArray(a.student) ? a.student[0] : a.student;
+        const person = Array.isArray(student?.person) ? student.person[0] : student?.person;
+        const fullName = [person?.first_name, person?.last_name].filter(Boolean).join(' ');
         return {
           id: a.id,
           studentId: a.student_id,
-          admissionNumber: a.student_id,
-          studentName: a.student_id,
-          className: '',
+          admissionNumber: student?.admission_number ?? a.student_id,
+          studentName: fullName || a.student_id,
+          className: classByStudent.get(a.student_id) ?? '',
           assessedAmount: assessed,
           paidAmount: paid,
           balance,

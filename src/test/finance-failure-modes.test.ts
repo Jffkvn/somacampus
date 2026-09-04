@@ -237,4 +237,99 @@ describe('finance failure modes: production DB failure must throw, never mock', 
     expect(res.accounts).toEqual([]);
     expect(res.totalOutstanding).toBe(0);
   });
+
+  // ─── D1 review: live currency default + student identity joins ───
+  it('finance getStudentFeeStatement: payment row without currency -> UGX', async () => {
+    mockFrom({
+      student_charges: { data: [], error: null },
+      fee_payments: {
+        data: [
+          { id: 'p1', school_id: 's1', student_id: 'stud-x', amount: 500000, payment_date: '2026-09-01', payment_channel: 'cash', payment_reference: null, payer_name: null, payer_phone: null, unallocated_amount: 500000, receipt_number: 'REC-1', status: 'unallocated', notes: null, created_at: '2026-09-01T00:00:00Z' },
+        ],
+        error: null,
+      },
+      students: { data: null, error: null },
+      student_enrolments: { data: null, error: null },
+    });
+    const res = await financeService.getStudentFeeStatement('stud-x');
+    expect(res).not.toBeNull();
+    expect(res!.payments).toHaveLength(1);
+    expect(res!.payments[0].currency).toBe('UGX');
+  });
+
+  it('finance getStudentFeeStatement: joined student identity appears in header', async () => {
+    mockFrom({
+      student_charges: { data: [], error: null },
+      fee_payments: { data: [], error: null },
+      students: { data: { admission_number: '2026/0142', person: { first_name: 'Amari', last_name: 'Kyomugisha' } }, error: null },
+      student_enrolments: { data: { class: { name: 'Stage 5 Blue' } }, error: null },
+    });
+    const res = await financeService.getStudentFeeStatement('stud-amari');
+    expect(res!.studentName).toBe('Amari Kyomugisha');
+    expect(res!.admissionNumber).toBe('2026/0142');
+    expect(res!.className).toBe('Stage 5 Blue');
+  });
+
+  it('finance getStudentFeeStatement: absent join rows -> graceful fallback, no throw', async () => {
+    mockFrom({
+      student_charges: { data: [], error: null },
+      fee_payments: { data: [], error: null },
+      students: { data: null, error: null },
+      student_enrolments: { data: null, error: null },
+    });
+    const res = await financeService.getStudentFeeStatement('stud-ghost');
+    expect(res!.studentName).toBe('stud-ghost');
+    expect(res!.admissionNumber).toBe('stud-ghost');
+    expect(res!.className).toBe('');
+  });
+
+  it('fees getFeesDashboard: joined student identity appears in accounts', async () => {
+    mockFrom({
+      student_fee_accounts: {
+        data: [
+          { id: 'acc-1', school_id: 's1', student_id: 'stud-amari', academic_year_id: 'ay', term_id: 'term-1', assessed_amount: 2500000, paid_amount: 2500000, balance: 0, clearance_status: 'cleared', updated_at: '2026-09-01T00:00:00Z', student: { admission_number: '2026/0142', person: { first_name: 'Amari', last_name: 'Kyomugisha' } } },
+        ],
+        error: null,
+      },
+      student_enrolments: {
+        data: [{ student_id: 'stud-amari', class: { name: 'Stage 5 Blue' } }],
+        error: null,
+      },
+    });
+    const res = await feesService.getFeesDashboard('s1');
+    expect(res.accounts).toHaveLength(1);
+    expect(res.accounts[0].studentName).toBe('Amari Kyomugisha');
+    expect(res.accounts[0].admissionNumber).toBe('2026/0142');
+    expect(res.accounts[0].className).toBe('Stage 5 Blue');
+    expect(res.totalAssessed).toBe(2500000);
+  });
+
+  it('fees getFeesDashboard: absent join rows -> graceful fallback, no throw', async () => {
+    mockFrom({
+      student_fee_accounts: {
+        data: [
+          { id: 'acc-9', school_id: 's1', student_id: 'stud-ghost', academic_year_id: 'ay', term_id: 'term-1', assessed_amount: 1000000, paid_amount: 200000, balance: 800000, clearance_status: 'partial', updated_at: '2026-09-01T00:00:00Z' },
+        ],
+        error: null,
+      },
+      student_enrolments: { data: [], error: null },
+    });
+    const res = await feesService.getFeesDashboard('s1');
+    expect(res.accounts[0].studentName).toBe('stud-ghost');
+    expect(res.accounts[0].admissionNumber).toBe('stud-ghost');
+    expect(res.accounts[0].className).toBe('');
+  });
+
+  it('fees getFeesDashboard: enrolment lookup failure -> throws (not silent)', async () => {
+    mockFrom({
+      student_fee_accounts: {
+        data: [
+          { id: 'acc-9', school_id: 's1', student_id: 'stud-x', academic_year_id: 'ay', term_id: 'term-1', assessed_amount: 1000000, paid_amount: 0, balance: 1000000, clearance_status: 'overdue', updated_at: '2026-09-01T00:00:00Z' },
+        ],
+        error: null,
+      },
+      student_enrolments: { data: null, error: DB_DOWN },
+    });
+    await expect(feesService.getFeesDashboard('s1')).rejects.toThrow();
+  });
 });
