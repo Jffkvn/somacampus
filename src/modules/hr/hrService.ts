@@ -8,6 +8,7 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import { writeFinancialAudit } from '../../lib/financialAudit';
 import {
   LeaveType,
   LeaveRequest,
@@ -519,6 +520,11 @@ export const hrService = {
       }
       return false;
     }
+    const { data: current } = await supabase
+      .from('leave_requests')
+      .select('school_id,status')
+      .eq('id', requestId)
+      .single();
     const { error } = await supabase
       .from('leave_requests')
       .update({
@@ -527,7 +533,17 @@ export const hrService = {
         decided_at: new Date().toISOString(),
       })
       .eq('id', requestId);
-    return !error;
+    if (error) return false;
+    await writeFinancialAudit({
+      schoolId: (current as any)?.school_id ?? 'school-default',
+      entityType: 'leave_request',
+      entityId: requestId,
+      action: status,
+      reason: reason ?? `decideLeaveRequest ${status}`,
+      previousData: { status: (current as any)?.status ?? 'pending' },
+      newData: { id: requestId, status },
+    });
+    return true;
   },
 
   /**
@@ -544,6 +560,11 @@ export const hrService = {
       }
       return false;
     }
+    const { data: current } = await supabase
+      .from('staff_advances')
+      .select('school_id,status')
+      .eq('id', advanceId)
+      .single();
     const { error } = await supabase
       .from('staff_advances')
       .update({
@@ -552,6 +573,16 @@ export const hrService = {
         decided_at: new Date().toISOString(),
       })
       .eq('id', advanceId);
-    return !error;
+    if (error) return false;
+    await writeFinancialAudit({
+      schoolId: (current as any)?.school_id ?? 'school-default',
+      entityType: 'staff_advance',
+      entityId: advanceId,
+      action: status,
+      reason: reason ?? `decideAdvanceRequest ${status}`,
+      previousData: { status: (current as any)?.status ?? 'pending' },
+      newData: { id: advanceId, status },
+    });
+    return true;
   },
 };

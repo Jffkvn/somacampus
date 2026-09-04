@@ -11,6 +11,7 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import { writeFinancialAudit } from '../../lib/financialAudit';
 import {
   PayrollPeriod,
   SchoolPayrollRun,
@@ -693,8 +694,7 @@ export const payrollService = {
       .single();
     if (runError) throw runError;
 
-    if (computed.length > 0) {
-      const itemRows = computed.map(({ computed: c, snapshot }, idx) => {
+    if (computed.length > 0) {      const itemRows = computed.map(({ computed: c, snapshot }, idx) => {
         const p: any = (profileRows || [])[idx];
         return {
           school_id: schoolId,
@@ -724,6 +724,15 @@ export const payrollService = {
       if (itemsError) throw itemsError;
     }
 
+    await writeFinancialAudit({
+      schoolId,
+      entityType: 'payroll_run',
+      entityId: (runData as any)?.id ?? periodId,
+      action: 'create',
+      reason: `createAndCalculateDraftRun ${periodId}`,
+      previousData: null,
+      newData: runData,
+    });
     return runData;
   },
 
@@ -734,11 +743,41 @@ export const payrollService = {
     if (isMockEnv()) {
       const run = mockRuns.find((r) => r.id === runId);
       if (!run) return false;
+      if (
+        (run.status === 'approved' || run.status === 'finalized') &&
+        (nextStatus === 'draft' || nextStatus === 'calculated')
+      ) {
+        throw new Error(
+          'An approved or finalized payroll run cannot be returned to draft. Historical records are immutable.'
+        );
+      }
       run.status = nextStatus;
       if (nextStatus === 'finalized') {
         run.finalizedAt = new Date().toISOString();
       }
       return true;
+    }
+    // Live: mirror DB guard guard_payroll_run_status before mutating.
+    try {
+      const { data: current, error: fetchError } = await supabase
+        .from('school_payroll_runs')
+        .select('status,school_id')
+        .eq('id', runId)
+        .single();
+      if (!fetchError && current) {
+        const cur = (current as any).status;
+        if (
+          (cur === 'approved' || cur === 'finalized') &&
+          (nextStatus === 'draft' || nextStatus === 'calculated')
+        ) {
+          throw new Error(
+            'An approved or finalized payroll run cannot be returned to draft. Historical records are immutable.'
+          );
+        }
+      }
+    } catch (err: any) {
+      if (err?.message?.includes('cannot be returned to draft')) throw err;
+      // Best-effort pre-check only; let the DB trigger enforce on failure.
     }
     const updatePayload: any = { status: nextStatus, updated_at: new Date().toISOString() };
     if (nextStatus === 'finalized') {
@@ -748,7 +787,18 @@ export const payrollService = {
       .from('school_payroll_runs')
       .update(updatePayload)
       .eq('id', runId);
-    return !error;
+    if (error) return false;
+    const schoolId = (updatePayload as any).school_id ?? 'school-default';
+    await writeFinancialAudit({
+      schoolId: typeof schoolId === 'string' ? schoolId : 'school-default',
+      entityType: 'payroll_run',
+      entityId: runId,
+      action: `status:${nextStatus}`,
+      reason: `updateRunStatus ${runId} -> ${nextStatus}`,
+      previousData: null,
+      newData: { id: runId, status: nextStatus },
+    });
+    return true;
   },
 
   /**

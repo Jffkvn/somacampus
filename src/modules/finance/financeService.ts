@@ -10,6 +10,7 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import { writeFinancialAudit } from '../../lib/financialAudit';
 import {
   FeeCategory,
   StudentCharge,
@@ -334,6 +335,15 @@ export const financeService = {
       .single();
 
     if (pmtError) throw pmtError;
+    await writeFinancialAudit({
+      schoolId: payload.schoolId,
+      entityType: 'payment',
+      entityId: (pmtData as any)?.id ?? receiptNumber,
+      action: 'create',
+      reason: `recordPayment ${receiptNumber}`,
+      previousData: null,
+      newData: pmtData,
+    });
     return pmtData;
   },
 

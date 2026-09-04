@@ -8,6 +8,7 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import { writeFinancialAudit } from '../../lib/financialAudit';
 import { SchoolExpense, SchoolExpenseCategory } from '../../types/domain';
 
 const isMockEnv = (): boolean =>
@@ -224,6 +225,15 @@ export const expenseService = {
       .single();
 
     if (error) throw error;
+    await writeFinancialAudit({
+      schoolId: payload.schoolId,
+      entityType: 'expense',
+      entityId: (data as any)?.id ?? payload.referenceNumber ?? payload.description,
+      action: 'create',
+      reason: `recordExpense ${payload.description}`,
+      previousData: null,
+      newData: data,
+    });
     return data;
   },
 };
