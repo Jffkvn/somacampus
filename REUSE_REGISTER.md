@@ -6,6 +6,11 @@
 
 > **Mandate:** SomaCampus reuses proven backend logic, database schemas, calculation routines, and validation rules from legacy repositories. **Zero legacy UI components, layouts, forms, sidebars, or stylesheets are reused or inherited.**
 
+> **Path scope note:** every `Source Repository & Path` and `Tests Covering It` filename in this
+> register refers to an **upstream** source repo (JantaHR / OneHub / `egypro` / `egypro-portal`),
+> **not** to files in this SomaCampus repo — none of those upstream paths or test filenames
+> (e.g. upstream `employees.test.ts`, `leave.test.ts`, `payroll.test.ts`) exist here.
+
 ---
 
 ## Subsystem 1: Employee Directory & Staff Dossier Logic
