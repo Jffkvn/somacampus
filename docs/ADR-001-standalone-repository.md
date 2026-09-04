@@ -43,7 +43,7 @@ arrangement, and no OneHub dependency.
 
 - The v1.7 §0D solo-maintenance / monorepo argument is **rejected**: the cost of duplicated
   maintenance is accepted in exchange for a standalone codebase with no shared-runtime coupling.
-- Ports are kept honest by **parity tests, not shared runtime**: ported business logic is verified
+- Ports are kept honest by **reference parity fixtures, not shared runtime**: ported business logic is verified
   by tests in this repo (e.g. payroll, leave, advances, inventory suites), never by depending on
   the source system at runtime.
 - `REUSE_REGISTER.md` remains the authority on reuse boundaries; every entry carries a
