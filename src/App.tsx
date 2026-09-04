@@ -22,6 +22,8 @@ import { ActivitiesPage } from './modules/activities/ActivitiesPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
+import { canAccessPath } from './lib/teacherPrivacy';
+import { getRoleLandingRoute } from './config/permissions';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -34,6 +36,21 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+};
+
+/**
+ * D11: role gate for money/leadership routes. The sidebar hides these links
+ * by role, but direct-URL navigation bypasses the sidebar — without this,
+ * a teacher could type /fees, /expenses, /payroll or /dashboard/school and
+ * read institutional cash, payroll and fee ledgers. Denied roles fall back
+ * to their own landing route. Academic + self-service HR paths stay open.
+ */
+const RequireAccess: React.FC<{ path: string; children: React.ReactNode }> = ({ path, children }) => {
+  const { role } = useAuth();
+  if (!canAccessPath(role, path)) {
+    return <Navigate to={getRoleLandingRoute(role)} replace />;
   }
   return <>{children}</>;
 };
@@ -60,8 +77,8 @@ export const App: React.FC = () => {
 
             {/* Core Phase 1 Established Domains */}
             <Route path="teacher/today" element={<TeacherTodayPage />} />
-            <Route path="dashboard/school" element={<SchoolDashboardPage />} />
-            <Route path="fees" element={<FeesPage />} />
+            <Route path="dashboard/school" element={<RequireAccess path="/dashboard/school"><SchoolDashboardPage /></RequireAccess>} />
+            <Route path="fees" element={<RequireAccess path="/fees"><FeesPage /></RequireAccess>} />
 
           {/* Teacher Secondary Routes */}
           <Route
@@ -199,17 +216,19 @@ export const App: React.FC = () => {
           />
 
           {/* Finance Routes */}
-          <Route path="expenses" element={<ExpensesPage />} />
-          <Route path="payroll" element={<PayrollDashboardPage />} />
+          <Route path="expenses" element={<RequireAccess path="/expenses"><ExpensesPage /></RequireAccess>} />
+          <Route path="payroll" element={<RequireAccess path="/payroll"><PayrollDashboardPage /></RequireAccess>} />
           <Route
             path="fees/import"
             element={
+              <RequireAccess path="/fees/import">
               <ModulePlaceholder
                 title="Payment Statement Import & Reconciliation"
                 moduleName="Finance & Reconciliation"
                 description="Excel/CSV statement upload, deterministic admission number matching, and exception resolution."
                 scheduledPhase="Backlog (Phase 6 scope, unbuilt)"
               />
+              </RequireAccess>
             }
           />
 
@@ -260,36 +279,42 @@ export const App: React.FC = () => {
           <Route
             path="admin/overview"
             element={
+              <RequireAccess path="/admin/overview">
               <ModulePlaceholder
                 title="School Administration & Setup"
                 moduleName="Administration"
                 description="School settings, curriculum framework configuration, academic terms, and grading rules."
                 scheduledPhase="Phase 7 (Operational Systems)"
               />
+              </RequireAccess>
             }
           />
           <Route path="administration/hr" element={<MyHRPage />} />
-          <Route path="administration/payroll" element={<PayrollDashboardPage />} />
+          <Route path="administration/payroll" element={<RequireAccess path="/administration/payroll"><PayrollDashboardPage /></RequireAccess>} />
           <Route
             path="administration/inventory"
             element={
+              <RequireAccess path="/administration/inventory">
               <ModulePlaceholder
                 title="Warehouse, Inventory & Assets"
                 moduleName="Operational Systems"
                 description="Textbooks, lab equipment, stationery consumables, and asset custody tracking."
                 scheduledPhase="Phase 7 (Operational Systems)"
               />
+              </RequireAccess>
             }
           />
           <Route
             path="administration/audit"
             element={
+              <RequireAccess path="/administration/audit">
               <ModulePlaceholder
                 title="System Audit Trail"
                 moduleName="Administration"
                 description="Immutable audit log of all financial, attendance, and administrative modifications."
                 scheduledPhase="Phase 7 (Operational Systems)"
               />
+              </RequireAccess>
             }
           />
 

@@ -821,9 +821,9 @@ export const payrollService = {
         );
         allItems.push(...found);
       }
-      if (allItems.length > 0) return allItems;
-      if (schoolId && schoolId !== 'school-default') return [];
-      return mockItems['run-2026-09'].filter((it) => it.employeeId === 'emp-teacher-1');
+      // D10: no fallback to another employee's slips — an unknown or
+      // foreign-school employee id resolves to empty, never someone else's rows.
+      return allItems;
     }
     try {
       let query = supabase
