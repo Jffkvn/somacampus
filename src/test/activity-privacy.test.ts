@@ -171,14 +171,8 @@ describe('D7: finance-scoped tenant isolation (expenses + fee_payments)', () => 
   it('cross-school school_expenses read is denied (RLS -> throw)', async () => {
     forceProductionEnv();
     mockFrom({ school_expenses: { data: null, error: RLS_DENY } });
+    // Strict: deny MUST throw — never masquerade as empty (D1 rule).
     await expect(expenseService.getExpenses('school-B')).rejects.toThrow();
-    const settled = await expenseService.getExpenses('school-B').then(
-      (v) => ({ ok: true as const, v }),
-      () => ({ ok: false as const, v: null as any }),
-    );
-    // Either throws or (if convention ever becomes empty) returns empty — NEVER foreign rows.
-    if (settled.ok) expect(settled.v).toEqual([]);
-    else expect(settled.ok).toBe(false);
   });
 
   it('cross-school fee_payments read is denied (RLS -> throw)', async () => {

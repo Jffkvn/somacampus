@@ -81,12 +81,20 @@ CREATE POLICY leave_requests_self_and_finance ON public.leave_requests
   USING (
     employee_id = public.current_employee_id_for_school(school_id)
     OR public.has_school_finance_access(school_id)
+  )
+  WITH CHECK (
+    employee_id = public.current_employee_id_for_school(school_id)
+    OR public.has_school_finance_access(school_id)
   );
 
 DROP POLICY IF EXISTS staff_advances_self_and_finance ON public.staff_advances;
 CREATE POLICY staff_advances_self_and_finance ON public.staff_advances
   FOR ALL TO authenticated
   USING (
+    employee_id = public.current_employee_id_for_school(school_id)
+    OR public.has_school_finance_access(school_id)
+  )
+  WITH CHECK (
     employee_id = public.current_employee_id_for_school(school_id)
     OR public.has_school_finance_access(school_id)
   );
