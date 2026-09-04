@@ -15,7 +15,7 @@
  */
 
 import { calculateUgandaPayslip, PayslipCalculationParams } from './calculations';
-import { TaxTreatment } from '../../types/domain';
+import { PayrollTaxBand, TaxTreatment } from '../../types/domain';
 
 export interface BuildPayrollItemInput {
   grossSalary?: number;
@@ -128,6 +128,12 @@ export interface CalculationSnapshotInput {
   unpaidLeaveDeduction?: number;
   statutoryVersion?: string;
   taxConfigurationId?: string | null;
+  // D4-review: the RESOLVED band table actually used by this computation
+  // (from the payroll_tax_configurations row when available, else the
+  // statutory constants). Frozen so later band edits cannot rewrite history.
+  payeBands?: PayrollTaxBand[] | null;
+  surchargeThreshold?: number | null;
+  surchargeRate?: number | null;
   settings?: PayslipCalculationParams['settings'];
 }
 
@@ -150,6 +156,9 @@ export function buildCalculationSnapshot({
   unpaidLeaveDeduction = 0,
   statutoryVersion = '2026.1',
   taxConfigurationId = null,
+  payeBands = null,
+  surchargeThreshold = null,
+  surchargeRate = null,
   settings = {},
 }: CalculationSnapshotInput = {}): Record<string, any> {
   const s = settings || {};
@@ -157,6 +166,8 @@ export function buildCalculationSnapshot({
     version: 1,
     statutoryVersion,
     taxConfigurationId,
+    // Frozen band table: the exact thresholds/rates this item was computed under.
+    payeBands: payeBands ?? null,
     inputs: {
       baseSalary: num(baseSalary),
       overtimeHours: num(overtimeHours),
@@ -175,9 +186,84 @@ export function buildCalculationSnapshot({
       nssfEmployerRate: s.nssf_employer_rate != null ? num(s.nssf_employer_rate) / 100 : 0.1,
       overtimeMultiplier: s.overtime_multiplier != null ? num(s.overtime_multiplier) : 1.5,
       standardMonthlyHours: s.standard_monthly_hours != null ? num(s.standard_monthly_hours) : 173.33,
+      // Recorded for audit; the engine resolves the surcharge from constants.
+      surchargeThreshold: surchargeThreshold ?? null,
+      surchargeRate: surchargeRate ?? null,
     },
     settings: s,
   };
+}
+
+/**
+ * D4-review: per-employee computation source. Mirrors the profile fields the
+ * compute actually consumes; overtime/allowances/deductions/leave default to
+ * the values used today (no live source is read for them yet).
+ */
+export interface PayrollProfileInput {
+  baseSalary: number;
+  taxTreatment: TaxTreatment;
+  overtimeHours?: number | null;
+  allowances?: number | null;
+  otherDeductions?: number | null;
+  pctMonthWorked?: number | null;
+  customWhtRate?: number | null;
+  customOvertimeRate?: number | null;
+  advanceDeduction?: number | null;
+  unpaidLeaveDeduction?: number | null;
+}
+
+export interface ItemComputationContext {
+  settings: PayslipCalculationParams['settings'];
+  statutoryVersion: string;
+  taxConfigurationId: string | null;
+  payeBands: PayrollTaxBand[] | null;
+  surchargeThreshold: number | null;
+  surchargeRate: number | null;
+}
+
+/**
+ * D4-review: single composer feeding BOTH buildPayrollItem and
+ * buildCalculationSnapshot from ONE inputs object, so the frozen snapshot
+ * can never diverge from the figures actually computed. No tax math here —
+ * pure input threading.
+ */
+export function computePayrollItem(
+  profile: PayrollProfileInput,
+  ctx: ItemComputationContext,
+): { computed: PayrollItemRecord; snapshot: Record<string, any> } {
+  const input: BuildPayrollItemInput = {
+    grossSalary: profile.baseSalary,
+    overtimeHours: profile.overtimeHours ?? 0,
+    allowances: profile.allowances ?? 0,
+    otherDeductions: profile.otherDeductions ?? 0,
+    employeeType: profile.taxTreatment,
+    pctMonthWorked: profile.pctMonthWorked ?? 100,
+    whtRate: profile.customWhtRate ?? null,
+    settings: ctx.settings,
+    customOvertimeRate: profile.customOvertimeRate ?? null,
+    advanceDeduction: profile.advanceDeduction ?? 0,
+    unpaidLeaveDeduction: profile.unpaidLeaveDeduction ?? 0,
+  };
+  const computed = buildPayrollItem(input);
+  const snapshot = buildCalculationSnapshot({
+    baseSalary: profile.baseSalary,
+    overtimeHours: input.overtimeHours,
+    allowances: input.allowances,
+    otherDeductions: input.otherDeductions,
+    employeeType: profile.taxTreatment,
+    pctMonthWorked: input.pctMonthWorked,
+    whtRate: input.whtRate,
+    customOvertimeRate: input.customOvertimeRate,
+    advanceDeduction: input.advanceDeduction,
+    unpaidLeaveDeduction: input.unpaidLeaveDeduction,
+    statutoryVersion: ctx.statutoryVersion,
+    taxConfigurationId: ctx.taxConfigurationId,
+    payeBands: ctx.payeBands,
+    surchargeThreshold: ctx.surchargeThreshold,
+    surchargeRate: ctx.surchargeRate,
+    settings: ctx.settings,
+  });
+  return { computed, snapshot };
 }
 
 /**

@@ -17,14 +17,114 @@ import {
   SchoolPayrollItem,
   EmployeePayrollProfile,
   PayrollRunStatus,
+  PayrollTaxBand,
 } from '../../types/domain';
-import { buildPayrollItem, buildCalculationSnapshot } from './payrollItem';
+import { computePayrollItem, ItemComputationContext } from './payrollItem';
+import { UG_PAYE_BANDS_2026 } from './calculations';
 
 const isMockEnv = (): boolean =>
   process.env.NODE_ENV === 'test' ||
   !import.meta.env.VITE_SUPABASE_URL ||
   import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
   import.meta.env.VITE_SUPABASE_URL.includes('mock');
+
+// D4-review: bands origin. The compute NEVER read payroll_tax_configurations
+// before this change — figures always came from the UG_PAYE_BANDS_2026 code
+// constants. resolveEffectiveTaxConfig() now prefers the school's config row,
+// then the national baseline (school_id IS NULL), then the constants, and the
+// resolved row id + band JSON are frozen into every snapshot.
+export interface EffectiveTaxConfig {
+  id: string | null;
+  bands: PayrollTaxBand[];
+  statutoryVersion: string;
+  surchargeThreshold: number;
+  surchargeRate: number;
+  settings: {
+    paye_bands: PayrollTaxBand[];
+    nssf_employee_rate: number;
+    nssf_employer_rate: number;
+    overtime_multiplier: number;
+    standard_monthly_hours: number;
+    wht_rate: number;
+  };
+}
+
+const STATUTORY_FALLBACK: EffectiveTaxConfig = {
+  id: null,
+  bands: UG_PAYE_BANDS_2026,
+  statutoryVersion: '2026.1',
+  surchargeThreshold: 10000000,
+  surchargeRate: 0.1,
+  settings: {
+    paye_bands: UG_PAYE_BANDS_2026,
+    nssf_employee_rate: 5,
+    nssf_employer_rate: 10,
+    overtime_multiplier: 1.5,
+    standard_monthly_hours: 173.33,
+    wht_rate: 6,
+  },
+};
+
+function toEffectiveTaxConfig(row: any): EffectiveTaxConfig {
+  // DB stores decimal-scale rates (0.05/0.10/0.06); the engine consumes
+  // percent-scale settings (5/10/6) — map without touching engine semantics.
+  const bands = (row.paye_bands as PayrollTaxBand[]) || UG_PAYE_BANDS_2026;
+  return {
+    id: row.id || null,
+    bands,
+    statutoryVersion: '2026.1',
+    surchargeThreshold: Number(row.surcharge_threshold ?? 10000000),
+    surchargeRate: Number(row.surcharge_rate ?? 0.1),
+    settings: {
+      paye_bands: bands,
+      nssf_employee_rate: Number(row.nssf_employee_rate ?? 0.05) * 100,
+      nssf_employer_rate: Number(row.nssf_employer_rate ?? 0.1) * 100,
+      overtime_multiplier: Number(row.overtime_multiplier ?? 1.5),
+      standard_monthly_hours: Number(row.standard_monthly_hours ?? 173.33),
+      wht_rate: Number(row.default_wht_rate ?? 0.06) * 100,
+    },
+  };
+}
+
+export async function resolveEffectiveTaxConfig(schoolId: string): Promise<EffectiveTaxConfig> {
+  try {
+    const { data: schoolRows, error: schoolError } = await supabase
+      .from('payroll_tax_configurations')
+      .select('*')
+      .eq('school_id', schoolId)
+      .order('effective_from', { ascending: false })
+      .limit(1);
+    if (!schoolError && schoolRows && schoolRows.length > 0) {
+      return toEffectiveTaxConfig(schoolRows[0]);
+    }
+    const { data: baseRows, error: baseError } = await supabase
+      .from('payroll_tax_configurations')
+      .select('*')
+      .is('school_id', null)
+      .order('effective_from', { ascending: false })
+      .limit(1);
+    if (!baseError && baseRows && baseRows.length > 0) {
+      return toEffectiveTaxConfig(baseRows[0]);
+    }
+  } catch {
+    // Fall through to statutory constants — never fail a run on config read.
+  }
+  return STATUTORY_FALLBACK;
+}
+
+function toComputationContext(tax: EffectiveTaxConfig): ItemComputationContext {
+  return {
+    settings: tax.settings,
+    statutoryVersion: tax.statutoryVersion,
+    taxConfigurationId: tax.id,
+    payeBands: tax.bands,
+    surchargeThreshold: tax.surchargeThreshold,
+    surchargeRate: tax.surchargeRate,
+  };
+}
+
+// Mock/local path has no DB config row: compute under the statutory constants.
+const MOCK_COMPUTATION_CONTEXT: ItemComputationContext = toComputationContext(STATUTORY_FALLBACK);
 
 // In-memory fallback state for mock/local development
 let mockPeriods: PayrollPeriod[] = [
@@ -176,10 +276,18 @@ let mockRuns: SchoolPayrollRun[] = [
 
 let mockItems: Record<string, SchoolPayrollItem[]> = {
   'run-2026-09': mockProfiles.map((p) => {
-    const computed = buildPayrollItem({
-      grossSalary: p.baseSalary,
-      employeeType: p.taxTreatment,
-    });
+    // D4-review: ONE inputs object feeds figures + snapshot — the snapshot
+    // freezes exactly what was computed (profile overrides as supplied,
+    // statutory constants as the band source).
+    const { computed, snapshot } = computePayrollItem(
+      {
+        baseSalary: p.baseSalary,
+        taxTreatment: p.taxTreatment,
+        customWhtRate: p.customWhtRate ?? null,
+        customOvertimeRate: p.customOvertimeRate ?? null,
+      },
+      MOCK_COMPUTATION_CONTEXT,
+    );
     return {
       id: `item-${p.employeeId}-2026-09`,
       schoolId: 'school-default',
@@ -204,10 +312,7 @@ let mockItems: Record<string, SchoolPayrollItem[]> = {
       pctMonthWorked: computed.pct_month_worked,
       // D4: frozen inputs captured at computation time — finalized reads
       // render this stored snapshot, never live profiles/config.
-      calculationSnapshot: buildCalculationSnapshot({
-        baseSalary: p.baseSalary,
-        employeeType: p.taxTreatment,
-      }),
+      calculationSnapshot: snapshot,
       createdAt: '2026-09-02T11:00:00Z',
     };
   }),
@@ -449,10 +554,15 @@ export const payrollService = {
       let totalNet = 0;
 
       const items: SchoolPayrollItem[] = mockProfiles.map((p) => {
-        const computed = buildPayrollItem({
-          grossSalary: p.baseSalary,
-          employeeType: p.taxTreatment,
-        });
+        const { computed, snapshot } = computePayrollItem(
+          {
+            baseSalary: p.baseSalary,
+            taxTreatment: p.taxTreatment,
+            customWhtRate: p.customWhtRate ?? null,
+            customOvertimeRate: p.customOvertimeRate ?? null,
+          },
+          MOCK_COMPUTATION_CONTEXT,
+        );
 
         totalGross += computed.gross_salary;
         totalPaye += computed.paye;
@@ -482,10 +592,7 @@ export const payrollService = {
           netPay: computed.net_pay,
           employeeType: computed.employee_type,
           pctMonthWorked: computed.pct_month_worked,
-          calculationSnapshot: buildCalculationSnapshot({
-            baseSalary: p.baseSalary,
-            employeeType: p.taxTreatment,
-          }),
+          calculationSnapshot: snapshot,
           createdAt: new Date().toISOString(),
         };
       });
@@ -499,7 +606,11 @@ export const payrollService = {
         runNumber: 1,
         runType: 'regular',
         status: 'calculated',
-        calculationSettings: { statutoryVersion: '2026.1' },
+        calculationSettings: {
+          statutoryVersion: MOCK_COMPUTATION_CONTEXT.statutoryVersion,
+          taxConfigurationId: MOCK_COMPUTATION_CONTEXT.taxConfigurationId,
+          payeBands: MOCK_COMPUTATION_CONTEXT.payeBands,
+        },
         totalGross,
         totalPaye,
         totalNssfEmployee: totalNssfEmp,
@@ -517,18 +628,101 @@ export const payrollService = {
       return newRun;
     }
 
-    // Live Supabase implementation: create run row and lines
+    // Live Supabase implementation: resolve the effective statutory config,
+    // compute every item via the single-writer composer, then persist the run
+    // row AND its item rows (figures + frozen calculation_snapshot) together.
+    // D4-review: previously only the run row was inserted — items (and their
+    // snapshots) were never persisted on the live path.
+    const taxConfig = await resolveEffectiveTaxConfig(schoolId);
+    const ctx = toComputationContext(taxConfig);
+
+    const { data: profileRows, error: profilesError } = await supabase
+      .from('employee_payroll_profiles')
+      .select('*')
+      .eq('school_id', schoolId);
+    if (profilesError) throw profilesError;
+
+    const computed = (profileRows || []).map((p: any) =>
+      computePayrollItem(
+        {
+          baseSalary: Number(p.base_salary || 0),
+          taxTreatment: (p.tax_treatment as SchoolPayrollItem['employeeType']) || 'local',
+          customWhtRate: p.custom_wht_rate != null ? Number(p.custom_wht_rate) : null,
+          customOvertimeRate: p.custom_overtime_rate != null ? Number(p.custom_overtime_rate) : null,
+        },
+        ctx,
+      ),
+    );
+
+    let totalGross = 0;
+    let totalPaye = 0;
+    let totalNssfEmp = 0;
+    let totalNssfEmpr = 0;
+    let totalWht = 0;
+    let totalNet = 0;
+    for (const { computed: c } of computed) {
+      totalGross += c.gross_salary + c.overtime_amount + c.allowances;
+      totalPaye += c.paye;
+      totalNssfEmp += c.nssf_employee;
+      totalNssfEmpr += c.nssf_employer;
+      totalWht += c.wht_amount;
+      totalNet += c.net_pay;
+    }
+
     const { data: runData, error: runError } = await supabase
       .from('school_payroll_runs')
       .insert({
         school_id: schoolId,
         period_id: periodId,
+        tax_configuration_id: taxConfig.id,
         status: 'calculated',
-        calculation_settings: { statutoryVersion: '2026.1' },
+        calculation_settings: {
+          statutoryVersion: taxConfig.statutoryVersion,
+          taxConfigurationId: taxConfig.id,
+          payeBands: taxConfig.bands,
+        },
+        total_gross: totalGross,
+        total_paye: totalPaye,
+        total_nssf_employee: totalNssfEmp,
+        total_nssf_employer: totalNssfEmpr,
+        total_wht: totalWht,
+        total_deductions: totalPaye + totalNssfEmp + totalWht,
+        total_net: totalNet,
       })
       .select()
       .single();
     if (runError) throw runError;
+
+    if (computed.length > 0) {
+      const itemRows = computed.map(({ computed: c, snapshot }, idx) => {
+        const p: any = (profileRows || [])[idx];
+        return {
+          school_id: schoolId,
+          payroll_run_id: runData.id,
+          employee_id: p.employee_id,
+          gross_salary: c.gross_salary,
+          overtime_hours: c.overtime_hours,
+          overtime_amount: c.overtime_amount,
+          allowances: c.allowances,
+          other_deductions: c.other_deductions,
+          paye: c.paye,
+          nssf_employee: c.nssf_employee,
+          nssf_employer: c.nssf_employer,
+          wht_amount: c.wht_amount,
+          advance_deduction: c.advance_deduction,
+          unpaid_leave_deduction: c.unpaid_leave_deduction,
+          outstanding_deductions: c.outstanding_deductions,
+          net_pay: c.net_pay,
+          employee_type: c.employee_type,
+          pct_month_worked: c.pct_month_worked,
+          calculation_snapshot: snapshot,
+        };
+      });
+      const { error: itemsError } = await supabase
+        .from('school_payroll_items')
+        .insert(itemRows);
+      if (itemsError) throw itemsError;
+    }
 
     return runData;
   },
