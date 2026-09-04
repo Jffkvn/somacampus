@@ -85,6 +85,7 @@ let mockActivityEnrolments: ActivityEnrolment[] = [
     studentId: 'stud-amari',
     studentName: 'Amari Kyomugisha',
     className: 'Stage 5 Blue',
+    streamName: 'Blue',
     status: 'enrolled',
     enrolledAt: '2026-08-20T10:00:00Z',
   },
@@ -95,6 +96,7 @@ let mockActivityEnrolments: ActivityEnrolment[] = [
     studentId: 'stud-aurora',
     studentName: 'Aurora Namukasa',
     className: 'Stage 7 Red',
+    streamName: 'Red',
     status: 'enrolled',
     enrolledAt: '2026-08-20T10:30:00Z',
   },
@@ -105,6 +107,7 @@ let mockActivityEnrolments: ActivityEnrolment[] = [
     studentId: 'stud-brian',
     studentName: 'Brian Musoke',
     className: 'Stage 5 Blue',
+    streamName: 'Blue',
     status: 'enrolled',
     enrolledAt: '2026-08-21T09:00:00Z',
   },
@@ -143,6 +146,50 @@ let mockClearances: ActivityClearance[] = [
     operationalNote: 'Awaiting parent letter',
   },
 ];
+
+/**
+ * Server-side allowlist constructor for the Teacher Financial Privacy Firewall.
+ * ONLY operational fields are emitted. Financial settlement data (amounts,
+ * balances, charge/payment IDs) lives in separate tables/columns and is NEVER
+ * read here — operational permission stays decoupled from financial settlement.
+ */
+export function toParticipantProjection(input: {
+  studentId: string;
+  studentName?: string | null;
+  className?: string | null;
+  streamName?: string | null;
+  activityId: string;
+  activityName?: string | null;
+  status: ClearanceStatus;
+  basis: ClearanceBasis;
+  validUntil?: string | null;
+  operationalNote?: string | null;
+}): ActivityParticipantProjection {
+  let label = 'Pending Review';
+  if (input.status === 'cleared') {
+    if (input.basis === 'paid') label = '✓ Cleared • Paid';
+    else if (input.basis === 'waived') label = '✓ Cleared • Fee Waived';
+    else if (input.basis === 'sponsored') label = '✓ Cleared • Sponsored';
+    else if (input.basis === 'promise_to_pay') label = '✓ Cleared • Promise to Pay';
+    else if (input.basis === 'included') label = '✓ Cleared • Included';
+    else label = '✓ Cleared • Admin Override';
+  } else if (input.status === 'not_cleared') {
+    label = '✗ Not Cleared for Participation';
+  }
+
+  return {
+    studentId: input.studentId,
+    studentName: input.studentName || 'Student',
+    className: input.className || 'General',
+    streamName: input.streamName ?? null,
+    activityId: input.activityId,
+    activityName: input.activityName || 'Activity',
+    clearanceStatus: input.status,
+    clearanceLabel: label,
+    validUntil: input.validUntil ?? null,
+    operationalNote: input.operationalNote ?? null,
+  };
+}
 
 export const activityService = {
   /**
@@ -236,44 +283,87 @@ export const activityService = {
   /**
    * TEACHER FINANCIAL PRIVACY FIREWALL PROJECTION
    *
-   * Renders the activity roster for the teacher.
-   * STRICT GUARANTEE: Contains zero fee balances, zero debt amounts, zero parent payment histories.
+   * Renders the activity roster for the teacher, built SERVER-SIDE through the
+   * field allowlist (toParticipantProjection) — never by UI filtering.
+   * STRICT GUARANTEE: Contains zero fee balances, zero debt amounts, zero
+   * parent payment histories, zero charge/payment IDs.
+   *
+   * Finance scope: rows are qualified by school_id (RLS enforces; the explicit
+   * filter keeps cross-school reads empty even before RLS). RLS denies throw —
+   * they are never masked with mock data.
    */
-  async getRosterForTeacher(activityId: string): Promise<ActivityParticipantProjection[]> {
+  async getRosterForTeacher(
+    activityId: string,
+    schoolId?: string
+  ): Promise<ActivityParticipantProjection[]> {
+    if (!isMockEnv()) {
+      // Live path: allowlisted columns only. Financial tables
+      // (student_charges / fee_payments / payment_allocations) are NEVER read.
+      let activityQuery = supabase
+        .from('school_activities')
+        .select('id, name, school_id')
+        .eq('id', activityId);
+      if (schoolId) activityQuery = activityQuery.eq('school_id', schoolId);
+      const { data: activityRow, error: activityError } = await activityQuery.maybeSingle();
+      if (activityError) throw activityError;
+      if (!activityRow) return [];
+
+      let enrolQuery = supabase
+        .from('activity_enrolments')
+        .select('student_id, student_name, class_name, stream_name')
+        .eq('activity_id', activityId);
+      if (schoolId) enrolQuery = enrolQuery.eq('school_id', schoolId);
+      const { data: enrolRows, error: enrolError } = await enrolQuery;
+      if (enrolError) throw enrolError;
+
+      let clrQuery = supabase
+        .from('activity_clearances')
+        .select('student_id, status, basis, valid_until, operational_note')
+        .eq('activity_id', activityId);
+      if (schoolId) clrQuery = clrQuery.eq('school_id', schoolId);
+      const { data: clrRows, error: clrError } = await clrQuery;
+      if (clrError) throw clrError;
+
+      return (enrolRows || []).map((enr: any) => {
+        const clearance = (clrRows || []).find((c: any) => c.student_id === enr.student_id);
+        return toParticipantProjection({
+          studentId: enr.student_id,
+          studentName: enr.student_name,
+          className: enr.class_name,
+          streamName: enr.stream_name,
+          activityId,
+          activityName: (activityRow as any)?.name,
+          status: clearance?.status || 'pending_review',
+          basis: clearance?.basis || 'promise_to_pay',
+          validUntil: clearance?.valid_until,
+          operationalNote: clearance?.operational_note,
+        });
+      });
+    }
+
     const activity = mockActivities.find((a) => a.id === activityId);
-    const enrolments = mockActivityEnrolments.filter((e) => e.activityId === activityId);
+    if (schoolId && activity && activity.schoolId !== schoolId) return [];
+    const enrolments = mockActivityEnrolments.filter(
+      (e) => e.activityId === activityId && (!schoolId || e.schoolId === schoolId)
+    );
 
     return enrolments.map((enr) => {
       const clearance = mockClearances.find(
         (c) => c.activityId === activityId && c.studentId === enr.studentId
       );
 
-      const status: ClearanceStatus = clearance?.status || 'pending_review';
-      const basis: ClearanceBasis = clearance?.basis || 'promise_to_pay';
-
-      let label = 'Pending Review';
-      if (status === 'cleared') {
-        if (basis === 'paid') label = '✓ Cleared • Paid';
-        else if (basis === 'waived') label = '✓ Cleared • Fee Waived';
-        else if (basis === 'sponsored') label = '✓ Cleared • Sponsored';
-        else if (basis === 'promise_to_pay') label = '✓ Cleared • Promise to Pay';
-        else if (basis === 'included') label = '✓ Cleared • Included';
-        else label = '✓ Cleared • Admin Override';
-      } else if (status === 'not_cleared') {
-        label = '✗ Not Cleared for Participation';
-      }
-
-      return {
+      return toParticipantProjection({
         studentId: enr.studentId,
-        studentName: enr.studentName || 'Student',
-        className: enr.className || 'General',
+        studentName: enr.studentName,
+        className: enr.className,
+        streamName: enr.streamName,
         activityId,
-        activityName: activity?.name || 'Activity',
-        clearanceStatus: status,
-        clearanceLabel: label,
+        activityName: activity?.name,
+        status: clearance?.status || 'pending_review',
+        basis: clearance?.basis || 'promise_to_pay',
         validUntil: clearance?.validUntil,
         operationalNote: clearance?.operationalNote,
-      };
+      });
     });
   },
 };

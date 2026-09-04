@@ -206,7 +206,7 @@ export const hrService = {
    */
   async getEffectiveBalances(schoolId: string, employeeId: string): Promise<EffectiveLeaveBalanceItem[]> {
     const types = await this.getLeaveTypes(schoolId);
-    const requests = await this.getMyLeaveRequests(employeeId);
+    const requests = await this.getMyLeaveRequests(employeeId, schoolId);
 
     if (isMockEnv()) {
       const defaultEntitlements: LeaveEntitlement[] = [
@@ -221,6 +221,7 @@ export const hrService = {
         .from('leave_entitlements')
         .select('*')
         .eq('employee_id', employeeId)
+        .eq('school_id', schoolId)
         .eq('leave_year', new Date().getFullYear());
       if (error) throw error;
 
@@ -231,21 +232,26 @@ export const hrService = {
   },
 
   /**
-   * Get an employee's leave requests
+   * Get an employee's leave requests.
+   * D7: school-scoped identity — callers MUST pass the school context so a
+   * school-A employment can never satisfy a school-B row.
    */
-  async getMyLeaveRequests(employeeId: string): Promise<LeaveRequest[]> {
+  async getMyLeaveRequests(employeeId: string, schoolId?: string): Promise<LeaveRequest[]> {
     if (isMockEnv()) {
-      return mockLeaveRequests.filter((r) => r.employeeId === employeeId);
+      return mockLeaveRequests.filter(
+        (r) => r.employeeId === employeeId && (!schoolId || r.schoolId === schoolId)
+      );
     }
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('leave_requests')
         .select(`
           *,
           leave_type:leave_types(name)
         `)
-        .eq('employee_id', employeeId)
-        .order('created_at', { ascending: false });
+        .eq('employee_id', employeeId);
+      if (schoolId) query = query.eq('school_id', schoolId);
+      const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []).map((r: any) => ({
         id: r.id,
@@ -342,18 +348,23 @@ export const hrService = {
   },
 
   /**
-   * Get salary advances for an employee
+   * Get salary advances for an employee.
+   * D7: school-scoped identity — callers MUST pass the school context so a
+   * school-A employment can never satisfy a school-B row.
    */
-  async getMyAdvances(employeeId: string): Promise<StaffAdvance[]> {
+  async getMyAdvances(employeeId: string, schoolId?: string): Promise<StaffAdvance[]> {
     if (isMockEnv()) {
-      return mockAdvances.filter((a) => a.employeeId === employeeId);
+      return mockAdvances.filter(
+        (a) => a.employeeId === employeeId && (!schoolId || a.schoolId === schoolId)
+      );
     }
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('staff_advances')
         .select('*')
-        .eq('employee_id', employeeId)
-        .order('created_at', { ascending: false });
+        .eq('employee_id', employeeId);
+      if (schoolId) query = query.eq('school_id', schoolId);
+      const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []).map((r: any) => ({
         id: r.id,
@@ -388,6 +399,11 @@ export const hrService = {
     reason: string;
     baseSalary?: number;
   }): Promise<StaffAdvance> {
+    // Single-open-advance check is intentionally employee-GLOBAL (no school
+    // filter): the DB partial unique index staff_advances_one_open_per_employee_idx
+    // enforces one open advance per employee_id across schools, so the service
+    // pre-check must match to raise the clean policy error instead of a raw
+    // unique violation. Reads elsewhere stay school-scoped.
     const existing = await this.getMyAdvances(payload.employeeId);
     const hasOpenAdvance = existing.some((a) =>
       ['pending', 'active', 'flagged'].includes(a.status)

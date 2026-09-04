@@ -752,28 +752,34 @@ export const payrollService = {
   },
 
   /**
-   * Fetch personal payslips for a staff member
+   * Fetch personal payslips for a staff member.
+   * D7: school-scoped identity — callers MUST pass the school context so a
+   * school-A employment can never satisfy a school-B row (RLS enforces via
+   * current_employee_id_for_school; the explicit filter keeps it empty first).
    */
-  async getMyPayslips(employeeId: string): Promise<SchoolPayrollItem[]> {
+  async getMyPayslips(employeeId: string, schoolId?: string): Promise<SchoolPayrollItem[]> {
     if (isMockEnv()) {
       const allItems: SchoolPayrollItem[] = [];
       for (const items of Object.values(mockItems)) {
-        const found = items.filter((it) => it.employeeId === employeeId);
+        const found = items.filter(
+          (it) => it.employeeId === employeeId && (!schoolId || it.schoolId === schoolId)
+        );
         allItems.push(...found);
       }
-      return allItems.length > 0
-        ? allItems
-        : mockItems['run-2026-09'].filter((it) => it.employeeId === 'emp-teacher-1');
+      if (allItems.length > 0) return allItems;
+      if (schoolId && schoolId !== 'school-default') return [];
+      return mockItems['run-2026-09'].filter((it) => it.employeeId === 'emp-teacher-1');
     }
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('school_payroll_items')
         .select(`
           *,
           run:school_payroll_runs(status, period:payroll_periods(label, period_month))
         `)
-        .eq('employee_id', employeeId)
-        .in('run.status', ['approved', 'finalized']);
+        .eq('employee_id', employeeId);
+      if (schoolId) query = query.eq('school_id', schoolId);
+      const { data, error } = await query.in('run.status', ['approved', 'finalized']);
       if (error) throw error;
       return data || [];
     } catch (err) {

@@ -873,6 +873,7 @@ export interface ActivityEnrolment {
   studentId: string;
   studentName?: string;
   className?: string;
+  streamName?: string | null;
   chargeId?: string | null;
   status: 'enrolled' | 'withdrawn' | 'suspended';
   enrolledAt: string;
@@ -895,11 +896,26 @@ export interface ActivityClearance {
 }
 
 // The Teacher Financial Privacy Firewall Projection
-// Exposes operational clearance without ANY monetary figures
+// Exposes operational clearance without ANY monetary figures.
+// Server-side allowlist — the service constructor below may ONLY emit these keys.
+export const ACTIVITY_PROJECTION_ALLOWLIST = [
+  'studentId',
+  'studentName',
+  'className',
+  'streamName',
+  'activityId',
+  'activityName',
+  'clearanceStatus',
+  'clearanceLabel',
+  'validUntil',
+  'operationalNote',
+] as const;
+
 export interface ActivityParticipantProjection {
   studentId: string;
   studentName: string;
   className: string;
+  streamName?: string | null;
   activityId: string;
   activityName: string;
   clearanceStatus: ClearanceStatus;
