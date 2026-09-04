@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 
 vi.mock('../lib/supabase', () => ({
-  supabase: { from: vi.fn() },
+  supabase: { from: vi.fn(), auth: { getUser: vi.fn() } },
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -25,6 +25,7 @@ import { payrollService } from '../modules/payroll/payrollService';
 import { hrService } from '../modules/hr/hrService';
 
 const REAL_URL = 'https://prod-real-db.supabase.co';
+const TEST_ACTOR_ID = 'test-actor-1';
 const origNodeEnv = process.env.NODE_ENV;
 const origViteUrl = (import.meta.env as any).VITE_SUPABASE_URL;
 
@@ -115,6 +116,13 @@ function migrationSql(name: string): string {
   return fs.readFileSync(path.resolve(process.cwd(), 'supabase/migrations', name), 'utf8');
 }
 
+/** Fresh engine per test: re-evaluates the mock ledger (isolated charges/allocations). */
+async function freshFinanceService() {
+  vi.resetModules();
+  const mod = await import('../modules/finance/financeService');
+  return mod.financeService;
+}
+
 /** Pure invariant helper: amount = allocated + unallocated. */
 function invariantHolds(amount: number, allocatedSum: number, unallocated: number): boolean {
   return amount === allocatedSum + unallocated;
@@ -132,22 +140,11 @@ afterEach(() => {
 describe('D8 allocation invariant (mock engine)', () => {
   beforeEach(() => forceMockEnv());
 
-  it('exact: 100/100/0 satisfies amount = allocated + unallocated', () => {
-    expect(invariantHolds(100, 100, 0)).toBe(true);
-  });
-
-  it('partial: 100/70/30 satisfies amount = allocated + unallocated', () => {
-    expect(invariantHolds(100, 70, 30)).toBe(true);
-  });
-
-  it('overpayment: 100/60/40-credit satisfies amount = allocated + unallocated', () => {
-    expect(invariantHolds(100, 60, 40)).toBe(true);
-  });
-
-  it('mock engine: exact payment keeps invariant via statement delta', async () => {
-    const before = await financeService.getStudentFeeStatement('stud-aurora');
-    const beforePaid = before?.totalPaid ?? 0;
-    const payment = await financeService.recordPayment({
+  it('exact 100/100/0: engine allocates the full 100, zero credit', async () => {
+    const svc = await freshFinanceService();
+    const before = await svc.getStudentFeeStatement('stud-aurora');
+    expect(before?.balance ?? 0).toBeGreaterThanOrEqual(100);
+    const payment = await svc.recordPayment({
       schoolId: 'school-default',
       studentId: 'stud-aurora',
       amount: 100,
@@ -155,34 +152,111 @@ describe('D8 allocation invariant (mock engine)', () => {
       paymentChannel: 'cash',
       paymentReference: `CASH-EXACT-${Date.now()}`,
     });
-    const allocated = payment.amount - payment.unallocatedAmount;
+    expect(payment.amount).toBe(100);
     expect(payment.unallocatedAmount).toBe(0);
+    expect(payment.status).toBe('fully_allocated');
+    const allocated = payment.amount - payment.unallocatedAmount;
+    expect(allocated).toBe(100);
     expect(invariantHolds(payment.amount, allocated, payment.unallocatedAmount)).toBe(true);
-    const after = await financeService.getStudentFeeStatement('stud-aurora');
-    expect((after?.totalPaid ?? 0) - beforePaid).toBe(allocated);
+    const after = await svc.getStudentFeeStatement('stud-aurora');
+    expect((after?.totalPaid ?? 0) - (before?.totalPaid ?? 0)).toBe(100);
   });
 
-  it('mock engine: multi-allocation one payment covers 2 charges', async () => {
-    const before = await financeService.getStudentFeeStatement('stud-aurora');
-    const outstanding = before?.balance ?? 0;
-    expect(outstanding).toBeGreaterThan(0);
-    // Pay a spanning amount that must hit both tuition remainder + lunch.
-    const span = Math.min(outstanding, 400000);
-    const payment = await financeService.recordPayment({
+  it('partial 100/70/30: engine allocates 70, retains 30 credit', async () => {
+    const svc = await freshFinanceService();
+    const start = await svc.getStudentFeeStatement('stud-aurora');
+    const outstanding = start?.balance ?? 0;
+    expect(outstanding).toBeGreaterThan(100);
+    // Sculpt outstanding down to exactly 70 via the real engine.
+    await svc.recordPayment({
       schoolId: 'school-default',
       studentId: 'stud-aurora',
-      amount: span,
+      amount: outstanding - 70,
+      paymentDate: '2026-09-05',
+      paymentChannel: 'cash',
+      paymentReference: `CASH-SCULPT-${Date.now()}`,
+    });
+    const before = await svc.getStudentFeeStatement('stud-aurora');
+    expect(before?.balance).toBe(70);
+    const payment = await svc.recordPayment({
+      schoolId: 'school-default',
+      studentId: 'stud-aurora',
+      amount: 100,
+      paymentDate: '2026-09-05',
+      paymentChannel: 'cash',
+      paymentReference: `CASH-PARTIAL-${Date.now()}`,
+    });
+    expect(payment.amount).toBe(100);
+    expect(payment.unallocatedAmount).toBe(30);
+    expect(payment.status).toBe('partially_allocated');
+    const allocated = payment.amount - payment.unallocatedAmount;
+    expect(allocated).toBe(70);
+    expect(invariantHolds(payment.amount, allocated, payment.unallocatedAmount)).toBe(true);
+    const after = await svc.getStudentFeeStatement('stud-aurora');
+    expect((after?.totalPaid ?? 0) - (before?.totalPaid ?? 0)).toBe(70);
+    expect(after?.balance).toBe(0);
+  });
+
+  it('overpayment 100/60/40-credit: engine allocates 60, retains 40 credit', async () => {
+    const svc = await freshFinanceService();
+    const start = await svc.getStudentFeeStatement('stud-aurora');
+    const outstanding = start?.balance ?? 0;
+    expect(outstanding).toBeGreaterThan(100);
+    // Sculpt outstanding down to exactly 60 via the real engine.
+    await svc.recordPayment({
+      schoolId: 'school-default',
+      studentId: 'stud-aurora',
+      amount: outstanding - 60,
+      paymentDate: '2026-09-05',
+      paymentChannel: 'cash',
+      paymentReference: `CASH-SCULPT-${Date.now()}`,
+    });
+    const before = await svc.getStudentFeeStatement('stud-aurora');
+    expect(before?.balance).toBe(60);
+    const payment = await svc.recordPayment({
+      schoolId: 'school-default',
+      studentId: 'stud-aurora',
+      amount: 100,
+      paymentDate: '2026-09-05',
+      paymentChannel: 'mobile_money',
+      paymentReference: `MM-OVER-${Date.now()}`,
+    });
+    expect(payment.amount).toBe(100);
+    expect(payment.unallocatedAmount).toBe(40);
+    expect(payment.status).toBe('partially_allocated');
+    const allocated = payment.amount - payment.unallocatedAmount;
+    expect(allocated).toBe(60);
+    expect(invariantHolds(payment.amount, allocated, payment.unallocatedAmount)).toBe(true);
+    const after = await svc.getStudentFeeStatement('stud-aurora');
+    expect((after?.totalPaid ?? 0) - (before?.totalPaid ?? 0)).toBe(60);
+    expect(after?.balance).toBe(0);
+  });
+
+  it('multi-allocation: one payment spans 2 charges', async () => {
+    const svc = await freshFinanceService();
+    const before = await svc.getStudentFeeStatement('stud-aurora');
+    const outstanding = before?.balance ?? 0;
+    expect(outstanding).toBeGreaterThan(0);
+    expect((before?.charges ?? []).length).toBeGreaterThanOrEqual(2);
+    // Pay the full outstanding: must touch both tuition remainder + lunch.
+    const payment = await svc.recordPayment({
+      schoolId: 'school-default',
+      studentId: 'stud-aurora',
+      amount: outstanding,
       paymentDate: '2026-09-05',
       paymentChannel: 'bank_deposit',
       paymentReference: `BNK-MULTI-${Date.now()}`,
     });
+    expect(payment.unallocatedAmount).toBe(0);
+    expect(payment.status).toBe('fully_allocated');
     const allocated = payment.amount - payment.unallocatedAmount;
     expect(invariantHolds(payment.amount, allocated, payment.unallocatedAmount)).toBe(true);
-    const after = await financeService.getStudentFeeStatement('stud-aurora');
+    const after = await svc.getStudentFeeStatement('stud-aurora');
     const covered = (after?.charges ?? []).filter((c: any) => (c.paidAmount ?? 0) > 0);
-    // Aurora has 2 charges; a spanning payment touches both once outstanding spans them.
-    expect(covered.length).toBeGreaterThanOrEqual(1);
+    expect(covered.length).toBeGreaterThanOrEqual(2);
     expect((after?.totalPaid ?? 0) - (before?.totalPaid ?? 0)).toBe(allocated);
+    for (const c of after?.charges ?? []) expect(c.balance).toBe(0);
+    expect(after?.balance).toBe(0);
   });
 
   it('rejects zero and negative payments', async () => {
@@ -234,6 +308,11 @@ describe('D9 audit coverage: services ATTEMPT audit write with who/what/when/sch
   beforeEach(() => {
     forceProductionEnv();
     mockLiveSuccess();
+    // Live paths resolve the actor via supabase.auth.getUser (best-effort).
+    (supabase.auth.getUser as any).mockResolvedValue({
+      data: { user: { id: TEST_ACTOR_ID } },
+      error: null,
+    });
   });
 
   function expectAuditFields(payload: any, entityType: string) {
@@ -245,8 +324,9 @@ describe('D9 audit coverage: services ATTEMPT audit write with who/what/when/sch
     expect(String(payload.entity_type ?? payload.entityType)).toContain(entityType);
     expect(payload.entity_id ?? payload.entityId ?? payload.payment_id ?? payload.expense_id).toBeDefined();
     expect(payload.action).toBeDefined();
-    // who / when
-    expect('performed_by' in payload || 'performedBy' in payload || 'actor' in payload).toBe(true);
+    // who (pinned non-null: live paths resolve via supabase.auth.getUser)
+    expect(payload.performed_by).toBe(TEST_ACTOR_ID);
+    // when
     expect(payload.performed_at ?? payload.performedAt ?? payload.created_at).toBeDefined();
     // old / new + reason (schema requires reason NOT NULL)
     expect('previous_data' in payload || 'previousData' in payload || 'old' in payload).toBe(true);
@@ -290,10 +370,25 @@ describe('D9 audit coverage: services ATTEMPT audit write with who/what/when/sch
     await payrollService.updateRunStatus('33333333-3333-4333-8333-333333333333', 'under_review');
     const inserts = auditInserts();
     expect(inserts.length).toBeGreaterThan(0);
-    const payload = inserts[0].payload?.constructor === Array ? inserts[0].payload[0] : inserts[0].payload;
-    expect(payload.school_id ?? payload.schoolId).toBeDefined();
-    expect(payload.action).toBeDefined();
-    expect('performed_by' in payload || 'performedBy' in payload || 'actor' in payload).toBe(true);
+    for (const ins of inserts) {
+      const payload = ins.payload?.constructor === Array ? ins.payload[0] : ins.payload;
+      expect(payload.school_id ?? payload.schoolId).toBeDefined();
+      expect(payload.action).toBeDefined();
+      // who pinned non-null via auth context
+      expect(payload.performed_by).toBe(TEST_ACTOR_ID);
+      expect(payload.performed_at).toBeDefined();
+    }
+    // updateRunStatus audit carries the authoritative previous/new statuses
+    const statusAudit = inserts
+      .map((i) => (i.payload?.constructor === Array ? i.payload[0] : i.payload))
+      .find((p) => String(p.action ?? '').startsWith('status:'));
+    expect(statusAudit).toBeDefined();
+    expect(statusAudit.previous_data).toEqual({ status: 'calculated' });
+    expect(statusAudit.new_data).toEqual({
+      id: '33333333-3333-4333-8333-333333333333',
+      status: 'under_review',
+    });
+    expect(statusAudit.school_id).toBe('s1');
   });
 
   it('salary advance + leave approvals attempt audit (who/when pinned)', async () => {
@@ -305,6 +400,9 @@ describe('D9 audit coverage: services ATTEMPT audit write with who/what/when/sch
       const payload = ins.payload?.constructor === Array ? ins.payload[0] : ins.payload;
       expect(payload.school_id ?? payload.schoolId).toBeDefined();
       expect(payload.action).toBeDefined();
+      // who/when pinned non-null via auth context
+      expect(payload.performed_by).toBe(TEST_ACTOR_ID);
+      expect(payload.performed_at).toBeDefined();
     }
   });
 

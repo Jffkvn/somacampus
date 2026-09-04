@@ -758,6 +758,10 @@ export const payrollService = {
       return true;
     }
     // Live: mirror DB guard guard_payroll_run_status before mutating.
+    // Retain the fetched row so the audit uses the authoritative school_id
+    // and previous status (never the update payload / defaults).
+    let currentSchoolId: string | null = null;
+    let previousStatus: string | null = null;
     try {
       const { data: current, error: fetchError } = await supabase
         .from('school_payroll_runs')
@@ -765,6 +769,8 @@ export const payrollService = {
         .eq('id', runId)
         .single();
       if (!fetchError && current) {
+        currentSchoolId = (current as any).school_id ?? null;
+        previousStatus = (current as any).status ?? null;
         const cur = (current as any).status;
         if (
           (cur === 'approved' || cur === 'finalized') &&
@@ -788,14 +794,13 @@ export const payrollService = {
       .update(updatePayload)
       .eq('id', runId);
     if (error) return false;
-    const schoolId = (updatePayload as any).school_id ?? 'school-default';
     await writeFinancialAudit({
-      schoolId: typeof schoolId === 'string' ? schoolId : 'school-default',
+      schoolId: currentSchoolId ?? 'school-default',
       entityType: 'payroll_run',
       entityId: runId,
       action: `status:${nextStatus}`,
       reason: `updateRunStatus ${runId} -> ${nextStatus}`,
-      previousData: null,
+      previousData: previousStatus ? { status: previousStatus } : null,
       newData: { id: runId, status: nextStatus },
     });
     return true;
