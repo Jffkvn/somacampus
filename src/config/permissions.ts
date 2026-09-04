@@ -29,6 +29,12 @@ export type PermissionCode =
   | 'teacher.reflection.view_own'
   | 'student.profile.view'
   | 'student.learning.view'
+  | 'portal.children.view'
+  | 'portal.fees.view'
+  | 'portal.attendance.view'
+  | 'portal.learning.view'
+  | 'announcements.view'
+  | 'messages.view'
   | 'fees.view_accounts'
   | 'fees.import_reconcile'
   | 'expenses.view'
@@ -88,6 +94,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionCode[]> = {
     'teacher.reflection.view_own',
     'student.profile.view',
     'student.learning.view',
+    'announcements.view',
+    'messages.view',
   ],
   bursar: [
     'calendar.view',
@@ -99,6 +107,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionCode[]> = {
   ],
   parent: [
     'calendar.view',
+    'portal.children.view',
+    'portal.fees.view',
+    'portal.attendance.view',
+    'portal.learning.view',
+    'announcements.view',
+    'messages.view',
   ],
   student: [
     'calendar.view',

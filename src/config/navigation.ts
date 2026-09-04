@@ -122,4 +122,13 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
       { label: 'My Payslips', href: '/people/hr/payslips' },
     ],
   },
+  {
+    id: 'family_portal',
+    label: 'Family Portal',
+    icon: Users,
+    roles: ['parent'],
+    subItems: [
+      { label: 'Home & Overview', href: '/parent/home', roles: ['parent'] },
+    ],
+  },
 ];
