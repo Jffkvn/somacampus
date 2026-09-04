@@ -316,35 +316,114 @@ export const financeService = {
       return newPayment;
     }
 
-    // Live Supabase implementation
-    const { data: pmtData, error: pmtError } = await supabase
-      .from('fee_payments')
-      .insert({
-        school_id: payload.schoolId,
-        student_id: payload.studentId,
-        amount: payload.amount,
-        payment_date: payload.paymentDate,
-        payment_channel: payload.paymentChannel,
-        payment_reference: payload.paymentReference,
-        payer_name: payload.payerName,
-        payer_phone: payload.payerPhone,
-        receipt_number: receiptNumber,
-        notes: payload.notes,
-      })
-      .select()
-      .single();
+    // Live Supabase implementation — mirrors the mock waterfall above:
+    // oldest-due-first across open charges. student_charges carries no paid
+    // column, so outstanding per charge is computed from existing
+    // payment_allocations sums, exactly like the mock engine.
+    try {
+      const { data: chargeRows, error: chargesError } = await supabase
+        .from('student_charges')
+        .select('*')
+        .eq('student_id', payload.studentId)
+        .order('due_date', { ascending: true });
+      if (chargesError) throw chargesError;
+      const charges = (
+        Array.isArray(chargeRows) ? chargeRows : chargeRows ? [chargeRows] : []
+      )
+        .slice()
+        .sort((a: any, b: any) => String(a.due_date ?? '').localeCompare(String(b.due_date ?? '')));
 
-    if (pmtError) throw pmtError;
-    await writeFinancialAudit({
-      schoolId: payload.schoolId,
-      entityType: 'payment',
-      entityId: (pmtData as any)?.id ?? receiptNumber,
-      action: 'create',
-      reason: `recordPayment ${receiptNumber}`,
-      previousData: null,
-      newData: pmtData,
-    });
-    return pmtData;
+      const paidByCharge = new Map<string, number>();
+      if (charges.length > 0) {
+        const { data: allocRows, error: allocError } = await supabase
+          .from('payment_allocations')
+          .select('*')
+          .in(
+            'charge_id',
+            charges.map((c: any) => c.id)
+          );
+        if (allocError) throw allocError;
+        const existing = Array.isArray(allocRows) ? allocRows : allocRows ? [allocRows] : [];
+        for (const a of existing) {
+          paidByCharge.set(a.charge_id, (paidByCharge.get(a.charge_id) ?? 0) + Number(a.amount));
+        }
+      }
+
+      let remainingPayment = payload.amount;
+      const allocInserts: Array<{ school_id: string; charge_id: string; amount: number }> = [];
+      for (const charge of charges) {
+        if (remainingPayment <= 0) break;
+        const outstanding = Math.max(0, Number(charge.amount) - (paidByCharge.get(charge.id) ?? 0));
+        if (outstanding > 0) {
+          const allocAmount = Math.min(remainingPayment, outstanding);
+          allocInserts.push({
+            school_id: payload.schoolId,
+            charge_id: charge.id,
+            amount: allocAmount,
+          });
+          remainingPayment -= allocAmount;
+        }
+      }
+
+      const unallocatedAmount = remainingPayment; // Retained as overpayment credit
+      const status: FeePayment['status'] =
+        unallocatedAmount === payload.amount
+          ? 'unallocated'
+          : unallocatedAmount > 0
+          ? 'partially_allocated'
+          : 'fully_allocated';
+
+      const { data: pmtData, error: pmtError } = await supabase
+        .from('fee_payments')
+        .insert({
+          school_id: payload.schoolId,
+          student_id: payload.studentId,
+          amount: payload.amount,
+          payment_date: payload.paymentDate,
+          payment_channel: payload.paymentChannel,
+          payment_reference: payload.paymentReference,
+          payer_name: payload.payerName,
+          payer_phone: payload.payerPhone,
+          receipt_number: receiptNumber,
+          unallocated_amount: unallocatedAmount,
+          status,
+          notes: payload.notes,
+        })
+        .select()
+        .single();
+
+      if (pmtError) throw pmtError;
+      const paymentId = (pmtData as any)?.id;
+      if (allocInserts.length > 0 && paymentId) {
+        const { error: allocInsertError } = await supabase
+          .from('payment_allocations')
+          .insert(allocInserts.map((a) => ({ ...a, payment_id: paymentId })));
+        if (allocInsertError) throw allocInsertError;
+      }
+      await writeFinancialAudit({
+        schoolId: payload.schoolId,
+        entityType: 'payment',
+        entityId: (pmtData as any)?.id ?? receiptNumber,
+        action: 'create',
+        reason: `recordPayment ${receiptNumber}`,
+        previousData: null,
+        newData: pmtData,
+      });
+      if (allocInserts.length > 0 && paymentId) {
+        await writeFinancialAudit({
+          schoolId: payload.schoolId,
+          entityType: 'allocation',
+          entityId: paymentId,
+          action: 'allocate',
+          reason: `recordPayment ${receiptNumber} waterfall allocation`,
+          previousData: null,
+          newData: allocInserts.map((a) => ({ ...a, payment_id: paymentId })),
+        });
+      }
+      return pmtData;
+    } catch (err) {
+      throw err instanceof Error ? err : new Error('Failed to record payment', { cause: err });
+    }
   },
 
   /**

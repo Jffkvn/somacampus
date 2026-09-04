@@ -100,6 +100,11 @@ function mockLiveSuccess() {
     if (table === 'financial_audit_logs') {
       return mockChain(table, { id: 'audit-1' });
     }
+    // T1: audit helper resolves people.id from the auth uid (people_auth_read).
+    // This fixture maps the test auth actor to its people row.
+    if (table === 'people') {
+      return mockChain(table, { id: TEST_ACTOR_ID });
+    }
     // payroll_tax_configurations / employee_payroll_profiles / leave / advance lists
     if (table === 'payroll_tax_configurations' || table === 'employee_payroll_profiles') {
       return mockChain(table, []);
