@@ -1,0 +1,16 @@
+-- ============================================================================
+-- SomaCampus Hardening Part C: Function search_path pinning
+-- Migration: 20260912000009_function_search_path.sql
+-- ============================================================================
+-- SECURITY DEFINER functions must pin search_path to block schema-shadowing.
+-- Verified 2026-09-12:
+--   - is_authorised_intervention_creator(UUID, UUID, UUID, UUID), redefined in
+--     20260912000001 (originally Phase 5, 20260909000000), LACKS search_path
+--     in BOTH definitions -> pinned below via ALTER (no redefinition needed).
+--   - public.has_school_finance_access(UUID), redefined in 20260912000000,
+--     already carries SET search_path = public -> no action needed.
+--   - public.current_employee_id_for_school(UUID), defined in 20260912000006,
+--     already carries SET search_path = public -> no action needed.
+--   - public.current_employee_id() (12000006 shim) likewise already pinned.
+-- Idempotent: ALTER ... SET is re-runnable and non-destructive.
+ALTER FUNCTION public.is_authorised_intervention_creator(UUID, UUID, UUID, UUID) SET search_path = public;
