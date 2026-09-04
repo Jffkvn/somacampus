@@ -299,7 +299,7 @@ AS $$
     JOIN public.roles r ON r.id = ur.role_id
     WHERE ur.user_id = auth.uid()
       AND ur.school_id = p_school_id
-      AND r.key IN ('admin', 'principal', 'bursar')
+      AND r.id IN ('admin', 'principal', 'bursar')
   );
 $$;
 
