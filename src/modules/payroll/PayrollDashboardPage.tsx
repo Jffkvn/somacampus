@@ -84,6 +84,8 @@ export const PayrollDashboardPage: React.FC = () => {
       const ok = await payrollService.updateRunStatus(activeRun.id, nextStatus);
       if (ok) {
         await loadData();
+      } else {
+        alert(`Payroll status update to '${nextStatus}' was rejected by the server. The run status was not changed.`);
       }
     } catch (err: any) {
       alert(err?.message || 'Failed to update run status');

@@ -127,6 +127,31 @@ function toComputationContext(tax: EffectiveTaxConfig): ItemComputationContext {
 // Mock/local path has no DB config row: compute under the statutory constants.
 const MOCK_COMPUTATION_CONTEXT: ItemComputationContext = toComputationContext(STATUTORY_FALLBACK);
 
+// M3: pick the effective-dated profile per employee from the fetched rows.
+// The query already constrains effective_from <= period and orders
+// most-recent first; this keeps the first row per employee whose
+// effective_to is open or still covers the period. An employee whose rows
+// are ALL expired keeps the latest row (pay rather than silently drop).
+export function selectEffectiveProfiles(rows: any[], periodEnd: string | null): any[] {
+  const byEmployee = new Map<string, any[]>();
+  for (const r of rows) {
+    const key = String(r.employee_id);
+    if (!byEmployee.has(key)) byEmployee.set(key, []);
+    byEmployee.get(key)!.push(r);
+  }
+  const picked: any[] = [];
+  for (const group of byEmployee.values()) {
+    const sorted = [...group].sort((a, b) =>
+      String(b.effective_from || '').localeCompare(String(a.effective_from || ''))
+    );
+    const inEffect = periodEnd
+      ? sorted.find((r) => !r.effective_to || String(r.effective_to) >= periodEnd)
+      : sorted[0];
+    picked.push(inEffect ?? sorted[0]);
+  }
+  return picked.filter(Boolean);
+}
+
 // In-memory fallback state for mock/local development
 let mockPeriods: PayrollPeriod[] = [
   {
@@ -637,13 +662,39 @@ export const payrollService = {
     const taxConfig = await resolveEffectiveTaxConfig(schoolId);
     const ctx = toComputationContext(taxConfig);
 
-    const { data: profileRows, error: profilesError } = await supabase
+    // M3: effective-dated profile selection. Multiple rows per employee
+    // (historical + current) are expected; mapping every row would emit
+    // duplicate (payroll_run_id, employee_id) item rows and violate the
+    // UNIQUE(payroll_run_id, employee_id) constraint. Resolve the period end
+    // first, constrain effective_from <= period with most-recent-first
+    // ordering in the query, then keep the first surviving row per employee.
+    let periodEnd: string | null = null;
+    try {
+      const { data: periodRow } = await supabase
+        .from('payroll_periods')
+        .select('period_end')
+        .eq('id', periodId)
+        .maybeSingle();
+      periodEnd = (periodRow as any)?.period_end ?? null;
+    } catch {
+      // Best-effort only: fall through to unfiltered + latest-per-employee.
+    }
+
+    let profileQuery = supabase
       .from('employee_payroll_profiles')
       .select('*')
       .eq('school_id', schoolId);
+    if (periodEnd) {
+      profileQuery = profileQuery
+        .lte('effective_from', periodEnd)
+        .order('effective_from', { ascending: false });
+    }
+    const { data: profileRows, error: profilesError } = await profileQuery;
     if (profilesError) throw profilesError;
 
-    const computed = (profileRows || []).map((p: any) =>
+    const effectiveProfiles = selectEffectiveProfiles((profileRows || []) as any[], periodEnd);
+
+    const computed = effectiveProfiles.map((p: any) =>
       computePayrollItem(
         {
           baseSalary: Number(p.base_salary || 0),
@@ -695,7 +746,7 @@ export const payrollService = {
     if (runError) throw runError;
 
     if (computed.length > 0) {      const itemRows = computed.map(({ computed: c, snapshot }, idx) => {
-        const p: any = (profileRows || [])[idx];
+        const p: any = effectiveProfiles[idx];
         return {
           school_id: schoolId,
           payroll_run_id: runData.id,
@@ -804,6 +855,58 @@ export const payrollService = {
       newData: { id: runId, status: nextStatus },
     });
     return true;
+  },
+
+  /**
+   * Fetch one employee's payroll profile — the advance-cap base salary
+   * source (M2). Returns null when no profile exists; throws on DB failure
+   * so callers can apply the documented hardcoded fallback.
+   */
+  async getPayrollProfile(employeeId: string, schoolId?: string): Promise<EmployeePayrollProfile | null> {
+    if (isMockEnv()) {
+      const found = mockProfiles.find(
+        (p) => p.employeeId === employeeId && (!schoolId || p.schoolId === schoolId)
+      );
+      return found ?? null;
+    }
+    try {
+      let query = supabase
+        .from('employee_payroll_profiles')
+        .select('*')
+        .eq('employee_id', employeeId);
+      if (schoolId) query = query.eq('school_id', schoolId);
+      const { data, error } = await query
+        .order('effective_from', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      const row: any = (data || [])[0];
+      if (!row) return null;
+      return {
+        id: row.id,
+        schoolId: row.school_id,
+        employeeId: row.employee_id,
+        effectiveFrom: row.effective_from,
+        effectiveTo: row.effective_to ?? null,
+        payBasis: row.pay_basis,
+        taxTreatment: row.tax_treatment,
+        baseSalary: Number(row.base_salary || 0),
+        hourlyRate: row.hourly_rate != null ? Number(row.hourly_rate) : null,
+        currency: row.currency || 'UGX',
+        nssfApplicable: row.nssf_applicable ?? true,
+        customWhtRate: row.custom_wht_rate != null ? Number(row.custom_wht_rate) : null,
+        customOvertimeRate: row.custom_overtime_rate != null ? Number(row.custom_overtime_rate) : null,
+        paymentMethod: row.payment_method,
+        bankName: row.bank_name ?? null,
+        bankAccountNumber: row.bank_account_number ?? null,
+        bankAccountName: row.bank_account_name ?? null,
+        mobileMoneyNumber: row.mobile_money_number ?? null,
+        mobileMoneyProvider: row.mobile_money_provider ?? null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+    } catch (err) {
+      throw new Error('Failed to fetch payroll profile', { cause: err });
+    }
   },
 
   /**

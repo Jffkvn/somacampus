@@ -91,7 +91,11 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   // Live UI shows the viewer's own name from auth; the mock demo keeps its
   // pinned demo label so previews render without a session.
   const currentEmployeeName = isMockEnv() ? DEMO_EMPLOYEE_NAME : (fullName ?? DEMO_EMPLOYEE_NAME);
-  const baseSalary = 1800000;
+  // M2: advance-cap base salary. Resolved per viewer from their payroll
+  // profile below; FALLBACK_BASE_SALARY applies ONLY when the profile is
+  // missing or unreadable (documented fallback, never a silent default).
+  const FALLBACK_BASE_SALARY = 1800000;
+  const [baseSalary, setBaseSalary] = useState(FALLBACK_BASE_SALARY);
 
   useEffect(() => {
     let cancelled = false;
@@ -135,12 +139,20 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
         hrService.getEffectiveBalances(schoolId, empId),
         hrService.getMyLeaveRequests(empId),
         hrService.getMyAdvances(empId),
-        payrollService.getMyPayslips(empId),
+        payrollService.getMyPayslips(empId, schoolId),
       ]);
       setBalances(effBalances);
       setRequests(myReqs);
       setAdvances(myAdvs);
       setPayslips(mySlips);
+      // M2: resolve the viewer's actual basic salary for the 50% advance
+      // cap; keep the documented fallback when the profile is unreadable.
+      try {
+        const profile = await payrollService.getPayrollProfile(empId, schoolId);
+        setBaseSalary(profile?.baseSalary || FALLBACK_BASE_SALARY);
+      } catch {
+        setBaseSalary(FALLBACK_BASE_SALARY);
+      }
     } catch (err) {
       console.error('Failed to load HR self-service data', err);
     } finally {

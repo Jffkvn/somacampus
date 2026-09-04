@@ -532,7 +532,7 @@ describe('D10-fix1: MyHRPage resolves the viewer’s own employee id', () => {
     });
     expect(reqSpy).toHaveBeenCalledWith('emp-viewer-1');
     expect(advSpy).toHaveBeenCalledWith('emp-viewer-1');
-    expect(slipSpy).toHaveBeenCalledWith('emp-viewer-1');
+    expect(slipSpy).toHaveBeenCalledWith('emp-viewer-1', 'school-default');
     const body = document.body.textContent ?? '';
     expect(body).not.toMatch(/Sarah/);
     expect(body).toMatch(/Dana Teacher/);
