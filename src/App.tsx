@@ -193,7 +193,7 @@ export const App: React.FC = () => {
                 title="Classes & Streams"
                 moduleName="Academics"
                 description="Stage classes, streams, room assignments, and student enrolment capacities."
-                scheduledPhase="Phase 2 (Teacher Daily Slice)"
+                scheduledPhase="Backlog (deferred past Phase 2)"
               />
             }
           />
