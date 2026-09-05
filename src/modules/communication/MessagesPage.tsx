@@ -102,9 +102,11 @@ const ThreadView: React.FC<{
 
   /**
    * Teacher-only "Draft update": composes from the thread's recent
-   * parent_visible observations for the linked student (existing observation
-   * queries). The draft lands in the editable reply box — never sent
-   * directly. Empty evidence => honest notice, no draft, no send.
+   * parent_visible observations for the linked student — filtered
+   * server-side by getParentVisibleObservationsForStudent, with the
+   * client-side parent_visible check kept as belt-and-braces. The draft
+   * lands in the editable reply box — never sent directly. Empty evidence
+   * => honest notice, no draft, no send.
    */
   const handleDraftUpdate = async () => {
     if (!canDraftUpdate || !thread.contextEntityId) {
@@ -114,7 +116,7 @@ const ThreadView: React.FC<{
     try {
       setIsDrafting(true);
       setDraftNotice(null);
-      const all = await observationService.getObservationsForStudent(thread.contextEntityId);
+      const all = await observationService.getParentVisibleObservationsForStudent(thread.contextEntityId);
       const approved = (all ?? []).filter((o) => o.visibility === 'parent_visible');
       const studentName = approved[0]?.studentName ?? thread.subject ?? 'this student';
       const draft = composeParentUpdate(

@@ -60,12 +60,34 @@ export const observationService = {
   async getObservationsForStudent(studentId: string): Promise<TeacherObservation[]> {
     const { data, error } = await supabase
       .from('teacher_observations')
-      .select('*, teacher:employees(people(first_name, last_name)), subjects(name), classes(name), streams(name)')
+      .select('*, teacher:employees(people(first_name, last_name)), student:students(admission_number, people(first_name, last_name)), subjects(name), classes(name), streams(name)')
       .eq('student_id', studentId)
       .order('observed_at', { ascending: false });
 
     if (error) {
       console.warn('Failed to load observations for student:', error);
+      return [];
+    }
+
+    return (data || []).map(mapObservationRow);
+  },
+
+  /**
+   * Draft-context query (Phase 8F Task 2): parent_visible observations for
+   * one student, filtered SERVER-SIDE (.eq visibility) with the student
+   * join selected so mapObservationRow.studentName resolves. Callers keep
+   * the client-side parent_visible double-filter as belt-and-braces.
+   */
+  async getParentVisibleObservationsForStudent(studentId: string): Promise<TeacherObservation[]> {
+    const { data, error } = await supabase
+      .from('teacher_observations')
+      .select('*, teacher:employees(people(first_name, last_name)), student:students(admission_number, people(first_name, last_name)), subjects(name), classes(name), streams(name)')
+      .eq('student_id', studentId)
+      .eq('visibility', 'parent_visible')
+      .order('observed_at', { ascending: false });
+
+    if (error) {
+      console.warn('Failed to load parent-visible observations for student:', error);
       return [];
     }
 

@@ -21,15 +21,26 @@ import {
 } from '../modules/communication/aiDraftService';
 import { communicationService } from '../modules/communication/communicationService';
 import { announcementService } from '../modules/communication/announcementService';
+import { observationService } from '../modules/teaching/observationService';
+import { discardAnnouncementDraft } from '../modules/communication/AnnouncementsPage';
 
 describe('AI draft flow approval gates (Phase 8F Task 2)', () => {
   let captured: { table: string; op: string; payload: any }[] = [];
   let tableResponses: Record<string, unknown> = {};
+  let queryLog: { table: string; selectArg?: string; eqs: Array<[string, any]> }[] = [];
 
   const builderFor = (table: string) => {
+    const entry: { table: string; selectArg?: string; eqs: Array<[string, any]> } = { table, eqs: [] };
+    queryLog.push(entry);
     const b: any = {};
-    b.select = () => b;
-    b.eq = () => b;
+    b.select = (arg?: string) => {
+      entry.selectArg = arg;
+      return b;
+    };
+    b.eq = (col: string, val: any) => {
+      entry.eqs.push([col, val]);
+      return b;
+    };
     b.in = () => b;
     b.order = () => b;
     b.insert = (payload: any) => {
@@ -86,6 +97,7 @@ describe('AI draft flow approval gates (Phase 8F Task 2)', () => {
       },
     };
     captured = [];
+    queryLog = [];
     mockFrom.mockImplementation((table: string) => builderFor(table));
     mockRpc.mockImplementation(() => Promise.resolve({ data: true, error: null }));
   });
@@ -179,5 +191,54 @@ describe('AI draft flow approval gates (Phase 8F Task 2)', () => {
     // Approving an empty edited body is rejected — nothing is inserted.
     await expect(communicationService.sendApprovedDraft('thread-1', 'teacher-1', '   ')).rejects.toThrow();
     expect(captured.filter((c) => c.table === 'communication_messages')).toHaveLength(0);
+  });
+
+  it('(6) draft-context observations select the student join so the name resolves', async () => {
+    tableResponses.teacher_observations = {
+      data: [
+        {
+          id: 'obs-1',
+          school_id: 'school-1',
+          student_id: 'stu-1',
+          teacher_id: 'teacher-1',
+          class_id: 'class-1',
+          stream_id: null,
+          subject_id: null,
+          lesson_id: null,
+          assignment_id: null,
+          observation_type: 'general',
+          observation_text: 'Amina read aloud fluently during English group work.',
+          visibility: 'parent_visible',
+          observed_at: '2026-09-10T08:00:00Z',
+          created_at: '2026-09-10T08:00:00Z',
+          updated_at: '2026-09-10T08:00:00Z',
+          teacher: { people: { first_name: 'Sarah', last_name: 'Namukasa' } },
+          student: { admission_number: 'A-001', people: { first_name: 'Amina', last_name: 'Kato' } },
+          subjects: { name: 'English' },
+          classes: { name: 'P3' },
+          streams: null,
+        },
+      ],
+      error: null,
+    };
+    const rows = await observationService.getObservationsForStudent('stu-1');
+    const query = queryLog.find((q) => q.table === 'teacher_observations');
+    // The student join must be SELECTED server-side — otherwise studentName
+    // can never resolve and the draft falls back to subject/generic text.
+    expect(query?.selectArg).toContain('student:students');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].studentName).toBe('Amina Kato');
+  });
+
+  it('(7) draft-context query filters parent_visible server-side', async () => {
+    tableResponses.teacher_observations = { data: [], error: null };
+    await observationService.getParentVisibleObservationsForStudent('stu-1');
+    const query = queryLog.find((q) => q.table === 'teacher_observations');
+    expect(query?.eqs).toContainEqual(['visibility', 'parent_visible']);
+    expect(query?.selectArg).toContain('student:students');
+  });
+
+  it('(8) announcement discard clears body AND flag (no AI text published as manual)', () => {
+    expect(discardAnnouncementDraft()).toEqual({ body: '', isAiDraft: false });
   });
 });

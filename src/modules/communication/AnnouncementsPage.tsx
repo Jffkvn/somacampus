@@ -34,6 +34,15 @@ function priorityVariant(priority: AnnouncementPriority): 'neutral' | 'info' | '
   return 'neutral';
 }
 
+/**
+ * Discard contract (Phase 8F Task 2 review): discarding an AI draft clears
+ * BOTH the body and the draft flag. AI-composed text must never linger in
+ * the field to be published later as an unflagged "manual" notice.
+ */
+export function discardAnnouncementDraft(): { body: string; isAiDraft: boolean } {
+  return { body: '', isAiDraft: false };
+}
+
 export const AnnouncementsPage: React.FC = () => {
   const { role, schoolId, user } = useAuth();
   const canCreate = role === 'admin' || role === 'principal';
@@ -243,10 +252,14 @@ export const AnnouncementsPage: React.FC = () => {
                     </span>
                     <button
                       type="button"
-                      onClick={() => setIsAiDraft(false)}
+                      onClick={() => {
+                        const cleared = discardAnnouncementDraft();
+                        setBody(cleared.body);
+                        setIsAiDraft(cleared.isAiDraft);
+                      }}
                       className="shrink-0 font-bold text-amber-700 underline"
                     >
-                      Discard draft flag
+                      Discard draft
                     </button>
                   </div>
                 )}
