@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const { mockFrom } = vi.hoisted(() => ({ mockFrom: vi.fn() }));
+const { mockFrom, mockGetUser } = vi.hoisted(() => ({ mockFrom: vi.fn(), mockGetUser: vi.fn() }));
 vi.mock('../lib/supabase', () => ({
-  supabase: { from: mockFrom },
+  supabase: { from: mockFrom, auth: { getUser: mockGetUser } },
 }));
 
 import { calendarService } from '../modules/calendar/calendarService';
@@ -44,6 +44,7 @@ describe('Calendar Service (Phase 8E Task 1)', () => {
     };
     b.gte = () => b;
     b.order = () => b;
+    b.maybeSingle = () => respond();
     b.then = (res: any, rej: any) => respond().then(res, rej);
     return b;
   };
@@ -52,6 +53,7 @@ describe('Calendar Service (Phase 8E Task 1)', () => {
     vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
     vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key');
     mockFrom.mockImplementation((table: string) => builderFor(table));
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
     tableResponses = {};
     captured = [];
   });
@@ -280,5 +282,123 @@ describe('Calendar Service (Phase 8E Task 1)', () => {
     });
     expect(events).toEqual([]);
     expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('(e) student sees own-class events, not other classes, and never teachers-audience', async () => {
+    seedCalendars();
+    tableResponses.calendar_events = {
+      data: [
+        {
+          id: 'evt-school',
+          school_calendar_id: 'cal-1',
+          title: 'Founders Day',
+          description: null,
+          event_type: 'ceremony',
+          start_datetime: iso(5),
+          end_datetime: iso(5, 12),
+          all_day: false,
+          location: null,
+          target_audience: 'school',
+          target_class_id: null,
+        },
+        {
+          id: 'evt-students',
+          school_calendar_id: 'cal-1',
+          title: 'Inter-house athletics heats',
+          description: null,
+          event_type: 'sports',
+          start_datetime: iso(3),
+          end_datetime: iso(3, 12),
+          all_day: false,
+          location: null,
+          target_audience: 'students',
+          target_class_id: null,
+        },
+        {
+          id: 'evt-teachers',
+          school_calendar_id: 'cal-1',
+          title: 'Staff moderation meeting',
+          description: null,
+          event_type: 'meeting',
+          start_datetime: iso(1),
+          end_datetime: iso(1, 12),
+          all_day: false,
+          location: null,
+          target_audience: 'teachers',
+          target_class_id: null,
+        },
+        {
+          id: 'evt-own-class',
+          school_calendar_id: 'cal-1',
+          title: 'S1 science fair',
+          description: null,
+          event_type: 'assembly',
+          start_datetime: iso(2),
+          end_datetime: iso(2, 12),
+          all_day: false,
+          location: null,
+          target_audience: 'class',
+          target_class_id: 'class-s1',
+        },
+        {
+          id: 'evt-other-class',
+          school_calendar_id: 'cal-1',
+          title: 'S2 science fair',
+          description: null,
+          event_type: 'assembly',
+          start_datetime: iso(2),
+          end_datetime: iso(2, 12),
+          all_day: false,
+          location: null,
+          target_audience: 'class',
+          target_class_id: 'class-s2',
+        },
+      ],
+      error: null,
+    };
+
+    const events = await calendarService.getCalendarEvents('school-1', {
+      role: 'student',
+      childClassIds: ['class-s1'],
+    });
+    const ids = events.map((e) => e.id);
+    expect(ids).toContain('evt-school');
+    expect(ids).toContain('evt-students');
+    expect(ids).toContain('evt-own-class');
+    expect(ids).not.toContain('evt-other-class');
+    expect(ids).not.toContain('evt-teachers');
+  });
+
+  it('(f) resolveViewerClassIds for students uses own enrolments, not guardian links', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'auth-s1' } }, error: null });
+    tableResponses.people = { data: { id: 'person-s1' }, error: null };
+    tableResponses.students = { data: [{ id: 'student-s1' }], error: null };
+    tableResponses.student_enrolments = {
+      data: [{ student_id: 'student-s1', class_id: 'class-s1' }],
+      error: null,
+    };
+
+    const classIds = await calendarService.resolveViewerClassIds('school-1', 'student');
+    expect(classIds).toEqual(['class-s1']);
+    // Own chain: people by auth user, students by person, enrolments
+    // school-qualified + active — guardian links never consulted.
+    expect(mockGetUser).toHaveBeenCalled();
+    expect(captured.find((c) => c.table === 'people')?.filters).toContainEqual([
+      'auth_user_id',
+      'auth-s1',
+    ]);
+    expect(captured.find((c) => c.table === 'students')?.filters).toContainEqual([
+      'person_id',
+      'person-s1',
+    ]);
+    const enrCall = captured.find((c) => c.table === 'student_enrolments');
+    expect(enrCall?.filters).toContainEqual(['school_id', 'school-1']);
+    expect(enrCall?.filters).toContainEqual(['status', 'active']);
+    expect(enrCall?.inFilters).toContainEqual(['student_id', ['student-s1']]);
+    expect(mockFrom).not.toHaveBeenCalledWith('student_guardians');
+
+    // No person link → fail-closed [].
+    tableResponses.people = { data: null, error: null };
+    expect(await calendarService.resolveViewerClassIds('school-1', 'student')).toEqual([]);
   });
 });

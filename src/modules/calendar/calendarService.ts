@@ -124,6 +124,52 @@ function startOfTodayUtc(): Date {
   return d;
 }
 
+/**
+ * Own student rows for a signed-in student within one school:
+ *   auth user -> people.auth_user_id -> students.person_id ->
+ *   student_enrolments(student_id + school_id + active)
+ *
+ * Kept here (not in modules/auth) because no student-side identity helper
+ * exists to reuse, and this is the only caller. Mirrors the
+ * resolveMyChildIds idiom: fail-closed [] when there is no link, throw on
+ * DB/network error (D1 rule).
+ */
+async function resolveOwnStudentIds(schoolId: string): Promise<string[]> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user) return [];
+
+  const { data: person, error: personError } = await supabase
+    .from('people')
+    .select('id')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+  if (personError) throw personError;
+  if (!person) return [];
+
+  const { data: students, error: studentError } = await supabase
+    .from('students')
+    .select('id')
+    .eq('person_id', (person as any).id);
+  if (studentError) throw studentError;
+  const ownIds = [...new Set(((students as any[]) ?? []).map((s) => s?.id).filter(Boolean))];
+  if (ownIds.length === 0) return [];
+
+  // School-qualified + active only: withdrawn/transferred enrolments excluded.
+  const { data: enrolments, error: enrError } = await supabase
+    .from('student_enrolments')
+    .select('student_id')
+    .eq('school_id', schoolId)
+    .eq('status', 'active')
+    .in('student_id', ownIds);
+  if (enrError) throw enrError;
+  if (!enrolments) return [];
+  return [...new Set(((enrolments as any[]) ?? []).map((e) => e.student_id).filter(Boolean))];
+}
+
 export const calendarService = {
   /**
    * Upcoming events for a school, ascending by start. School scoping flows
@@ -161,23 +207,26 @@ export const calendarService = {
   },
 
   /**
-   * Class ids that scope class-audience rows for family roles: the viewer's
-   * children's active enrolment classes. Staff need no scoping (see all), so
-   * this returns [] without touching the DB for staff roles.
+   * Class ids that scope class-audience rows for family roles. Parents
+   * resolve via their children's active enrolments; students via their OWN
+   * active enrolments (guardian links never apply to student viewers).
+   * Staff need no scoping (see all), so this returns [] without touching
+   * the DB for staff roles.
    */
   async resolveViewerClassIds(schoolId: string, role: UserRole): Promise<string[]> {
     if (isMockEnv()) return [];
     if (role !== 'parent' && role !== 'student') return [];
 
-    const childIds = await resolveMyChildIds(schoolId);
-    if (childIds.length === 0) return [];
+    const studentIds =
+      role === 'student' ? await resolveOwnStudentIds(schoolId) : await resolveMyChildIds(schoolId);
+    if (studentIds.length === 0) return [];
 
     const { data, error } = await supabase
       .from('student_enrolments')
       .select('student_id, class_id')
       .eq('school_id', schoolId)
       .eq('status', 'active')
-      .in('student_id', childIds);
+      .in('student_id', studentIds);
     if (error) throw error;
     return [...new Set(((data as any[]) ?? []).map((e) => e?.class_id).filter(Boolean))];
   },
