@@ -228,6 +228,7 @@ BEGIN
 
   -- 3. Recipient derivation into a transaction-scoped set (UNIQUE holder
   --    dedupes overlaps, e.g. a guardian who is also staff).
+  DROP TABLE IF EXISTS tmp_notify_recips;
   CREATE TEMPORARY TABLE tmp_notify_recips (pid UUID PRIMARY KEY) ON COMMIT DROP;
 
   IF p_event_type IN ('attendance_absent', 'attendance_late') THEN
