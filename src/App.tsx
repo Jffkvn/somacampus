@@ -23,6 +23,7 @@ import { AnnouncementsPage } from './modules/communication/AnnouncementsPage';
 import { MessagesPage } from './modules/communication/MessagesPage';
 import { NotificationPreferencesPage } from './modules/notifications/NotificationPreferencesPage';
 import { ParentHomePage } from './modules/parent/ParentHomePage';
+import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
@@ -198,17 +199,10 @@ export const App: React.FC = () => {
               />
             }
           />
-          <Route
-            path="calendar"
-            element={
-              <ModulePlaceholder
-                title="School Calendar & Events"
-                moduleName="Calendar Engine"
-                description="Whole-school and targeted events: Sports Day, exams, meetings, and term dates."
-                scheduledPhase="Backlog (deferred past Phase 2)"
-              />
-            }
-          />
+          {/* Phase 8E Task 1: read-only audience-filtered view (RequireAccess
+              keeps the route-gate pattern; teacherPrivacy default-allows this
+              path and the service + RLS arbitrate the rows). */}
+          <Route path="calendar" element={<RequireAccess path="/calendar"><SchoolCalendarPage /></RequireAccess>} />
           <Route
             path="classes"
             element={
