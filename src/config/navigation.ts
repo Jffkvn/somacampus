@@ -92,6 +92,18 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     ],
   },
   {
+    id: 'family_portal',
+    label: 'Family Portal',
+    icon: Users,
+    roles: ['parent'],
+    subItems: [
+      { label: 'Home & Overview', href: '/parent/home', roles: ['parent'] },
+      // Phase 8E Task 1: staff already reach /calendar via the Academics
+      // group; parents had no calendar entry (Family Portal only).
+      { label: 'School Calendar', href: '/calendar', roles: ['parent'] },
+    ],
+  },
+  {
     id: 'communication',
     label: 'Communication',
     icon: MessageSquare,
@@ -121,18 +133,6 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
       { label: 'Leave & Balances', href: '/people/hr/leave' },
       { label: 'Salary Advances', href: '/people/hr/advances' },
       { label: 'My Payslips', href: '/people/hr/payslips' },
-    ],
-  },
-  {
-    id: 'family_portal',
-    label: 'Family Portal',
-    icon: Users,
-    roles: ['parent'],
-    subItems: [
-      { label: 'Home & Overview', href: '/parent/home', roles: ['parent'] },
-      // Phase 8E Task 1: staff already reach /calendar via the Academics
-      // group; parents had no calendar entry (Family Portal only).
-      { label: 'School Calendar', href: '/calendar', roles: ['parent'] },
     ],
   },
 ];
