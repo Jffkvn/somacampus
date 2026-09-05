@@ -7,9 +7,11 @@ import {
   BANNED_WORDS,
 } from '../modules/communication/aiDraftService';
 
-const DIAGNOSIS_WORDS = ['diagnosed', 'disorder', 'condition', 'syndrome'];
-const hasDiagnosisWord = (s: string) =>
-  DIAGNOSIS_WORDS.some((w) => s.toLowerCase().includes(w));
+const BANNED_STEMS = ['diagnos', 'disorder', 'condition', 'syndrome'];
+const hasBannedWord = (s: string) => {
+  const low = s.toLowerCase();
+  return BANNED_STEMS.some((stem) => low.includes(stem));
+};
 
 describe('AI draft composer (Phase 8F Task 1) — deterministic, evidence-grounded', () => {
   it('(a) parent update from 2 parent_visible observations contains both facts + name, no diagnosis words', () => {
@@ -21,19 +23,21 @@ describe('AI draft composer (Phase 8F Task 1) — deterministic, evidence-ground
     expect(draft.body).toContain('Amina');
     expect(draft.body.toLowerCase()).toContain('read aloud fluently');
     expect(draft.body.toLowerCase()).toContain('shared her crayons');
-    expect(hasDiagnosisWord(draft.body)).toBe(false);
+    expect(hasBannedWord(draft.body)).toBe(false);
     expect(draft.isAiDrafted).toBe(true);
     expect(draft.requiresHumanApproval).toBe(true);
   });
 
-  it('(b) internal_only observation passed in is EXCLUDED from parent draft', () => {
+  it('(b) internal_only AND academic_team observations passed in are EXCLUDED from parent draft', () => {
     const draft = composeParentUpdate('Brian', [
       { observationText: 'Brian completed his maths exercise neatly.', visibility: 'parent_visible' },
       { observationText: 'SECRET-XYZ staff-only note about home visit.', visibility: 'internal_only' },
+      { observationText: 'SECRET-ABC team-only note about intervention groups.', visibility: 'academic_team' },
     ]);
 
     expect(draft.body.toLowerCase()).toContain('maths exercise');
     expect(draft.body).not.toContain('SECRET-XYZ');
+    expect(draft.body).not.toContain('SECRET-ABC');
     expect(draft.sourceCount).toBe(1);
   });
 
@@ -79,11 +83,37 @@ describe('AI draft composer (Phase 8F Task 1) — deterministic, evidence-ground
     }
   });
 
+  it('(e2) Explain keeps noun-bearing sentences: key noun outside the first sentence is still present', () => {
+    const input =
+      'The morning assembly was very long and quite noisy. Amina received a certificate for her reading progress.';
+    const out = explainFeedback(input, ['Amina', 'certificate']);
+
+    expect(out.text.toLowerCase()).toContain('amina');
+    expect(out.text.toLowerCase()).toContain('certificate');
+    // The first sentence carries none of the key nouns, so it is dropped.
+    expect(out.text.toLowerCase()).not.toContain('assembly');
+    expect(out.text.length).toBeLessThanOrEqual(input.length);
+  });
+
+  it('plural diagnosis words are sanitized (disorders/conditions/syndromes/diagnoses)', () => {
+    for (const plural of ['disorders', 'conditions', 'syndromes', 'diagnoses']) {
+      const draft = composeParentUpdate('Eve', [
+        {
+          observationText: `Eve participated well in group reading today, despite ${plural} noted elsewhere.`,
+          visibility: 'parent_visible',
+        },
+      ]);
+      expect(draft.body.toLowerCase()).not.toContain(plural);
+      expect(hasBannedWord(draft.body)).toBe(false);
+      expect(draft.body).toContain('[removed]');
+    }
+  });
+
   it('(f) empty evidence yields an honest empty draft, never fabricated', () => {
     const draft = composeParentUpdate('Denis', []);
     expect(draft.body).toBe('No approved observations to summarize yet.');
     expect(draft.sourceCount).toBe(0);
-    expect(hasDiagnosisWord(draft.body)).toBe(false);
+    expect(hasBannedWord(draft.body)).toBe(false);
   });
 
   it('BANNED_WORDS covers diagnosis vocabulary', () => {

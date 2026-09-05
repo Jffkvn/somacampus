@@ -87,8 +87,26 @@ export interface AiDraftProvider {
 const REDACTED_AMOUNT = '[amount removed]';
 const REDACTED_WORD = '[removed]';
 
-const bannedPattern = (): RegExp =>
-  new RegExp(`\\b(${BANNED_WORDS.map(escapeRegExp).join('|')})\\b`, 'gi');
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Plural-tolerant alternative for one BANNED_WORDS entry: plain stems take
+ * an optional trailing 's'; the diagnose/diagnosis family shares the
+ * 'diagnos-' stem (diagnose/diagnosed/diagnosis/diagnoses all match).
+ */
+function pluralTolerantAlternative(word: string): string {
+  const w = word.toLowerCase();
+  if (w === 'diagnose' || w === 'diagnosed') return 'diagnos(?:e|ed)';
+  if (w === 'diagnosis') return 'diagnos(?:is|es)';
+  return `${escapeRegExp(w)}s?`;
+}
+
+const bannedPattern = (): RegExp => {
+  const alternatives = [...new Set(BANNED_WORDS.map(pluralTolerantAlternative))];
+  return new RegExp(`\\b(${alternatives.join('|')})\\b`, 'gi');
+};
 
 /** Keep ONLY parent_visible rows — approved evidence for parent surfaces. */
 export function filterApprovedSources(
@@ -97,12 +115,9 @@ export function filterApprovedSources(
   return (observations ?? []).filter((o) => o.visibility === 'parent_visible');
 }
 
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 /**
- * Parent-safe sanitiser: strips diagnosis words and ALL amounts.
+ * Parent-safe sanitiser: strips diagnosis words (singular AND plural) and
+ * ALL amounts.
  * - Banned diagnosis words -> '[removed]' (never labelled in parent drafts).
  * - 'UGX' mentions -> removed (currency has no place in a parent update).
  * - Any token containing a digit -> '[amount removed]' (covers balances,
@@ -176,25 +191,53 @@ const FILLER_WORDS = new Set(
 );
 
 /**
- * Explain = extractive simplification. Drops filler words only; every output
- * token comes from the input, so no new facts can be introduced. Output is
- * therefore always shorter-or-equal and keeps the caller's key nouns (which
- * are themselves drawn from the input).
+ * Explain = extractive simplification with key-noun enforcement. Only
+ * sentences containing at least one caller-supplied key noun are kept (first
+ * sentence as fallback when none match), then filler words are dropped. Every
+ * output token comes from the input, so no new facts can be introduced;
+ * output is a shortened subset of the input that always carries the key
+ * nouns. A final sweep appends (verbatim, then simplified) any input
+ * sentence holding a still-missing noun — belt-and-braces that adds no new
+ * vocabulary.
  */
 export function explainFeedback(text: string, keyNouns: string[]): ExplainResult {
   const input = (text ?? '').trim().replace(/\s+/g, ' ');
   if (!input) return { text: '', isAiDrafted: true };
-  const kept = input.split(' ').filter((tok) => {
+  const nouns = (keyNouns ?? []).map((n) => n.trim()).filter(Boolean);
+  const sentences = input
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let selected: string[];
+  if (nouns.length === 0) {
+    selected = sentences;
+  } else {
+    selected = sentences.filter((s) =>
+      nouns.some((n) => s.toLowerCase().includes(n.toLowerCase()))
+    );
+    if (selected.length === 0) selected = sentences.slice(0, 1);
+  }
+  let out = simplifyText(selected.join(' '));
+  for (const n of nouns) {
+    if (!out.toLowerCase().includes(n.toLowerCase())) {
+      const src = sentences.find((s) => s.toLowerCase().includes(n.toLowerCase()));
+      if (src) out = simplifyText(`${out} ${src}`.trim());
+    }
+  }
+  // Belt-and-braces: never exceed input length.
+  if (out.length > input.length) out = out.slice(0, input.length).trim();
+  return { text: out, isAiDrafted: true };
+}
+
+/** Drop filler glue words; every kept token comes from the input. */
+function simplifyText(text: string): string {
+  const kept = text.split(' ').filter((tok) => {
     const alpha = tok.replace(/[^A-Za-z]/g, '').toLowerCase();
     if (!alpha) return true;
     return !FILLER_WORDS.has(alpha);
   });
-  let out = kept.join(' ').replace(/\s+([.,!?;:])/g, '$1').trim();
-  if (!out) out = input;
-  // Belt-and-braces: never exceed input length.
-  if (out.length > input.length) out = out.slice(0, input.length).trim();
-  void keyNouns;
-  return { text: out, isAiDrafted: true };
+  const out = kept.join(' ').replace(/\s+([.,!?;:])/g, '$1').trim();
+  return out || text;
 }
 
 /** Default deterministic provider — the export a future LLM replaces. */
