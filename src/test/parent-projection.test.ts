@@ -499,10 +499,11 @@ describe('parent multi-child isolation', () => {
 // ---------------------------------------------------------------------------
 describe('parentService env + membership', () => {
   it('mock env: getParentChildren -> [] and getChildOverview -> null', async () => {
-    restoreMockEnv();
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://placeholder.supabase.co');
     await expect(parentService.getParentChildren('school-1')).resolves.toEqual([]);
     await expect(parentService.getChildOverview('school-1', 'stu-A')).resolves.toBeNull();
     expect(mockFrom).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
   });
 
   it('live: non-linked child -> null WITHOUT querying (membership gate)', async () => {

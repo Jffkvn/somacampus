@@ -242,7 +242,7 @@ export const parentService = {
    */
   async getParentChildren(schoolId: string): Promise<ParentChildSummary[]> {
     if (isMockEnv()) return [];
-    const childIds = await resolveMyChildIds(schoolId);
+    const childIds = (await resolveMyChildIds(schoolId)) ?? [];
     if (childIds.length === 0) return [];
 
     const { data: students, error: studentError } = await supabase
