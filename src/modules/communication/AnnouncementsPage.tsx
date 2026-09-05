@@ -304,7 +304,7 @@ export const AnnouncementsPage: React.FC = () => {
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                   <span className="text-xs text-slate-400">
                     To {a.audience}
-                    {audience === 'class' && a.targetClassId ? ` • class ${a.targetClassId}` : ''}
+                    {a.audience === 'class' && a.targetClassId ? ` • class ${a.targetClassId}` : ''}
                     {' • '}
                     {new Date(a.publishedAt).toLocaleDateString()}
                   </span>
