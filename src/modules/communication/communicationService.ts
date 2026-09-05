@@ -14,8 +14,11 @@
  *   history (no UPDATE/DELETE).
  * - reads: strictly self-scoped (own INSERT/SELECT only).
  *
- * Locked decisions: in-app ONLY (no email/SMS/phone fields), no AI drafting
- * UI (is_ai_drafted stays false on client-written rows).
+ * Locked decisions: in-app ONLY (no email/SMS/phone fields). Manual rows
+ * carry is_ai_drafted=false; AI-drafted rows go ONLY through
+ * sendApprovedDraft() — the draft MUST have landed in the editable composer
+ * box first (human edit/approve), and the insert carries
+ * is_ai_drafted=true + ai_draft_approved_by=self. No direct-send path.
  *
  * Conventions (mirrors announcementService / notificationService):
  * - Mock-env guard returns honest empties ([] / {marked:0}); writes throw
@@ -55,6 +58,8 @@ export interface ThreadMessage {
   senderId: string | null;
   body: string;
   isAiDrafted: boolean;
+  /** Approver of an AI-drafted row (self on the approval-gated path). */
+  aiDraftApprovedBy: string | null;
   createdAt: string;
 }
 
@@ -98,6 +103,7 @@ export function toMessageView(row: any): ThreadMessage {
     senderId: row.sender_id ?? null,
     body: row.body,
     isAiDrafted: row.is_ai_drafted ?? false,
+    aiDraftApprovedBy: row.ai_draft_approved_by ?? null,
     createdAt: row.created_at,
   };
 }
@@ -343,6 +349,36 @@ export const communicationService = {
         sender_id: senderPersonId,
         body: body.trim(),
         is_ai_drafted: false,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return toMessageView(data);
+  },
+
+  /**
+   * Approval-gated draft send (Phase 8F Task 2). The draft MUST have landed
+   * in the editable composer box first — this function takes the HUMAN-EDITED
+   * body, rejects empty edits (empty evidence => no draft => no send), and
+   * inserts with is_ai_drafted=true + ai_draft_approved_by=self (the sender).
+   * Participant check first, same as sendMessage; there is no other path
+   * that writes is_ai_drafted=true.
+   */
+  async sendApprovedDraft(threadId: string, senderPersonId: string, editedBody: string): Promise<ThreadMessage> {
+    if (!threadId) throw new Error('sendApprovedDraft requires a thread id.');
+    if (!senderPersonId) throw new Error('sendApprovedDraft requires a sender person id.');
+    if (!editedBody?.trim()) throw new Error('Edited draft body is required — empty evidence sends nothing.');
+    if (isMockEnv()) throw new Error('Messaging is unavailable in a mock environment.');
+    await requireParticipant(threadId, senderPersonId);
+
+    const { data, error } = await supabase
+      .from('communication_messages')
+      .insert({
+        thread_id: threadId,
+        sender_id: senderPersonId,
+        body: editedBody.trim(),
+        is_ai_drafted: true,
+        ai_draft_approved_by: senderPersonId,
       })
       .select()
       .single();

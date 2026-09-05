@@ -13,7 +13,8 @@ import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { Megaphone } from 'lucide-react';
+import { Megaphone, Sparkles } from 'lucide-react';
+import { composeAnnouncement } from './aiDraftService';
 
 const AUDIENCES: AnnouncementAudience[] = [
   'school',
@@ -45,6 +46,10 @@ export const AnnouncementsPage: React.FC = () => {
   // Staff create form
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  // Draft points (one per line): the Draft button composes these + the title
+  // into the editable body field. Drafts NEVER auto-publish.
+  const [points, setPoints] = useState('');
+  const [isAiDraft, setIsAiDraft] = useState(false);
   const [audience, setAudience] = useState<AnnouncementAudience>('school');
   const [targetClassId, setTargetClassId] = useState('');
   const [priority, setPriority] = useState<AnnouncementPriority>('normal');
@@ -110,6 +115,8 @@ export const AnnouncementsPage: React.FC = () => {
     try {
       setIsPublishing(true);
       setFormError(null);
+      // Approval gate: bodies composed via Draft publish flagged
+      // (is_ai_drafted=true); manual bodies stay unflagged.
       const created = await announcementService.createAnnouncement({
         schoolId,
         title,
@@ -120,10 +127,13 @@ export const AnnouncementsPage: React.FC = () => {
         targetClassId: audience === 'class' ? targetClassId.trim() || null : null,
         publishedBy: personId,
         actorRole: role,
+        isAiDrafted: isAiDraft,
       });
       setAnnouncements((prev) => [created, ...prev]);
       setTitle('');
       setBody('');
+      setPoints('');
+      setIsAiDraft(false);
       setAudience('school');
       setTargetClassId('');
       setPriority('normal');
@@ -186,7 +196,7 @@ export const AnnouncementsPage: React.FC = () => {
             <div>
               <CardTitle>Publish announcement</CardTitle>
               <CardDescription>
-                Visible to the selected audience immediately. RLS enforces admin/principal publish.
+                Draft fills the message field for review — nothing publishes until you press Publish. RLS enforces admin/principal publish.
               </CardDescription>
             </div>
           </CardHeader>
@@ -205,6 +215,18 @@ export const AnnouncementsPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Key points (one per line) — for AI draft only
+                </label>
+                <textarea
+                  value={points}
+                  onChange={(e) => setPoints(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Friday at the main field&#10;Bring packed lunch"
+                  className="w-full text-sm border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-teal/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   Message
                 </label>
                 <textarea
@@ -214,6 +236,20 @@ export const AnnouncementsPage: React.FC = () => {
                   placeholder="Write the announcement..."
                   className="w-full text-sm border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-teal/20"
                 />
+                {isAiDraft && (
+                  <div className="mt-2 flex items-center justify-between gap-2 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <span className="font-semibold text-amber-800">
+                      AI draft — review & edit before publishing.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAiDraft(false)}
+                      className="shrink-0 font-bold text-amber-700 underline"
+                    >
+                      Discard draft flag
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -272,7 +308,20 @@ export const AnnouncementsPage: React.FC = () => {
                 Requires acknowledgement
               </label>
               {formError && <p className="text-sm text-red-700">{formError}</p>}
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  leftIcon={<Sparkles className="w-4 h-4" />}
+                  onClick={() => {
+                    const lines = points.split('\n').map((p) => p.trim()).filter(Boolean);
+                    const draft = composeAnnouncement({ title: title.trim() || 'Announcement', points: lines });
+                    setBody(draft.body);
+                    setIsAiDraft(true);
+                  }}
+                >
+                  Draft
+                </Button>
                 <Button variant="primary" type="submit" isLoading={isPublishing}>
                   Publish
                 </Button>

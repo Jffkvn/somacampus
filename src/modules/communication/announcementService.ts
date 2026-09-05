@@ -55,6 +55,12 @@ export interface CreateAnnouncementInput {
   targetClassId?: string | null;
   publishedBy?: string | null;
   expiresAt?: string | null;
+  /**
+   * Approval-gated draft flag (Phase 8F Task 2): true ONLY when the body
+   * came from composeAnnouncement() via the editable form (Draft button
+   * fills the field, human reviews/edits, then publishes). Never auto-set.
+   */
+  isAiDrafted?: boolean;
   /** Client-side create gate (mirrors RLS manage policy). */
   actorRole: UserRole;
 }
@@ -123,7 +129,9 @@ export const announcementService = {
 
   /**
    * Staff publish (admin/principal only — enforced here AND by RLS).
-   * No AI drafting, in-app only, no phone fields (locked decisions).
+   * In-app only, no phone fields (locked decisions). AI-drafted bodies
+   * publish ONLY via the editable form (Draft fills the field, human
+   * reviews/edits, then this runs with isAiDrafted:true) — never auto-publish.
    */
   async createAnnouncement(input: CreateAnnouncementInput): Promise<Announcement> {
     if (isMockEnv()) throw new Error('Announcements are unavailable in a mock environment.');
@@ -148,6 +156,7 @@ export const announcementService = {
         target_class_id: input.audience === 'class' ? input.targetClassId : null,
         published_by: input.publishedBy ?? null,
         expires_at: input.expiresAt ?? null,
+        is_ai_drafted: input.isAiDrafted ?? false,
       })
       .select()
       .single();

@@ -17,6 +17,7 @@ import { StatusPill, type StatusVariant } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Users, BookOpen, CalendarCheck, Wallet, Trophy } from 'lucide-react';
+import { explainFeedback } from '../communication/aiDraftService';
 
 function submissionPill(status: string): { status: StatusVariant; label: string } {
   switch (status) {
@@ -70,6 +71,57 @@ function formatMoney(amount: number, currency: string): string {
     return `${currency} ${amount.toLocaleString()}`;
   }
 }
+
+/** Key nouns for Explain: hint words found in the text first, then capitalized tokens (max 3). */
+function keyNounsFor(text: string, hints: string[]): string[] {
+  const nouns: string[] = [];
+  for (const h of hints) {
+    const t = (h ?? '').trim();
+    if (t && text.toLowerCase().includes(t.toLowerCase()) && !nouns.some((n) => n.toLowerCase() === t.toLowerCase())) {
+      nouns.push(t);
+    }
+  }
+  for (const tok of text.split(/[^A-Za-z]+/)) {
+    if (nouns.length >= 3) break;
+    if (tok.length >= 4 && /^[A-Z]/.test(tok) && !nouns.some((n) => n.toLowerCase() === tok.toLowerCase())) {
+      nouns.push(tok);
+    }
+  }
+  return nouns.slice(0, 3);
+}
+
+/**
+ * "Explain simply" — read-only rephrase of parent-visible feedback via the
+ * pure explainFeedback() composer. Creates nothing, writes nothing; the
+ * simplified version renders inline with a Hide toggle.
+ */
+const ExplainToggle: React.FC<{ text: string; nouns: string[] }> = ({ text, nouns }) => {
+  const [explained, setExplained] = useState<string | null>(null);
+  if (explained !== null) {
+    return (
+      <div className="mt-2 rounded-lg bg-teal-50 border border-teal-100 px-3 py-2">
+        <p className="text-[11px] font-bold text-brand-teal uppercase mb-1">Simplified explanation (read-only)</p>
+        <p className="text-slate-700">{explained}</p>
+        <button
+          type="button"
+          onClick={() => setExplained(null)}
+          className="mt-1 text-xs font-bold text-brand-teal underline"
+        >
+          Hide
+        </button>
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setExplained(explainFeedback(text, nouns).text)}
+      className="mt-1 text-xs font-bold text-brand-teal underline"
+    >
+      Explain simply
+    </button>
+  );
+};
 
 export const ParentHomePage: React.FC = () => {
   const { schoolId } = useAuth();
@@ -251,6 +303,7 @@ export const ParentHomePage: React.FC = () => {
                       <li key={o.id} className="text-sm bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
                         <p className="font-semibold text-slate-800">{o.subjectName} <span className="font-normal text-slate-400">• {o.teacherName} • {o.date}</span></p>
                         <p className="text-slate-600 mt-0.5">{o.text}</p>
+                        <ExplainToggle text={o.text} nouns={keyNounsFor(o.text, [o.subjectName, o.teacherName])} />
                       </li>
                     ))}
                   </ul>
@@ -270,6 +323,9 @@ export const ParentHomePage: React.FC = () => {
                             <p className="text-sm font-semibold text-slate-800 truncate">{a.title}</p>
                             <p className="text-xs text-slate-400">{a.subjectName}{a.dueDate ? ` • Due ${a.dueDate}` : ''}</p>
                             {a.teacherFeedback && <p className="text-xs text-slate-500 mt-0.5">Feedback: {a.teacherFeedback}</p>}
+                            {a.teacherFeedback && (
+                              <ExplainToggle text={a.teacherFeedback} nouns={keyNounsFor(a.teacherFeedback, [a.title, a.subjectName])} />
+                            )}
                           </div>
                           <StatusPill status={pill.status} label={pill.label} />
                         </li>

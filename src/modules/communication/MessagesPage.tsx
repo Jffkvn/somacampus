@@ -12,7 +12,9 @@ import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { MessageSquare, Send } from 'lucide-react';
+import { MessageSquare, Send, Sparkles } from 'lucide-react';
+import { observationService } from '../teaching/observationService';
+import { composeParentUpdate } from './aiDraftService';
 
 const CONTEXT_TYPES: ThreadContextType[] = [
   'general',
@@ -36,12 +38,19 @@ const ThreadView: React.FC<{
   personId: string;
   onSent: () => void;
 }> = ({ thread, personId, onSent }) => {
+  const { role } = useAuth();
+  // Draft-update gate: teacher only. Drafts ALWAYS land in the editable
+  // reply box first (human edit -> approve -> send); no direct-send path.
+  const canDraftUpdate = role === 'teacher';
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reply, setReply] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [readMarked, setReadMarked] = useState(false);
+  const [isAiDraft, setIsAiDraft] = useState(false);
+  const [isDrafting, setIsDrafting] = useState(false);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,14 +83,54 @@ const ThreadView: React.FC<{
     if (!reply.trim()) return;
     try {
       setIsSending(true);
-      const sent = await communicationService.sendMessage(thread.id, personId, reply.trim());
+      // Approval gate: AI-drafted content sends ONLY via the flagged path
+      // (is_ai_drafted=true + ai_draft_approved_by=self) after human edit.
+      const sent = isAiDraft
+        ? await communicationService.sendApprovedDraft(thread.id, personId, reply.trim())
+        : await communicationService.sendMessage(thread.id, personId, reply.trim());
       setMessages((prev) => [...prev, sent]);
       setReply('');
+      setIsAiDraft(false);
+      setDraftNotice(null);
       onSent();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send the message.');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  /**
+   * Teacher-only "Draft update": composes from the thread's recent
+   * parent_visible observations for the linked student (existing observation
+   * queries). The draft lands in the editable reply box — never sent
+   * directly. Empty evidence => honest notice, no draft, no send.
+   */
+  const handleDraftUpdate = async () => {
+    if (!canDraftUpdate || !thread.contextEntityId) {
+      setDraftNotice('No linked student on this thread — drafts need thread context.');
+      return;
+    }
+    try {
+      setIsDrafting(true);
+      setDraftNotice(null);
+      const all = await observationService.getObservationsForStudent(thread.contextEntityId);
+      const approved = (all ?? []).filter((o) => o.visibility === 'parent_visible');
+      const studentName = approved[0]?.studentName ?? thread.subject ?? 'this student';
+      const draft = composeParentUpdate(
+        studentName,
+        approved.map((o) => ({ observationText: o.observationText, visibility: 'parent_visible' as const }))
+      );
+      if (draft.sourceCount === 0) {
+        setDraftNotice('No approved observations to summarize yet — draft not created.');
+        return;
+      }
+      setReply(draft.body);
+      setIsAiDraft(true);
+    } catch (err) {
+      setDraftNotice(err instanceof Error ? err.message : 'Could not compose the draft.');
+    } finally {
+      setIsDrafting(false);
     }
   };
 
@@ -136,7 +185,31 @@ const ThreadView: React.FC<{
             })}
           </div>
         )}
-        <form onSubmit={handleSend} className="flex items-end gap-2 pt-2 border-t border-slate-100">
+        <form onSubmit={handleSend} className="space-y-2 pt-2 border-t border-slate-100">
+          {draftNotice && (
+            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              {draftNotice}
+            </p>
+          )}
+          {isAiDraft && (
+            <div className="flex items-center justify-between gap-2 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <span className="font-semibold text-amber-800">
+                AI draft — review & edit before sending. Sending records you as approver.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAiDraft(false);
+                  setReply('');
+                  setDraftNotice(null);
+                }}
+                className="shrink-0 font-bold text-amber-700 underline"
+              >
+                Discard
+              </button>
+            </div>
+          )}
+          <div className="flex items-end gap-2">
           <textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
@@ -144,9 +217,21 @@ const ThreadView: React.FC<{
             placeholder="Write a reply..."
             className="flex-1 text-sm border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-teal/20"
           />
+          {canDraftUpdate && (
+            <Button
+              variant="secondary"
+              type="button"
+              disabled={isDrafting}
+              onClick={handleDraftUpdate}
+              leftIcon={<Sparkles className="w-4 h-4" />}
+            >
+              {isDrafting ? 'Drafting...' : 'Draft update'}
+            </Button>
+          )}
           <Button variant="primary" type="submit" isLoading={isSending} leftIcon={<Send className="w-4 h-4" />}>
             Send
           </Button>
+          </div>
         </form>
       </CardContent>
     </Card>
