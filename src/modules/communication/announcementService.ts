@@ -13,6 +13,7 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import { createEventAndFanOut } from '../notifications/notificationFanout';
 import type { UserRole } from '../../config/permissions';
 
 export type AnnouncementAudience =
@@ -161,7 +162,28 @@ export const announcementService = {
       .select()
       .single();
     if (error) throw error;
-    return toAnnouncementView(data);
+    const published = toAnnouncementView(data);
+
+    // Best-effort fan-out: audience members get an in_app delivery. The
+    // helper never throws; this try/catch is defense in depth — a fan-out
+    // failure never unpublishes the announcement.
+    try {
+      await createEventAndFanOut({
+        schoolId: input.schoolId,
+        eventType: 'announcement_published',
+        sourceEntityType: 'school_announcement',
+        sourceEntityId: (data as any)?.id ?? null,
+        payload: {
+          announcementId: (data as any)?.id ?? null,
+          audience: input.audience,
+          ...(input.targetClassId ? { classId: input.targetClassId } : {}),
+          title: input.title.trim(),
+        },
+      });
+    } catch (err) {
+      console.warn('createAnnouncement fan-out failed (announcement unaffected):', err);
+    }
+    return published;
   },
 
   /**

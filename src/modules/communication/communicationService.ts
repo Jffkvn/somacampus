@@ -30,6 +30,7 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import { createEventAndFanOut, fanOutMessage } from '../notifications/notificationFanout';
 
 export type ThreadContextType =
   | 'general'
@@ -316,6 +317,20 @@ export const communicationService = {
     });
     if (messageError) throw messageError;
 
+    // Best-effort fan-out: other participants get an in_app delivery. The
+    // helper never throws; this try/catch is defense in depth — the thread
+    // and its first message persist regardless.
+    try {
+      await createEventAndFanOut({
+        schoolId: input.schoolId,
+        eventType: 'message_received',
+        sourceEntityType: 'communication_message',
+        payload: { threadId, senderId: input.creatorPersonId },
+      });
+    } catch (err) {
+      console.warn('createThread fan-out failed (thread unaffected):', err);
+    }
+
     return {
       id: threadId,
       schoolId: input.schoolId,
@@ -353,7 +368,21 @@ export const communicationService = {
       .select()
       .single();
     if (error) throw error;
-    return toMessageView(data);
+    const sent = toMessageView(data);
+
+    // Best-effort fan-out: other participants get an in_app delivery. The
+    // helper never throws; this try/catch is defense in depth — the sent
+    // message persists regardless.
+    try {
+      await fanOutMessage({
+        threadId,
+        senderId: senderPersonId,
+        messageId: (data as any)?.id ?? null,
+      });
+    } catch (err) {
+      console.warn('sendMessage fan-out failed (message unaffected):', err);
+    }
+    return sent;
   },
 
   /**
@@ -383,7 +412,20 @@ export const communicationService = {
       .select()
       .single();
     if (error) throw error;
-    return toMessageView(data);
+    const approved = toMessageView(data);
+
+    // Best-effort fan-out, same as sendMessage: the approved draft persists
+    // regardless of fan-out outcome.
+    try {
+      await fanOutMessage({
+        threadId,
+        senderId: senderPersonId,
+        messageId: (data as any)?.id ?? null,
+      });
+    } catch (err) {
+      console.warn('sendApprovedDraft fan-out failed (message unaffected):', err);
+    }
+    return approved;
   },
 
   /**

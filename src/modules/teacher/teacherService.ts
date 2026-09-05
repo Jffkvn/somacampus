@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { fanOutAttendanceRecord } from '../notifications/notificationFanout';
 import { TeacherTodayViewModel, TimetableEntry, ClassResponsibility, AttendanceSession, AttendanceAuditLog } from '../../types/domain';
 import { toDayOfWeek, toHHMM, toLocalYYYYMMDD, deriveRecorderRole, selectActiveEntry } from './scheduleUtils';
 
@@ -607,6 +608,25 @@ export const teacherService = {
             });
         }
       }
+    }
+
+    // 3. Best-effort fan-out: absent/late records notify each student's
+    // guardians with an in_app delivery. The fan-out helper never throws,
+    // and this try/catch is defense in depth — attendance never breaks.
+    try {
+      for (const r of params.records) {
+        if (r.status === 'absent' || r.status === 'late') {
+          await fanOutAttendanceRecord({
+            schoolId: params.schoolId,
+            studentId: r.studentId,
+            sessionId: session.id,
+            date: params.date,
+            status: r.status,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('recordDailyAttendance fan-out failed (attendance unaffected):', err);
     }
 
     return {

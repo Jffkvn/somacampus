@@ -22,6 +22,11 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import {
+  fanOutDeliveries as fanOutEventDeliveries,
+  type FanoutEvent,
+  type FanoutResult,
+} from './notificationFanout';
 
 export type NotificationChannel = 'in_app' | 'email' | 'sms' | 'whatsapp';
 
@@ -269,7 +274,15 @@ export const notificationService = {
       in_app: mandatory ? true : (patch.inApp ?? (existing as any)?.in_app ?? true),
       email: patch.email ?? (existing as any)?.email ?? true,
       sms: patch.sms ?? (existing as any)?.sms ?? false,
-    };
+  /**
+   * Event -> in_app delivery fan-out (delegates to notificationFanout).
+   * Best-effort: resolution/delivery failures warn and return zero-counts,
+   * never throw into the producer's primary write.
+   */
+  async fanOutDeliveries(event: FanoutEvent): Promise<FanoutResult> {
+    return fanOutEventDeliveries(event);
+  },
+};
 
     const { data, error } = await supabase
       .from('notification_preferences')
