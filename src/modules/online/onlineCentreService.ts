@@ -339,7 +339,7 @@ export const onlineCentreService = {
     if (!STAFF_ROLES.has(viewer.role)) return [];
     const { data, error } = await supabase
       .from('online_teacher_engagements')
-      .select('id, school_id, employee_id, engagement_type, status, assignment:online_teaching_assignments(id, offering_id), compensation:online_compensation_rules!inner(id, pay_model, rate, currency)')
+      .select('id, school_id, employee_id, engagement_type, status, assignment:online_teaching_assignments(id, offering_id), compensation:online_compensation_rules(id, pay_model, rate, currency)')
       .eq('school_id', schoolId);
     if (error) throw error;
     const rows = ((data ?? []) as any[]).map(mapEngagement);

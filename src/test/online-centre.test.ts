@@ -231,6 +231,28 @@ describe('engagement reads (rates never leak to non-finance)', () => {
     expect(rows[1].compensation[0].rate).toBe(1200000);
   });
 
+  it('engagement without compensation rows is returned (rates omitted)', async () => {
+    mockFrom({
+      online_teacher_engagements: {
+        data: [
+          {
+            id: 'eng-3', school_id: 's1', employee_id: 'emp-t3', engagement_type: 'contract',
+            status: 'active', assignment: { id: 'asg-3', offering_id: 'off-3' },
+            compensation: null,
+          },
+        ],
+        error: null,
+      },
+    });
+    const finance = await onlineCentreService.getEngagements('s1', { role: 'bursar' });
+    expect(finance).toHaveLength(1);
+    expect(finance[0].id).toBe('eng-3');
+    expect(finance[0].compensation).toEqual([]);
+    const owner = await onlineCentreService.getEngagements('s1', { role: 'teacher', employeeId: 'emp-t3' });
+    expect(owner).toHaveLength(1);
+    expect(owner[0].compensation).toEqual([]);
+  });
+
   it('engagement DB error throws (compensation data: never silent)', async () => {
     mockFrom({
       online_teacher_engagements: { data: null, error: new Error('DB down') },
