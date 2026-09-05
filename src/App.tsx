@@ -20,6 +20,7 @@ import { PayrollDashboardPage } from './modules/payroll/PayrollDashboardPage';
 import { MyHRPage } from './modules/hr/MyHRPage';
 import { ActivitiesPage } from './modules/activities/ActivitiesPage';
 import { AnnouncementsPage } from './modules/communication/AnnouncementsPage';
+import { NotificationPreferencesPage } from './modules/notifications/NotificationPreferencesPage';
 import { ParentHomePage } from './modules/parent/ParentHomePage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { AuthProvider, useAuth } from './lib/authContext';
@@ -265,6 +266,11 @@ export const App: React.FC = () => {
 
           {/* Communication Routes */}
           <Route path="communication/announcements" element={<AnnouncementsPage />} />
+          {/* Phase 8C notifications: self-scoped preferences, open to all
+              authenticated roles (canAccessPath default-allows unlisted paths;
+              RLS + service scoping is the data arbiter). The feed itself lives
+              in the TopHeader bell dropdown — no feed route. */}
+          <Route path="notifications/preferences" element={<RequireAccess path="/notifications/preferences"><NotificationPreferencesPage /></RequireAccess>} />
 
           {/* Administration Routes */}
           <Route

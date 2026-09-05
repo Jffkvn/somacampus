@@ -1,7 +1,13 @@
-import React, { useState } from 'react';
-import { Menu, Bell, User, ChevronDown, Sparkles } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Menu, Bell, User, ChevronDown, Sparkles, CheckCheck, Settings2 } from 'lucide-react';
 import { UserRole } from '../../config/permissions';
 import { cn } from '../../lib/utils';
+import {
+  notificationService,
+  resolveMyPersonId,
+  type NotificationItem,
+} from '../../modules/notifications/notificationService';
 
 export interface TopHeaderProps {
   currentRole: UserRole;
@@ -22,6 +28,59 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 }) => {
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showBell, setShowBell] = useState(false);
+  const [personId, setPersonId] = useState<string | null>(null);
+  const [feed, setFeed] = useState<NotificationItem[]>([]);
+  const [isMarkingRead, setIsMarkingRead] = useState(false);
+
+  const loadFeed = useCallback(async (pid: string | null) => {
+    if (!pid) return;
+    try {
+      setFeed(await notificationService.getMyNotifications(pid));
+    } catch {
+      // Fail-closed: header never breaks on notification errors; mock env
+      // returns [] without touching the DB.
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const pid = await resolveMyPersonId();
+        if (cancelled) return;
+        setPersonId(pid);
+        await loadFeed(pid);
+      } catch {
+        // No session / no person row / mock env: no badge, no crash.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadFeed]);
+
+  const unreadCount = feed.filter((n) => n.unread).length;
+
+  const handleBellToggle = async () => {
+    const next = !showBell;
+    setShowBell(next);
+    setShowUserMenu(false);
+    if (next) await loadFeed(personId);
+  };
+
+  const handleMarkAllRead = async () => {
+    if (!personId || unreadCount === 0 || isMarkingRead) return;
+    setIsMarkingRead(true);
+    try {
+      await notificationService.markAllRead(personId);
+      setFeed((prev) => prev.map((n) => ({ ...n, unread: false, status: 'read' as const })));
+    } catch {
+      // Keep existing state on failure; RLS denials surface on the page.
+    } finally {
+      setIsMarkingRead(false);
+    }
+  };
 
   const availableRoles: Array<{ id: UserRole; label: string; desc: string }> = [
     { id: 'teacher', label: 'Teacher', desc: 'Classroom, Today & attendance' },
@@ -103,13 +162,73 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         )}
 
         {/* Notification Bell */}
-        <button
-          className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-          aria-label="View notifications"
-        >
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
-        </button>
+        <div className="relative">
+          <button
+            onClick={handleBellToggle}
+            className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            aria-label="View notifications"
+            aria-expanded={showBell}
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {showBell && (
+            <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-2xl shadow-xl border border-slate-200/80 z-50 overflow-hidden animate-in fade-in zoom-in-95">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-900">
+                  Notifications{unreadCount > 0 ? ` (${unreadCount} unread)` : ''}
+                </p>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    disabled={isMarkingRead}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-brand-teal hover:underline disabled:opacity-50"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5" />
+                    <span>{isMarkingRead ? 'Marking…' : 'Mark all read'}</span>
+                  </button>
+                )}
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {feed.length === 0 ? (
+                  <p className="px-4 py-6 text-xs text-slate-500 text-center">
+                    You're all caught up — no notifications.
+                  </p>
+                ) : (
+                  feed.slice(0, 8).map((n) => (
+                    <div
+                      key={n.id}
+                      className={cn(
+                        'px-4 py-2.5 border-b border-slate-50 last:border-0',
+                        n.unread ? 'bg-teal-50/60' : 'bg-white'
+                      )}
+                    >
+                      <p className={cn('text-xs', n.unread ? 'font-semibold text-slate-900' : 'text-slate-700')}>
+                        {n.title}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {n.createdAt ? new Date(n.createdAt).toLocaleDateString() : ''}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+              <Link
+                to="/notifications/preferences"
+                onClick={() => setShowBell(false)}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 border-t border-slate-100"
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+                <span>Notification preferences</span>
+              </Link>
+            </div>
+          )}
+        </div>
 
         {/* User Profile */}
         <div className="relative">
