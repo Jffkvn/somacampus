@@ -195,18 +195,28 @@ describe('session reads scoped to assignment/participation', () => {
 });
 
 describe('engagement reads (rates never leak to non-finance)', () => {
+  // Schema shape: engagement -> assignments[] -> compensation[] (nested).
   const engagementRows = [
     {
       id: 'eng-1', school_id: 's1', employee_id: 'emp-t1', engagement_type: 'sessional',
       status: 'active',
-      assignment: { id: 'asg-1', offering_id: 'off-1' },
-      compensation: [{ id: 'comp-1', pay_model: 'per_session', rate: 75000, currency: 'UGX' }],
+      assignments: [
+        {
+          id: 'asg-1', offering_id: 'off-1',
+          compensation: [{ id: 'comp-1', pay_model: 'per_session', rate: 75000, currency: 'UGX' }],
+        },
+        { id: 'asg-1b', offering_id: 'off-3', compensation: null },
+      ],
     },
     {
       id: 'eng-2', school_id: 's1', employee_id: 'emp-t2', engagement_type: 'part_time',
       status: 'active',
-      assignment: { id: 'asg-2', offering_id: 'off-2' },
-      compensation: [{ id: 'comp-2', pay_model: 'monthly', rate: 1200000, currency: 'UGX' }],
+      assignments: [
+        {
+          id: 'asg-2', offering_id: 'off-2',
+          compensation: [{ id: 'comp-2', pay_model: 'monthly', rate: 1200000, currency: 'UGX' }],
+        },
+      ],
     },
   ];
 
@@ -216,19 +226,35 @@ describe('engagement reads (rates never leak to non-finance)', () => {
     expect(rows).toEqual([]);
   });
 
-  it('teacher sees own rows with own rates, never peers', async () => {
+  it('teacher sees own rows with own assignments rates, never peers', async () => {
     mockFrom({ online_teacher_engagements: { data: engagementRows, error: null } });
     const rows = await onlineCentreService.getEngagements('s1', { role: 'teacher', employeeId: 'emp-t1' });
     expect(rows).toHaveLength(1);
     expect(rows[0].employeeId).toBe('emp-t1');
-    expect(rows[0].compensation[0].rate).toBe(75000);
+    expect(rows[0].assignments[0].compensation[0].rate).toBe(75000);
   });
 
   it('bursar (finance role) sees all rows with rates', async () => {
     mockFrom({ online_teacher_engagements: { data: engagementRows, error: null } });
     const rows = await onlineCentreService.getEngagements('s1', { role: 'bursar' });
     expect(rows).toHaveLength(2);
-    expect(rows[1].compensation[0].rate).toBe(1200000);
+    expect(rows[1].assignments[0].compensation[0].rate).toBe(1200000);
+  });
+
+  it('multi-assignment engagement returns both assignments (no silent drops)', async () => {
+    mockFrom({ online_teacher_engagements: { data: engagementRows, error: null } });
+    const rows = await onlineCentreService.getEngagements('s1', { role: 'bursar' });
+    expect(rows[0].assignments).toHaveLength(2);
+    expect(rows[0].assignments.map((a) => a.id)).toEqual(['asg-1', 'asg-1b']);
+  });
+
+  it('rate-less assignment is returned with empty compensation', async () => {
+    mockFrom({ online_teacher_engagements: { data: engagementRows, error: null } });
+    const finance = await onlineCentreService.getEngagements('s1', { role: 'bursar' });
+    expect(finance[0].assignments[1].compensation).toEqual([]);
+    const owner = await onlineCentreService.getEngagements('s1', { role: 'teacher', employeeId: 'emp-t1' });
+    expect(owner).toHaveLength(1);
+    expect(owner[0].assignments[1].compensation).toEqual([]);
   });
 
   it('engagement without compensation rows is returned (rates omitted)', async () => {
@@ -237,8 +263,8 @@ describe('engagement reads (rates never leak to non-finance)', () => {
         data: [
           {
             id: 'eng-3', school_id: 's1', employee_id: 'emp-t3', engagement_type: 'contract',
-            status: 'active', assignment: { id: 'asg-3', offering_id: 'off-3' },
-            compensation: null,
+            status: 'active',
+            assignments: [{ id: 'asg-3', offering_id: 'off-3', compensation: null }],
           },
         ],
         error: null,
@@ -247,10 +273,10 @@ describe('engagement reads (rates never leak to non-finance)', () => {
     const finance = await onlineCentreService.getEngagements('s1', { role: 'bursar' });
     expect(finance).toHaveLength(1);
     expect(finance[0].id).toBe('eng-3');
-    expect(finance[0].compensation).toEqual([]);
+    expect(finance[0].assignments[0].compensation).toEqual([]);
     const owner = await onlineCentreService.getEngagements('s1', { role: 'teacher', employeeId: 'emp-t3' });
     expect(owner).toHaveLength(1);
-    expect(owner[0].compensation).toEqual([]);
+    expect(owner[0].assignments[0].compensation).toEqual([]);
   });
 
   it('engagement DB error throws (compensation data: never silent)', async () => {

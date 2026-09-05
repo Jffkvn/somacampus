@@ -9,10 +9,12 @@ import { supabase } from '../../lib/supabase';
  * - School scoping on every query; RLS is the backstop, the service filters
  *   app-side as defence in depth (pricing display modes, engagement rates).
  *
- * Rate-visibility decision (documented): compensation rates are included ONLY
- * for finance roles (admin / principal / bursar, all rows) and for a teacher
- * viewing their OWN engagement rows (a teacher must see their own pay
- * arrangement). Teachers never see peers' rows; learners/guardians get [].
+ * Rate-visibility decision (documented): compensation rates ride per
+ * assignment (engagement -> assignments[] -> compensation[]) and are
+ * included ONLY for finance roles (admin / principal / bursar, all rows)
+ * and for a teacher viewing their OWN engagement rows (a teacher must see
+ * their own pay arrangement). Teachers never see peers' rows;
+ * learners/guardians get [].
  */
 export type OnlineCentreViewerRole =
   | 'learner'
@@ -80,16 +82,21 @@ export interface OnlineCompensation {
   currency: string;
 }
 
+export interface OnlineAssignment {
+  id: string;
+  offeringId?: string;
+  /** Rates present only for finance roles + owning teacher (see module doc). */
+  compensation: OnlineCompensation[];
+}
+
 export interface OnlineEngagement {
   id: string;
   schoolId: string;
   employeeId: string;
   engagementType: string;
   status: string;
-  assignmentId?: string;
-  offeringId?: string;
-  /** Present only for finance roles + owning teacher (see module doc). */
-  compensation: OnlineCompensation[];
+  /** One-to-many: every assignment is returned, none silently dropped. */
+  assignments: OnlineAssignment[];
 }
 
 export interface OnlineSessionScope {
@@ -207,23 +214,40 @@ function mapSession(row: any): OnlineSession {
   };
 }
 
+function mapCompensation(c: any): OnlineCompensation {
+  return {
+    id: String(c.id),
+    payModel: String(c.pay_model),
+    rate: Number(c.rate),
+    currency: String(c.currency ?? 'UGX'),
+  };
+}
+
+function mapAssignment(a: any): OnlineAssignment {
+  const compRows = Array.isArray(a?.compensation) ? a.compensation : a?.compensation ? [a.compensation] : [];
+  return {
+    id: String(a.id),
+    ...(a?.offering_id ? { offeringId: String(a.offering_id) } : {}),
+    compensation: compRows.map(mapCompensation),
+  };
+}
+
 function mapEngagement(row: any): OnlineEngagement {
-  const assignment = one(row.assignment);
-  const compRows = Array.isArray(row.compensation) ? row.compensation : row.compensation ? [row.compensation] : [];
+  // engagement -> assignments is one-to-many: normalise single-object
+  // embeds to an array, but never drop assignments (rate-less ones map
+  // to compensation: []).
+  const rawAssignments = Array.isArray(row.assignments)
+    ? row.assignments
+    : row.assignments
+      ? [row.assignments]
+      : [];
   return {
     id: String(row.id),
     schoolId: String(row.school_id),
     employeeId: String(row.employee_id),
     engagementType: String(row.engagement_type),
     status: String(row.status),
-    ...(assignment?.id ? { assignmentId: String(assignment.id) } : {}),
-    ...(assignment?.offering_id ? { offeringId: String(assignment.offering_id) } : {}),
-    compensation: compRows.map((c: any) => ({
-      id: String(c.id),
-      payModel: String(c.pay_model),
-      rate: Number(c.rate),
-      currency: String(c.currency ?? 'UGX'),
-    })),
+    assignments: rawAssignments.filter((a: any) => a != null).map(mapAssignment),
   };
 }
 
@@ -330,16 +354,18 @@ export const onlineCentreService = {
   },
 
   /**
-   * Teacher engagements + assignments + compensation. Staff-only:
-   * learners/guardians get []. Finance roles see all rows with rates;
-   * teachers see only their own rows (rates included for own rows).
+   * Teacher engagements with nested assignments, each carrying its own
+   * compensation rules (schema: engagement -> assignment -> compensation).
+   * Staff-only: learners/guardians get []. Finance roles see all rows with
+   * rates; teachers see only their own engagement rows, with rates on their
+   * own assignments.
    */
   async getEngagements(schoolId: string, viewer: EngagementViewer): Promise<OnlineEngagement[]> {
     if (isMockEnv()) return [];
     if (!STAFF_ROLES.has(viewer.role)) return [];
     const { data, error } = await supabase
       .from('online_teacher_engagements')
-      .select('id, school_id, employee_id, engagement_type, status, assignment:online_teaching_assignments(id, offering_id), compensation:online_compensation_rules(id, pay_model, rate, currency)')
+      .select('id, school_id, employee_id, engagement_type, status, assignments:online_teaching_assignments(id, offering_id, compensation:online_compensation_rules(id, pay_model, rate, currency))')
       .eq('school_id', schoolId);
     if (error) throw error;
     const rows = ((data ?? []) as any[]).map(mapEngagement);
