@@ -12,6 +12,7 @@ describe('Communication Service — parent-teacher messaging (Phase 8D Task 2)',
   let tableQueues: Record<string, Array<{ data: any; error: any }>> = {};
   let rpcQueue: Array<{ data: any; error: any }> = [];
   let captured: { table: string; op: string; payload: any; filters: Array<[string, any]>; inFilters: Array<[string, any[]]> }[] = [];
+  let chainLog: Array<{ table: string; method: string }> = [];
 
   const nextResponse = (table: string) => {
     const q = tableQueues[table];
@@ -25,31 +26,41 @@ describe('Communication Service — parent-teacher messaging (Phase 8D Task 2)',
     const filters: Array<[string, any]> = [];
     const inFilters: Array<[string, any[]]> = [];
     const b: any = {};
-    b.select = () => b;
+    const log = (method: string) => {
+      chainLog.push({ table, method });
+      return b;
+    };
+    b.select = () => log('select');
     b.eq = (col: string, val: any) => {
       filters.push([col, val]);
-      return b;
+      return log('eq');
     };
     b.in = (col: string, vals: any[]) => {
       inFilters.push([col, vals]);
-      return b;
+      return log('in');
     };
-    b.order = () => b;
-    b.limit = () => b;
+    b.order = () => log('order');
+    b.limit = () => log('limit');
     b.update = (payload: any) => {
       captured.push({ table, op: 'update', payload, filters, inFilters });
-      return b;
+      return log('update');
     };
     b.upsert = (payload: any) => {
       captured.push({ table, op: 'upsert', payload, filters, inFilters });
-      return b;
+      return log('upsert');
     };
     b.insert = (payload: any) => {
       captured.push({ table, op: 'insert', payload, filters: [...filters], inFilters: [...inFilters] });
-      return b;
+      return log('insert');
     };
-    b.maybeSingle = () => nextResponse(table);
-    b.single = () => nextResponse(table);
+    b.maybeSingle = () => {
+      chainLog.push({ table, method: 'maybeSingle' });
+      return nextResponse(table);
+    };
+    b.single = () => {
+      chainLog.push({ table, method: 'single' });
+      return nextResponse(table);
+    };
     b.then = (res: any, rej: any) => nextResponse(table).then(res, rej);
     return b;
   };
@@ -66,6 +77,7 @@ describe('Communication Service — parent-teacher messaging (Phase 8D Task 2)',
     tableQueues = {};
     rpcQueue = [];
     captured = [];
+    chainLog = [];
   });
 
   afterEach(() => {
@@ -127,31 +139,11 @@ describe('Communication Service — parent-teacher messaging (Phase 8D Task 2)',
 
   it('(b) create thread authorises every pairing via the contact fn before insert', async () => {
     rpcQueue = [{ data: true, error: null }];
-    tableResponses.communication_threads = {
-      data: {
-        id: 'thread-new',
-        school_id: 'school-1',
-        subject: 'Homework check-in',
-        context_type: 'assignment',
-        context_entity_id: 'assign-3',
-        created_by: 'teacher-1',
-        archived: false,
-        created_at: '2026-09-12T08:00:00Z',
-      },
-      error: null,
-    };
+    // NOTE: no communication_threads response is stubbed — the service must
+    // NOT read the thread row back (pre-membership RETURNING would be
+    // denied with 42501). The thread object is built from the client id.
     tableResponses.communication_participants = { data: null, error: null };
-    tableResponses.communication_messages = {
-      data: {
-        id: 'msg-1',
-        thread_id: 'thread-new',
-        sender_id: 'teacher-1',
-        body: 'Hello — quick check-in on the homework.',
-        is_ai_drafted: false,
-        created_at: '2026-09-12T08:01:00Z',
-      },
-      error: null,
-    };
+    tableResponses.communication_messages = { data: null, error: null };
 
     const created = await communicationService.createThread({
       schoolId: 'school-1',
@@ -163,7 +155,15 @@ describe('Communication Service — parent-teacher messaging (Phase 8D Task 2)',
       initialBody: 'Hello — quick check-in on the homework.',
     });
 
-    expect(created.id).toBe('thread-new');
+    expect(created.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+    expect(created.schoolId).toBe('school-1');
+    expect(created.subject).toBe('Homework check-in');
+    expect(created.contextType).toBe('assignment');
+    expect(created.contextEntityId).toBe('assign-3');
+    expect(created.createdBy).toBe('teacher-1');
+    expect(created.archived).toBe(false);
     expect(mockRpc).toHaveBeenCalledWith(
       'is_authorised_parent_teacher_contact',
       expect.objectContaining({ p_school_id: 'school-1' })
@@ -171,10 +171,54 @@ describe('Communication Service — parent-teacher messaging (Phase 8D Task 2)',
     const threadInsert = captured.find((c) => c.table === 'communication_threads' && c.op === 'insert');
     expect(threadInsert).toBeDefined();
     expect(threadInsert!.payload.school_id).toBe('school-1');
+    // The returned thread carries the client-generated id used at insert.
+    expect(threadInsert!.payload.id).toBe(created.id);
     const participantInsert = captured.find(
       (c) => c.table === 'communication_participants' && c.op === 'insert'
     );
     expect(participantInsert).toBeDefined();
+    const messageInsert = captured.find(
+      (c) => c.table === 'communication_messages' && c.op === 'insert'
+    );
+    expect(messageInsert).toBeDefined();
+    expect(messageInsert!.payload.thread_id).toBe(created.id);
+  });
+
+  it('(b3) create flow performs no returning select on thread/participants/message inserts', async () => {
+    rpcQueue = [{ data: true, error: null }];
+    tableResponses.communication_participants = { data: null, error: null };
+    tableResponses.communication_messages = { data: null, error: null };
+
+    const created = await communicationService.createThread({
+      schoolId: 'school-1',
+      creatorPersonId: 'teacher-1',
+      participantPersonIds: ['parent-1'],
+      subject: 'No returning',
+      initialBody: 'First message.',
+    });
+
+    // Thread insert chain: insert only — a .select()/.single() here would be
+    // the pre-membership RETURNING deny (creator is not yet a participant).
+    const threadChain = chainLog
+      .filter((c) => c.table === 'communication_threads')
+      .map((c) => c.method);
+    expect(threadChain).toContain('insert');
+    expect(threadChain).not.toContain('select');
+    expect(threadChain).not.toContain('single');
+    // Same treatment for the other two writes in the flow: their read
+    // policies are thread/participation-scoped and unsatisfied mid-flow.
+    for (const table of ['communication_participants', 'communication_messages']) {
+      const chain = chainLog.filter((c) => c.table === table).map((c) => c.method);
+      expect(chain).toContain('insert');
+      expect(chain).not.toContain('select');
+      expect(chain).not.toContain('single');
+    }
+    // Full flow still resolves the thread object with the client id.
+    expect(created.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+    const threadInsert = captured.find((c) => c.table === 'communication_threads' && c.op === 'insert');
+    expect(threadInsert!.payload.id).toBe(created.id);
   });
 
   it('(b2) unauthorized pairing throws and inserts nothing', async () => {

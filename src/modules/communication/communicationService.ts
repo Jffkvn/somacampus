@@ -112,6 +112,19 @@ const unique = (ids: Array<string | null | undefined>): string[] => [
 ];
 
 /**
+ * Client-generated UUID for new threads. crypto.randomUUID with a
+ * Math.random fallback (non-crypto contexts such as some test runners).
+ */
+function newThreadId(): string {
+  const c = globalThis.crypto as { randomUUID?: () => string } | undefined;
+  if (c?.randomUUID) return c.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    return (ch === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/**
  * Viewer person id via auth user -> people.auth_user_id. Fail-closed: throws
  * when there is no session or no linked person row.
  */
@@ -230,6 +243,24 @@ export const communicationService = {
    * validated against the creator via is_authorised_parent_teacher_contact()
    * (either direction); the first unauthorized pairing throws and NOTHING is
    * inserted. No AI drafting, in-app only.
+   *
+   * RETURNING/read-path audit (pre-membership deny):
+   * - THREAD insert: client-generated id, NO returning select. The row's
+   *   SELECT policy (participant + admin/principal) cannot cover the creator
+   *   yet — participants are inserted after — so a RETURNING select would be
+   *   denied with 42501 even though the INSERT itself is allowed. The view
+   *   is built from the known inputs instead (createdAt is client time).
+   * - PARTICIPANTS insert: no returning select either (nothing downstream
+   *   needs the rows). Same hazard would apply: the participants SELECT
+   *   policy is thread-scoped and the inserter is not yet a participant at
+   *   insert time. The INSERT policy itself covers the creator via
+   *   threads.created_by = self, which is set on the thread row first.
+   * - MESSAGE insert: no returning select. Same hazard again: the messages
+   *   SELECT policy mirrors thread participation, which only exists after
+   *   the participants insert above.
+   * (sendMessage below is the contrast case: the sender is already a
+   * participant, so its RETURNING select satisfies the messages SELECT
+   * policy and is kept.)
    */
   async createThread(input: CreateThreadInput): Promise<Thread> {
     if (!input.schoolId) throw new Error('createThread requires a school id.');
@@ -247,20 +278,19 @@ export const communicationService = {
       }
     }
 
-    const { data: thread, error: threadError } = await supabase
-      .from('communication_threads')
-      .insert({
-        school_id: input.schoolId,
-        subject: input.subject?.trim() || null,
-        context_type: input.contextType ?? 'general',
-        context_entity_id: input.contextEntityId ?? null,
-        created_by: input.creatorPersonId,
-      })
-      .select()
-      .single();
+    const threadId = newThreadId();
+    const subject = input.subject?.trim() || null;
+    const contextType = input.contextType ?? 'general';
+    const { error: threadError } = await supabase.from('communication_threads').insert({
+      id: threadId,
+      school_id: input.schoolId,
+      subject,
+      context_type: contextType,
+      context_entity_id: input.contextEntityId ?? null,
+      created_by: input.creatorPersonId,
+    });
     if (threadError) throw threadError;
 
-    const threadId = (thread as any).id;
     const { error: participantError } = await supabase
       .from('communication_participants')
       .insert(
@@ -280,12 +310,24 @@ export const communicationService = {
     });
     if (messageError) throw messageError;
 
-    return toThreadView(thread);
+    return {
+      id: threadId,
+      schoolId: input.schoolId,
+      subject,
+      contextType,
+      contextEntityId: input.contextEntityId ?? null,
+      createdBy: input.creatorPersonId,
+      archived: false,
+      createdAt: new Date().toISOString(),
+    };
   },
 
   /**
    * Reply in a thread. Participant check first (non-participant throws, no
    * insert); the sender column is always self, so RLS self-send holds.
+   * The RETURNING select is kept deliberately: unlike createThread, the
+   * sender is already a verified participant here, so the messages SELECT
+   * policy (participant + admin/principal) covers the just-inserted row.
    */
   async sendMessage(threadId: string, senderPersonId: string, body: string): Promise<ThreadMessage> {
     if (!threadId) throw new Error('sendMessage requires a thread id.');
