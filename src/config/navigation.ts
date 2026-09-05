@@ -98,6 +98,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     roles: ['teacher', 'admin', 'principal', 'bursar', 'parent'],
     subItems: [
       { label: 'Announcements', href: '/communication/announcements' },
+      { label: 'Messages', href: '/communication/messages' },
     ],
   },
   {

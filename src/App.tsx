@@ -20,6 +20,7 @@ import { PayrollDashboardPage } from './modules/payroll/PayrollDashboardPage';
 import { MyHRPage } from './modules/hr/MyHRPage';
 import { ActivitiesPage } from './modules/activities/ActivitiesPage';
 import { AnnouncementsPage } from './modules/communication/AnnouncementsPage';
+import { MessagesPage } from './modules/communication/MessagesPage';
 import { NotificationPreferencesPage } from './modules/notifications/NotificationPreferencesPage';
 import { ParentHomePage } from './modules/parent/ParentHomePage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
@@ -266,6 +267,10 @@ export const App: React.FC = () => {
 
           {/* Communication Routes */}
           <Route path="communication/announcements" element={<AnnouncementsPage />} />
+          {/* Phase 8D messaging: parent-teacher threads; participation + RLS
+              is the data arbiter, RequireAccess keeps the route-gate pattern
+              consistent with the notifications route. */}
+          <Route path="communication/messages" element={<RequireAccess path="/communication/messages"><MessagesPage /></RequireAccess>} />
           {/* Phase 8C notifications: self-scoped preferences, open to all
               authenticated roles (canAccessPath default-allows unlisted paths;
               RLS + service scoping is the data arbiter). The feed itself lives
