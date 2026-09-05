@@ -180,35 +180,42 @@ export const notificationService = {
   },
 
   /**
-   * Read receipt for one delivery. RLS scopes the update to the
-   * recipient's own rows (or school admin/principal); denials throw.
+   * Read receipt for one delivery. The recipient filter is sent with the
+   * update (defense in depth: RLS scopes the row to self, and a foreign id
+   * matches zero rows / throws instead of flipping someone else's receipt).
    */
-  async markAsRead(deliveryId: string): Promise<{ updated: boolean }> {
+  async markAsRead(deliveryId: string, personId: string): Promise<{ updated: boolean }> {
     if (!deliveryId) throw new Error('markAsRead requires a delivery id.');
+    if (!personId) throw new Error('markAsRead requires a person id.');
     if (isMockEnv()) return { updated: false };
 
     const { error } = await supabase
       .from('notification_deliveries')
       .update({ status: 'read', read_at: new Date().toISOString() })
-      .eq('id', deliveryId);
+      .eq('id', deliveryId)
+      .eq('recipient_person_id', personId);
     if (error) throw error;
     return { updated: true };
   },
 
   /**
-   * Mark the viewer's whole in-app feed read (bell "mark all read").
+   * Mark the viewer's whole in-app feed read (bell "mark all read") with a
+   * single recipient-scoped update — no N+1 loop.
    */
   async markAllRead(personId: string): Promise<{ updated: number }> {
     if (!personId) throw new Error('markAllRead requires a person id.');
     if (isMockEnv()) return { updated: 0 };
     const feed = await this.getMyNotifications(personId);
-    let updated = 0;
-    for (const item of feed) {
-      if (!item.unread) continue;
-      const res = await this.markAsRead(item.id);
-      if (res.updated) updated += 1;
-    }
-    return { updated };
+    const ids = feed.filter((n) => n.unread).map((n) => n.id);
+    if (ids.length === 0) return { updated: 0 };
+    const { data, error } = await supabase
+      .from('notification_deliveries')
+      .update({ status: 'read', read_at: new Date().toISOString() })
+      .in('id', ids)
+      .eq('recipient_person_id', personId)
+      .select('id');
+    if (error) throw error;
+    return { updated: (data as any[])?.length ?? 0 };
   },
 
   /**
