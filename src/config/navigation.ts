@@ -95,7 +95,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     id: 'communication',
     label: 'Communication',
     icon: MessageSquare,
-    roles: ['teacher', 'admin', 'principal', 'bursar'],
+    roles: ['teacher', 'admin', 'principal', 'bursar', 'parent'],
     subItems: [
       { label: 'Announcements', href: '/communication/announcements' },
     ],

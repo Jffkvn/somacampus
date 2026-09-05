@@ -19,6 +19,7 @@ import { SchemeDetailPage } from './modules/planning/SchemeDetailPage';
 import { PayrollDashboardPage } from './modules/payroll/PayrollDashboardPage';
 import { MyHRPage } from './modules/hr/MyHRPage';
 import { ActivitiesPage } from './modules/activities/ActivitiesPage';
+import { AnnouncementsPage } from './modules/communication/AnnouncementsPage';
 import { ParentHomePage } from './modules/parent/ParentHomePage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { AuthProvider, useAuth } from './lib/authContext';
@@ -263,17 +264,7 @@ export const App: React.FC = () => {
           />
 
           {/* Communication Routes */}
-          <Route
-            path="communication/announcements"
-            element={
-              <ModulePlaceholder
-                title="Announcements & Broadcasts"
-                moduleName="Communication"
-                description="Targeted school announcements for staff, parents, and classes."
-                scheduledPhase="Phase 5 (Teaching Acceleration)"
-              />
-            }
-          />
+          <Route path="communication/announcements" element={<AnnouncementsPage />} />
 
           {/* Administration Routes */}
           <Route
