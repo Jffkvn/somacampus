@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { onlineTeachingService } from './onlineTeachingService';
 import type { OnlineSessionDetail, ParticipationStatus } from './onlineTeachingService';
+import { MatchingPanel, PrepSummaryPanel, SessionSummaryPanel } from './OnlineAiPanels';
 import { onlineClassroomService } from './onlineClassroomService';
 import type { ClassroomSignal } from './onlineClassroomService';
 import { useAuth } from '../../lib/authContext';
@@ -61,6 +62,10 @@ export const OnlineSessionCockpitPage: React.FC = () => {
   const [isActing, setIsActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [markingStudentId, setMarkingStudentId] = useState<string | null>(null);
+  // Advisory-AI approval hooks (Phase 9I): local UI state only. Approving a
+  // match records intent — the actual assignment happens in the booking flow
+  // (no autonomous actions from these panels).
+  const [, setMatchedTeacher] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!sessionId) {
@@ -403,6 +408,45 @@ export const OnlineSessionCockpitPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Advisory AI (Phase 9I): prep sheet while the session is actionable,
+          approval-gated summary once completed, teacher-match hook. All
+          panels are advisory with approve/dismiss and take no automatic
+          action. Outstanding work is left empty here — roster participants
+          are not assignments, and this panel never fabricates any. */}
+      {!readOnly && (
+        <PrepSummaryPanel
+          sessionId={session.id}
+          priorNote={detail.previousNote}
+          outstanding={[]}
+          objectives={
+            session.curriculumObjectiveId
+              ? [`Linked curriculum objective: ${session.curriculumObjectiveId}`]
+              : []
+          }
+        />
+      )}
+
+      {session.status === 'COMPLETED' && session.sessionNote && (
+        <SessionSummaryPanel
+          sessionId={session.id}
+          presentCount={session.presentCount}
+          participantCount={session.participantCount}
+          completionNote={session.sessionNote}
+          approverId={teacherKey}
+        />
+      )}
+
+      {/* No booking UI exists yet, so the cockpit hosts the match hook with
+          no candidate source: honest empty until the booking flow supplies
+          eligible teachers. */}
+      {!readOnly && (
+        <MatchingPanel
+          requiredSubjectId={session.curriculumObjectiveId ?? 'subject-unassigned'}
+          candidates={[]}
+          onApprove={setMatchedTeacher}
+        />
+      )}
     </div>
   );
 };
