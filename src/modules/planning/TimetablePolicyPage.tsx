@@ -50,14 +50,7 @@ export const TimetablePolicyPage: React.FC = () => {
 
   // Historical Patterns
   const [detectedPatterns, setDetectedPatterns] = useState<
-    Array<{
-      subjectId: string;
-      subjectName: string;
-      detectedWindow: 'MORNING' | 'AFTERNOON';
-      percentage: number;
-      recommendedWeight: number;
-      explanation: string;
-    }>
+    ReturnType<typeof timetableSolverService.analyzeHistoricalPatterns>
   >([]);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -167,7 +160,7 @@ export const TimetablePolicyPage: React.FC = () => {
         schoolId,
         subjectId: pattern.subjectId,
         subjectName: pattern.subjectName,
-        preferredTimeWindow: pattern.detectedWindow,
+        preferredTimeWindow: pattern.empiricalPreference === 'MORNING' ? 'MORNING' : pattern.empiricalPreference === 'AFTERNOON' ? 'AFTERNOON' : 'ANY',
         priorityWeight: pattern.recommendedWeight,
         allowDoublePeriods: false,
         sourceType: 'HISTORICAL_ADOPTED',
@@ -476,7 +469,7 @@ export const TimetablePolicyPage: React.FC = () => {
                   >
                     <div>
                       <span className="text-sm font-bold text-slate-900">{pat.subjectName}</span>
-                      <p className="text-xs text-slate-600 mt-0.5">{pat.explanation}</p>
+                      <p className="text-xs text-slate-600 mt-0.5">{pat.observationSummary}</p>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => handleAdoptPattern(pat)}>
                       Adopt as Preference

@@ -16,7 +16,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../lib/supabase', () => ({
-  supabase: { from: vi.fn() },
+  supabase: {
+    from: vi.fn(),
+    rpc: vi.fn(),
+  },
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -323,16 +326,26 @@ describe('confirmBooking', () => {
     expect(writeCalls.filter((w) => w.table === 'online_bookings')).toHaveLength(0);
   });
 
-  it('conflict-free requested booking → confirmed', async () => {
+  it('conflict-free requested booking → confirmed via atomic RPC', async () => {
     mockFrom({
       online_bookings: { data: REQUESTED_BOOKING, error: null },
-      timetable_entries: { data: [], error: null },
-      online_sessions: { data: [], error: null },
+    });
+    (supabase.rpc as any).mockResolvedValueOnce({
+      data: {
+        bookingId: 'book-1',
+        sessionId: 'ses-1',
+        status: 'confirmed',
+      },
+      error: null,
     });
     const out = await confirmBooking('book-1', 'emp-t1');
     expect(out).not.toBeNull();
     expect(out!.status).toBe('confirmed');
-    expect(writeCalls.filter((w) => w.kind === 'update' && w.table === 'online_bookings')).toHaveLength(1);
+    expect(out!.sessionId).toBe('ses-1');
+    expect(supabase.rpc).toHaveBeenCalledWith('confirm_online_booking_atomic', {
+      p_booking_id: 'book-1',
+      p_teacher_id: 'emp-t1',
+    });
   });
 
   it('non-requested booking throws and writes nothing', async () => {

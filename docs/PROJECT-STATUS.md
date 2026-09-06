@@ -1,8 +1,6 @@
 # SomaCampus — Project Status
 
-> **Honest headline:** Phases 1–9 (including Phase 9I Advisory Intelligence & School Timetable Engine) are **implemented and validated**.
-> Phase 7 hardening batch is complete (merged, CI green). Full-app tenant
-> lockdown and CI hardening remain queued (see below).
+> **Honest headline:** Phases 1–9 are implemented. Phase 9 has completed substantial security and integrity hardening. Phase 9I advisory AI is implemented. Timetable generation and live database authorization remain in final hardening before production sign-off.
 
 ## Completed phases
 

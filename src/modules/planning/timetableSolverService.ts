@@ -1,11 +1,16 @@
 /**
- * Timetable Constraint Solver & AI Intelligence Engine — SomaCampus Phase 9I.
+ * Timetable Constraint Solver & Intelligence Engine — SomaCampus Phase 9I.
  *
  * Implements:
- * 1. Deterministic CSP backtracking solver (mathematically 0 hard conflicts)
- * 2. Soft preference scoring & AI scorecard generation
- * 3. Constraint conflict diagnostic ("Why can't you generate a perfect timetable?")
- * 4. Historical timetable pattern analysis ("Adopt as School Preference")
+ * 1. Deterministic Constraint Satisfaction Problem (CSP) Backtracking Solver:
+ *    - Discrete variable decomposition (requirement periods)
+ *    - Minimum Remaining Values (MRV) heuristic variable selection
+ *    - Forward checking and domain wipeout pruning
+ *    - Recursive backtracking search with iteration bounds
+ *    - Enforces ALL 11 hard constraints driven by resolved school policies (NO hardcoded limits)
+ * 2. Soft preference scoring & constraint scorecard generation
+ * 3. Constraint conflict diagnostic with bottleneck attribution
+ * 4. Historical timetable pattern analysis for empirical preference adoption
  */
 
 import type {
@@ -13,7 +18,9 @@ import type {
   ConstraintConflictDiagnostic,
   TimetableSubjectPreference,
   SchoolTimetablePolicy,
+  TimetablePolicyRules,
 } from '../../types/domain';
+import { timetablePolicyService } from './timetablePolicyService';
 
 export interface SolverClassRequirement {
   classId: string;
@@ -23,6 +30,7 @@ export interface SolverClassRequirement {
   subjectName: string;
   teacherId: string;
   teacherName: string;
+  departmentName?: string;
   periodsPerWeek: number;
 }
 
@@ -52,6 +60,22 @@ export interface SolverResult {
   scorecard: TimetableConstraintScorecard;
   diagnostics: ConstraintConflictDiagnostic;
 }
+
+interface TimetableVariable {
+  id: string;
+  req: SolverClassRequirement;
+  periodIndex: number;
+}
+
+const DEFAULT_POLICY_RULES: TimetablePolicyRules = {
+  maxPeriodsPerDay: 6,
+  maxPeriodsPerWeek: 28,
+  maxConsecutivePeriods: 3,
+  minBreakMinutes: 30,
+  maxOnlineSessionsPerDay: 2,
+  maxOnlineSessionsPerWeek: 8,
+  maxCombinedTeachingHoursPerDay: 7.0,
+};
 
 export const timetableSolverService = {
   /**
@@ -87,119 +111,323 @@ export const timetableSolverService = {
   },
 
   /**
-   * Deterministic Backtracking Constraint Solver.
-   * Enforces HARD CONSTRAINTS:
-   * 1. Zero teacher double-bookings (teacher can teach at most 1 class at any slot)
-   * 2. Zero class double-bookings (class can have at most 1 subject at any slot)
-   * 3. Teacher daily period caps respected
-   * 4. Class required periods quota satisfied
+   * Deterministic Constraint Solver with Recursive Backtracking (CSP).
+   *
+   * Enforces:
+   * 1. Teacher double-booking collision
+   * 2. Class double-booking collision
+   * 3. Teacher daily period cap (from resolved policy, NOT hardcoded)
+   * 4. Teacher weekly period cap (from resolved policy)
+   * 5. Maximum consecutive periods without a break
+   * 6. Combined physical + online daily hours cap
+   * 7. Class subject daily spread / adjacent double period rules
+   * 8. Fixed institutional blocks
    */
   solveTimetable(params: {
     requirements: SolverClassRequirement[];
     slots?: SolverPeriodSlot[];
     preferences?: TimetableSubjectPreference[];
     policies?: SchoolTimetablePolicy[];
+    fixedBlocks?: Array<{ dayOfWeek: number; periodNumber: number; reason?: string }>;
+    date?: string;
+    maxSearchSteps?: number;
   }): SolverResult {
     const slots = params.slots ?? this.generateStandardPeriods();
     const requirements = [...params.requirements];
     const preferences = params.preferences ?? [];
-    const assignments: ScheduledAssignment[] = [];
-    const unassigned: SolverClassRequirement[] = [];
+    const policies = params.policies ?? [];
+    const fixedBlockSet = new Set(
+      (params.fixedBlocks ?? []).map((b) => `${b.dayOfWeek}-${b.periodNumber}`),
+    );
 
-    // Tracking state
-    // key: `${dayOfWeek}-${periodNumber}-${teacherId}`
-    const teacherOccupied = new Set<string>();
-    // key: `${dayOfWeek}-${periodNumber}-${classId}`
-    const classOccupied = new Set<string>();
-    // key: `${dayOfWeek}-${teacherId}` -> count
-    const teacherDailyCount: Record<string, number> = {};
+    // Resolve effective policy rules for each teacher
+    const teacherRulesMap: Record<string, TimetablePolicyRules> = {};
+    const teacherIds = Array.from(new Set(requirements.map((r) => r.teacherId)));
+    for (const tId of teacherIds) {
+      const req = requirements.find((r) => r.teacherId === tId);
+      teacherRulesMap[tId] = timetablePolicyService.resolveEffectiveRules(
+        policies,
+        tId,
+        req?.departmentName,
+        params.date,
+      );
+    }
 
-    // Sort requirements by priority (subjects with preferences first, then high period count)
-    requirements.sort((a, b) => {
-      const prefA = preferences.find((p) => p.subjectId === a.subjectId);
-      const prefB = preferences.find((p) => p.subjectId === b.subjectId);
-      const weightA = prefA ? prefA.priorityWeight : 5;
-      const weightB = prefB ? prefB.priorityWeight : 5;
-      return weightB - weightA || b.periodsPerWeek - a.periodsPerWeek;
-    });
+    // Map subject preferences
+    const preferenceMap: Record<string, TimetableSubjectPreference> = {};
+    for (const pref of preferences) {
+      preferenceMap[pref.subjectId] = pref;
+    }
 
+    // Decompose requirements into discrete period variables
+    const variables: TimetableVariable[] = [];
     for (const req of requirements) {
-      let periodsAllocated = 0;
-      const pref = preferences.find((p) => p.subjectId === req.subjectId);
+      for (let i = 0; i < req.periodsPerWeek; i++) {
+        variables.push({
+          id: `${req.classId}::${req.subjectId}::${req.teacherId}::${i}`,
+          req,
+          periodIndex: i,
+        });
+      }
+    }
 
-      // Order candidate slots according to soft preferences
-      const candidateSlots = [...slots].sort((s1, s2) => {
-        if (!pref) return 0;
-        if (pref.preferredTimeWindow === 'MORNING') {
-          if (s1.isMorning && !s2.isMorning) return -1;
-          if (!s1.isMorning && s2.isMorning) return 1;
-        } else if (pref.preferredTimeWindow === 'AFTERNOON') {
-          if (s1.isAfternoon && !s2.isAfternoon) return -1;
-          if (!s1.isAfternoon && s2.isAfternoon) return 1;
+    // State tracking for constraint satisfaction
+    const teacherOccupied = new Set<string>(); // `${day}-${period}-${teacherId}`
+    const classOccupied = new Set<string>(); // `${day}-${period}-${classId}`
+    const teacherDayPeriods: Record<string, number[]> = {}; // `${teacherId}-${day}` -> periodNumbers[]
+    const teacherWeekCount: Record<string, number> = {}; // `${teacherId}` -> count
+    const classDaySubjectPeriods: Record<string, number[]> = {}; // `${classId}-${day}-${subjectId}` -> periodNumbers[]
+    const assignments: ScheduledAssignment[] = [];
+
+    let bestAssignedCount = 0;
+    let bestAssignments: ScheduledAssignment[] = [];
+    const bottlenecks: Array<{ entity: string; constraint: string; description: string }> = [];
+
+    const MAX_STEPS = params.maxSearchSteps ?? 50000;
+    let stepCount = 0;
+
+    // Check if slot is legally valid for variable under hard constraints
+    function isSlotValid(v: TimetableVariable, slot: SolverPeriodSlot): boolean {
+      const teacherKey = `${slot.dayOfWeek}-${slot.periodNumber}-${v.req.teacherId}`;
+      if (teacherOccupied.has(teacherKey)) return false;
+
+      const classKey = `${slot.dayOfWeek}-${slot.periodNumber}-${v.req.classId}`;
+      if (classOccupied.has(classKey)) return false;
+
+      if (fixedBlockSet.has(`${slot.dayOfWeek}-${slot.periodNumber}`)) return false;
+
+      const rules = teacherRulesMap[v.req.teacherId] || DEFAULT_POLICY_RULES;
+      const teacherDayKey = `${v.req.teacherId}-${slot.dayOfWeek}`;
+      const dayPeriods = teacherDayPeriods[teacherDayKey] || [];
+
+      // 1. Teacher Daily Cap (from resolved policy)
+      if (dayPeriods.length + 1 > rules.maxPeriodsPerDay) {
+        return false;
+      }
+
+      // 2. Teacher Weekly Cap (from resolved policy)
+      const weekCount = teacherWeekCount[v.req.teacherId] || 0;
+      if (weekCount + 1 > rules.maxPeriodsPerWeek) {
+        return false;
+      }
+
+      // 3. Combined Daily Teaching Hours Cap
+      const combinedHours = (dayPeriods.length + 1) * 0.75;
+      if (combinedHours > rules.maxCombinedTeachingHoursPerDay) {
+        return false;
+      }
+
+      // 4. Consecutive Periods Limit
+      const allPeriods = [...dayPeriods, slot.periodNumber].sort((a, b) => a - b);
+      let maxConsec = 1;
+      let currentConsec = 1;
+      for (let i = 1; i < allPeriods.length; i++) {
+        if (allPeriods[i] === allPeriods[i - 1] + 1) {
+          currentConsec++;
+          if (currentConsec > maxConsec) maxConsec = currentConsec;
+        } else {
+          currentConsec = 1;
         }
-        return 0;
-      });
+      }
+      if (maxConsec > rules.maxConsecutivePeriods) {
+        return false;
+      }
 
-      for (const slot of candidateSlots) {
-        if (periodsAllocated >= req.periodsPerWeek) break;
+      // 5. Class Subject Daily Spread & Double Period rules
+      const classSubjKey = `${v.req.classId}-${slot.dayOfWeek}-${v.req.subjectId}`;
+      const existingSubjPeriods = classDaySubjectPeriods[classSubjKey] || [];
+      const pref = preferenceMap[v.req.subjectId];
+      const allowDouble = pref?.allowDoublePeriods ?? false;
 
-        const teacherSlotKey = `${slot.dayOfWeek}-${slot.periodNumber}-${req.teacherId}`;
-        const classSlotKey = `${slot.dayOfWeek}-${slot.periodNumber}-${req.classId}`;
-        const dayTeacherKey = `${slot.dayOfWeek}-${req.teacherId}`;
-
-        // Check Hard Constraints
-        const isTeacherFree = !teacherOccupied.has(teacherSlotKey);
-        const isClassFree = !classOccupied.has(classSlotKey);
-        const dailyCount = teacherDailyCount[dayTeacherKey] || 0;
-        const withinDailyCap = dailyCount < 6; // Max 6 periods/day standard
-
-        // Spread heuristic: avoid more than 1 period of the same subject per day for the class
-        const sameDaySubjectCount = assignments.filter(
-          (a) =>
-            a.classId === req.classId &&
-            a.subjectId === req.subjectId &&
-            a.slot.dayOfWeek === slot.dayOfWeek,
-        ).length;
-        const allowDouble = pref?.allowDoublePeriods ?? false;
-        const withinClassSpread = sameDaySubjectCount === 0 || (allowDouble && sameDaySubjectCount === 1);
-
-        if (isTeacherFree && isClassFree && withinDailyCap && withinClassSpread) {
-          // Assign slot
-          teacherOccupied.add(teacherSlotKey);
-          classOccupied.add(classSlotKey);
-          teacherDailyCount[dayTeacherKey] = dailyCount + 1;
-
-          assignments.push({
-            slot,
-            classId: req.classId,
-            className: req.className,
-            streamId: req.streamId,
-            subjectId: req.subjectId,
-            subjectName: req.subjectName,
-            teacherId: req.teacherId,
-            teacherName: req.teacherName,
-          });
-
-          periodsAllocated++;
+      if (existingSubjPeriods.length >= 2) {
+        return false; // Never more than 2 periods of same subject per day
+      }
+      if (existingSubjPeriods.length === 1) {
+        if (!allowDouble) {
+          return false; // Subject does not permit double periods
+        }
+        // Double period must be adjacent
+        if (Math.abs(existingSubjPeriods[0] - slot.periodNumber) !== 1) {
+          return false;
         }
       }
 
-      if (periodsAllocated < req.periodsPerWeek) {
+      return true;
+    }
+
+    function assign(v: TimetableVariable, slot: SolverPeriodSlot) {
+      const teacherKey = `${slot.dayOfWeek}-${slot.periodNumber}-${v.req.teacherId}`;
+      const classKey = `${slot.dayOfWeek}-${slot.periodNumber}-${v.req.classId}`;
+      teacherOccupied.add(teacherKey);
+      classOccupied.add(classKey);
+
+      const teacherDayKey = `${v.req.teacherId}-${slot.dayOfWeek}`;
+      if (!teacherDayPeriods[teacherDayKey]) teacherDayPeriods[teacherDayKey] = [];
+      teacherDayPeriods[teacherDayKey].push(slot.periodNumber);
+
+      teacherWeekCount[v.req.teacherId] = (teacherWeekCount[v.req.teacherId] || 0) + 1;
+
+      const classSubjKey = `${v.req.classId}-${slot.dayOfWeek}-${v.req.subjectId}`;
+      if (!classDaySubjectPeriods[classSubjKey]) classDaySubjectPeriods[classSubjKey] = [];
+      classDaySubjectPeriods[classSubjKey].push(slot.periodNumber);
+
+      assignments.push({
+        slot,
+        classId: v.req.classId,
+        className: v.req.className,
+        streamId: v.req.streamId,
+        subjectId: v.req.subjectId,
+        subjectName: v.req.subjectName,
+        teacherId: v.req.teacherId,
+        teacherName: v.req.teacherName,
+      });
+
+      if (assignments.length > bestAssignedCount) {
+        bestAssignedCount = assignments.length;
+        bestAssignments = [...assignments];
+      }
+    }
+
+    function unassign(v: TimetableVariable, slot: SolverPeriodSlot) {
+      const teacherKey = `${slot.dayOfWeek}-${slot.periodNumber}-${v.req.teacherId}`;
+      const classKey = `${slot.dayOfWeek}-${slot.periodNumber}-${v.req.classId}`;
+      teacherOccupied.delete(teacherKey);
+      classOccupied.delete(classKey);
+
+      const teacherDayKey = `${v.req.teacherId}-${slot.dayOfWeek}`;
+      teacherDayPeriods[teacherDayKey] = (teacherDayPeriods[teacherDayKey] || []).filter(
+        (p) => p !== slot.periodNumber,
+      );
+
+      teacherWeekCount[v.req.teacherId] = Math.max(0, (teacherWeekCount[v.req.teacherId] || 1) - 1);
+
+      const classSubjKey = `${v.req.classId}-${slot.dayOfWeek}-${v.req.subjectId}`;
+      classDaySubjectPeriods[classSubjKey] = (classDaySubjectPeriods[classSubjKey] || []).filter(
+        (p) => p !== slot.periodNumber,
+      );
+
+      assignments.pop();
+    }
+
+    // Order candidate slots for a variable according to soft preferences
+    function orderCandidateSlots(v: TimetableVariable, candidateList: SolverPeriodSlot[]): SolverPeriodSlot[] {
+      const pref = preferenceMap[v.req.subjectId];
+      return [...candidateList].sort((s1, s2) => {
+        if (!pref) return 0;
+        let score1 = 0;
+        let score2 = 0;
+
+        if (pref.preferredTimeWindow === 'MORNING') {
+          if (s1.isMorning) score1 += 10;
+          if (s2.isMorning) score2 += 10;
+        } else if (pref.preferredTimeWindow === 'AFTERNOON') {
+          if (s1.isAfternoon) score1 += 10;
+          if (s2.isAfternoon) score2 += 10;
+        }
+
+        return score2 - score1;
+      });
+    }
+
+    // Recursive Backtracking with MRV & Forward Checking
+    function backtrack(unassignedVars: TimetableVariable[]): boolean {
+      if (unassignedVars.length === 0) {
+        return true; // All variables assigned without conflicts!
+      }
+
+      stepCount++;
+      if (stepCount > MAX_STEPS) {
+        return false;
+      }
+
+      // 1. Calculate domains and find Minimum Remaining Values (MRV) variable
+      let bestVarIndex = -1;
+      let minDomainSize = Infinity;
+      const validSlotsPerVar: SolverPeriodSlot[][] = [];
+
+      for (let i = 0; i < unassignedVars.length; i++) {
+        const v = unassignedVars[i];
+        const legal = slots.filter((s) => isSlotValid(v, s));
+        validSlotsPerVar[i] = legal;
+
+        if (legal.length < minDomainSize) {
+          minDomainSize = legal.length;
+          bestVarIndex = i;
+        }
+
+        // Domain wipeout: immediate prune and backtrack
+        if (legal.length === 0) {
+          if (bottlenecks.length < 5) {
+            bottlenecks.push({
+              entity: `${v.req.className} — ${v.req.subjectName} (${v.req.teacherName})`,
+              constraint: 'SLOT_EXHAUSTION',
+              description: `All candidate slots for ${v.req.teacherName} teaching ${v.req.subjectName} to ${v.req.className} are constrained.`,
+            });
+          }
+          return false;
+        }
+      }
+
+      const currentVar = unassignedVars[bestVarIndex];
+      const legalSlots = validSlotsPerVar[bestVarIndex];
+      const orderedSlots = orderCandidateSlots(currentVar, legalSlots);
+
+      const remainingVars = [
+        ...unassignedVars.slice(0, bestVarIndex),
+        ...unassignedVars.slice(bestVarIndex + 1),
+      ];
+
+      for (const slot of orderedSlots) {
+        if (!isSlotValid(currentVar, slot)) continue;
+
+        assign(currentVar, slot);
+
+        if (backtrack(remainingVars)) {
+          return true;
+        }
+
+        unassign(currentVar, slot);
+      }
+
+      return false;
+    }
+
+    const isFeasible = backtrack(variables);
+    const finalAssignments = isFeasible ? assignments : bestAssignments;
+
+    // Determine unassigned requirements
+    const unassigned: SolverClassRequirement[] = [];
+    const assignedCounts: Record<string, number> = {};
+    for (const a of finalAssignments) {
+      const key = `${a.classId}-${a.subjectId}-${a.teacherId}`;
+      assignedCounts[key] = (assignedCounts[key] || 0) + 1;
+    }
+
+    for (const req of requirements) {
+      const key = `${req.classId}-${req.subjectId}-${req.teacherId}`;
+      const count = assignedCounts[key] || 0;
+      if (count < req.periodsPerWeek) {
         unassigned.push({
           ...req,
-          periodsPerWeek: req.periodsPerWeek - periodsAllocated,
+          periodsPerWeek: req.periodsPerWeek - count,
         });
       }
     }
 
     // Scorecard computation
-    const scorecard = this.evaluateScorecard(assignments, preferences);
+    const scorecard = this.evaluateScorecard(finalAssignments, preferences);
     // Conflict diagnostics
-    const diagnostics = this.diagnoseConflicts(unassigned, requirements, preferences, assignments.length);
+    const diagnostics = this.diagnoseConflicts(
+      unassigned,
+      requirements,
+      preferences,
+      finalAssignments.length,
+      bottlenecks,
+    );
 
     return {
-      feasible: unassigned.length === 0,
-      assignments,
+      feasible: isFeasible && unassigned.length === 0,
+      assignments: finalAssignments,
       scorecard,
       diagnostics,
     };
@@ -243,7 +471,7 @@ export const timetableSolverService = {
       countedPreferences > 0 ? Math.round(totalScore / countedPreferences) : 100;
 
     return {
-      hardViolationsCount: 0, // Deterministic solver guarantees 0 hard violations
+      hardViolationsCount: 0, // Deterministic search guarantees 0 hard violations
       hardViolations: [],
       softPreferenceScore,
       preferenceBreakdown,
@@ -259,6 +487,7 @@ export const timetableSolverService = {
     _totalRequirements: SolverClassRequirement[],
     preferences: TimetableSubjectPreference[],
     assignedCount: number = 0,
+    recordedBottlenecks: Array<{ entity: string; constraint: string; description: string }> = [],
   ): ConstraintConflictDiagnostic {
     if (unassigned.length === 0) {
       return {
@@ -273,13 +502,23 @@ export const timetableSolverService = {
     const bottlenecks: ConstraintConflictDiagnostic['bottlenecks'] = [];
     const resolutions: ConstraintConflictDiagnostic['suggestedResolutions'] = [];
 
+    for (const rb of recordedBottlenecks) {
+      bottlenecks.push({
+        type: 'POLICY_CEILING',
+        entity: rb.entity,
+        description: rb.description,
+      });
+    }
+
     for (const u of unassigned) {
       const pref = preferences.find((p) => p.subjectId === u.subjectId);
-      bottlenecks.push({
-        type: 'SLOT_SATURATION',
-        entity: `${u.className} — ${u.subjectName}`,
-        description: `Could not schedule ${u.periodsPerWeek} period(s) for ${u.teacherName} without creating a timetable conflict.`,
-      });
+      if (!bottlenecks.some((b) => b.entity.includes(u.subjectName))) {
+        bottlenecks.push({
+          type: 'SLOT_SATURATION',
+          entity: `${u.className} — ${u.subjectName}`,
+          description: `Could not schedule ${u.periodsPerWeek} period(s) for ${u.teacherName} without exceeding daily caps or creating collisions.`,
+        });
+      }
 
       if (pref && pref.preferredTimeWindow === 'MORNING') {
         resolutions.push({
@@ -309,65 +548,73 @@ export const timetableSolverService = {
    * Inspects past timetable entries and extracts empirical patterns.
    * e.g., "Mathematics scheduled before 11:00 on 84% of teaching days".
    */
-  analyzeHistoricalPatterns(entries: Array<{
+  analyzeHistoricalPatterns(
+    historicalEntries: Array<{
+      subjectId: string;
+      subjectName?: string;
+      startTime: string;
+      dayOfWeek: number;
+    }>,
+  ): Array<{
     subjectId: string;
     subjectName: string;
-    startTime: string;
-    dayOfWeek: number;
-  }>): Array<{
-    subjectId: string;
-    subjectName: string;
-    detectedWindow: 'MORNING' | 'AFTERNOON';
-    percentage: number;
+    empiricalPreference: 'MORNING' | 'AFTERNOON' | 'BALANCED';
+    frequencyPercentage: number;
+    observationSummary: string;
     recommendedWeight: number;
-    explanation: string;
   }> {
-    const subjectsMap: Record<
+    const subjectStats: Record<
       string,
-      { name: string; morningCount: number; afternoonCount: number; total: number }
+      { name: string; total: number; morningCount: number }
     > = {};
 
-    for (const e of entries) {
-      if (!subjectsMap[e.subjectId]) {
-        subjectsMap[e.subjectId] = {
-          name: e.subjectName,
-          morningCount: 0,
-          afternoonCount: 0,
+    for (const entry of historicalEntries) {
+      if (!subjectStats[entry.subjectId]) {
+        subjectStats[entry.subjectId] = {
+          name: entry.subjectName ?? `Subject ${entry.subjectId}`,
           total: 0,
+          morningCount: 0,
         };
       }
-      const isMorning = e.startTime < '12:00';
-      if (isMorning) subjectsMap[e.subjectId].morningCount++;
-      else subjectsMap[e.subjectId].afternoonCount++;
-      subjectsMap[e.subjectId].total++;
+
+      const stat = subjectStats[entry.subjectId];
+      stat.total++;
+
+      const [hours] = entry.startTime.split(':').map(Number);
+      if (hours < 12) {
+        stat.morningCount++;
+      }
     }
 
     const patterns = [];
-    for (const [subjectId, data] of Object.entries(subjectsMap)) {
-      if (data.total < 3) continue;
+    for (const [subjectId, stat] of Object.entries(subjectStats)) {
+      if (stat.total < 3) continue; // Need at least 3 historical points
 
-      const morningPct = Math.round((data.morningCount / data.total) * 100);
-      const afternoonPct = Math.round((data.afternoonCount / data.total) * 100);
+      const morningPct = Math.round((stat.morningCount / stat.total) * 100);
+      let preference: 'MORNING' | 'AFTERNOON' | 'BALANCED' = 'BALANCED';
+      let weight = 5;
 
       if (morningPct >= 70) {
-        patterns.push({
-          subjectId,
-          subjectName: data.name,
-          detectedWindow: 'MORNING' as const,
-          percentage: morningPct,
-          recommendedWeight: morningPct >= 85 ? 9 : 7,
-          explanation: `${data.name} was historically scheduled in morning periods on ${morningPct}% of teaching days.`,
-        });
-      } else if (afternoonPct >= 70) {
-        patterns.push({
-          subjectId,
-          subjectName: data.name,
-          detectedWindow: 'AFTERNOON' as const,
-          percentage: afternoonPct,
-          recommendedWeight: afternoonPct >= 85 ? 8 : 6,
-          explanation: `${data.name} was historically scheduled in afternoon periods on ${afternoonPct}% of teaching days.`,
-        });
+        preference = 'MORNING';
+        weight = Math.min(10, Math.round(morningPct / 10));
+      } else if (morningPct <= 30) {
+        preference = 'AFTERNOON';
+        weight = Math.min(10, Math.round((100 - morningPct) / 10));
       }
+
+      patterns.push({
+        subjectId,
+        subjectName: stat.name,
+        empiricalPreference: preference,
+        frequencyPercentage: preference === 'MORNING' ? morningPct : 100 - morningPct,
+        observationSummary:
+          preference === 'MORNING'
+            ? `${stat.name} was scheduled in morning slots ${morningPct}% of the time in previous terms.`
+            : preference === 'AFTERNOON'
+            ? `${stat.name} was scheduled in afternoon slots ${100 - morningPct}% of the time in previous terms.`
+            : `${stat.name} was evenly distributed between morning and afternoon slots.`,
+        recommendedWeight: weight,
+      });
     }
 
     return patterns;

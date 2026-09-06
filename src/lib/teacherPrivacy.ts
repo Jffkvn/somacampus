@@ -114,6 +114,10 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   // redirects them to their role landing route); the service layer scopes
   // all data to the learner's own participant/submission rows.
   { prefix: '/student', roles: ['student'] },
+  // Phase 9I Timetable Policy & Builder: leadership-only routes (admin, principal).
+  // Teachers reach their own operational schedules via /teacher/today and /timetable.
+  { prefix: '/planning/policies', roles: ['admin', 'principal'] },
+  { prefix: '/planning/timetable/builder', roles: ['admin', 'principal'] },
 ];
 
 /** Longest-prefix match so /fees/import wins over /fees. */

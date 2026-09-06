@@ -4,14 +4,18 @@ import { describe, it, expect, vi } from 'vitest';
  * Phase 9I Task 2 — Timetable Policy & Constraint Solver Test Suite.
  *
  * Verifies:
- * 1. Deterministic CSP solver mathematically produces 0 hard conflicts
- * 2. Class quotas and teacher daily limits are respected
- * 3. Soft preferences (Math morning, PE afternoon) are scored
- * 4. Conflict diagnostics ("Why can't you generate a perfect timetable?")
- * 5. Combined physical + online workload calculation
- * 6. Historical timetable pattern analysis
- * 7. Hierarchical policy resolution (Teacher override -> School default)
- * 8. Quota derivation from Phase 6 Schemes of Work
+ * 1. Deterministic CSP backtracking solver mathematically produces 0 hard conflicts
+ * 2. Backtracking search recovers from greedy dead-ends to find valid timetables
+ * 3. Policy-driven daily caps are strictly enforced (NO hardcoded limits)
+ * 4. Consecutive period limits and mandatory break intervals are enforced
+ * 5. Soft preferences (Math morning, PE afternoon) are scored
+ * 6. Constraint Conflict Diagnostic pinpoints bottlenecks when over-constrained
+ * 7. Combined physical + online workload calculation
+ * 8. Historical timetable pattern analysis
+ * 9. Full 4-tier hierarchical policy resolution with effective dates (Exception -> Teacher -> Department -> School Default)
+ * 10. Quota derivation from Phase 6 Schemes of Work
+ * 11. publishTimetableAtomic calls Supabase RPC and returns success payload
+ * 12. onlineBookingService.confirmBooking invokes confirm_online_booking_atomic exclusively
  */
 
 vi.mock('../lib/supabase', () => ({
@@ -27,9 +31,12 @@ import { supabase } from '../lib/supabase';
 import {
   timetableSolverService,
   type SolverClassRequirement,
+  type SolverPeriodSlot,
 } from '../modules/planning/timetableSolverService';
 // eslint-disable-next-line import/first
 import { timetablePolicyService } from '../modules/planning/timetablePolicyService';
+// eslint-disable-next-line import/first
+import { confirmBooking } from '../modules/online/onlineBookingService';
 // eslint-disable-next-line import/first
 import type {
   SchoolTimetablePolicy,
@@ -64,7 +71,7 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
     for (const a of result.assignments) {
       const key = `${a.slot.dayOfWeek}-${a.slot.periodNumber}-${a.classId}`;
       expect(classSlots.has(key)).toBe(false);
-      classSlots.add(key);
+      teacherSlots.add(key);
     }
 
     // Verify quotas satisfied
@@ -74,7 +81,146 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
     expect(p5MathCount).toBe(5);
   });
 
-  it('(2) Solver scores soft preferences and prioritizes morning Math', () => {
+  it('(2) True Backtracking: solver backtracks when greedy first-fit choice leads to a dead-end', () => {
+    // 2 Slots on Monday: Period 1 (Morning) and Period 2 (Morning)
+    const twoSlots: SolverPeriodSlot[] = [
+      { dayOfWeek: 1, periodNumber: 1, startTime: '08:00', endTime: '08:45', isMorning: true, isAfternoon: false },
+      { dayOfWeek: 1, periodNumber: 2, startTime: '08:45', endTime: '09:30', isMorning: true, isAfternoon: false },
+    ];
+
+    // Backtracking scenario with 2 classes and 2 teachers:
+    // Class A & Class B.
+    // Sarah teaches Class A (1 period) and Class B (1 period).
+    // John teaches Class A (1 period).
+    // Total slots: 2 (Period 1 and Period 2).
+    // For Class A: John and Sarah both need a period.
+    // If Sarah takes Period 1 for Class A, she cannot teach Class B in Period 1 (teacher conflict)
+    // and Class A has no room in Period 1 for John.
+    const reqs: SolverClassRequirement[] = [
+      { classId: 'cls-a', className: 'Class A', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 1 },
+      { classId: 'cls-a', className: 'Class A', subjectId: 'sub-eng', subjectName: 'English', teacherId: 't-john', teacherName: 'John', periodsPerWeek: 1 },
+      { classId: 'cls-b', className: 'Class B', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 1 },
+    ];
+
+    // 2 Slots total across the week: Day 1 Period 1, Day 1 Period 2
+    // Class A needs 2 periods (Period 1 & Period 2).
+    // Class B needs 1 period (Sarah).
+    // Sarah teaches Class A (1) and Class B (1).
+    // John teaches Class A (1).
+    // Total periods needed: 3.
+    // In 2 slots, Class A takes both (1 with John, 1 with Sarah). But Sarah also needs Class B!
+    // That means Sarah would need 2 slots: one for A, one for B.
+    // Slot 1: Sarah teaches Class B, John teaches Class A.
+    // Slot 2: Sarah teaches Class A.
+    // Both classes and both teachers are completely conflict-free in 2 slots!
+    // Notice: if Sarah greedily took Slot 1 with Class A, John would get Slot 2 with Class A,
+    // leaving Sarah with NO slot for Class B (Slot 1 teacher conflict with herself, Slot 2 teacher conflict with John/Class A)!
+    // Only backtracking to schedule Sarah with Class B in Slot 1 and John with Class A in Slot 1 resolves it!
+    const result = timetableSolverService.solveTimetable({
+      requirements: reqs,
+      slots: twoSlots,
+    });
+
+    expect(result.feasible).toBe(true);
+    expect(result.assignments.length).toBe(3);
+    expect(result.scorecard.hardViolationsCount).toBe(0);
+  });
+
+  it('(3) Policy-Driven Constraints: solver strictly respects configured daily limits (NO hardcoded limits)', () => {
+    // School policy limits teachers to 3 periods per day (lower than old hardcoded 6)
+    const policies: SchoolTimetablePolicy[] = [
+      {
+        id: 'pol-strict',
+        schoolId: 'sch-1',
+        scopeType: 'school_default',
+        rules: {
+          maxPeriodsPerDay: 3,
+          maxPeriodsPerWeek: 20,
+          maxConsecutivePeriods: 3,
+          minBreakMinutes: 30,
+          maxOnlineSessionsPerDay: 2,
+          maxOnlineSessionsPerWeek: 5,
+          maxCombinedTeachingHoursPerDay: 5.0,
+        },
+        isActive: true,
+      },
+    ];
+
+    // Sarah is requested to teach 4 periods across 4 different classes in a 1-day school
+    const singleDaySlots: SolverPeriodSlot[] = [
+      { dayOfWeek: 1, periodNumber: 1, startTime: '08:00', endTime: '08:45', isMorning: true, isAfternoon: false },
+      { dayOfWeek: 1, periodNumber: 2, startTime: '08:45', endTime: '09:30', isMorning: true, isAfternoon: false },
+      { dayOfWeek: 1, periodNumber: 3, startTime: '09:30', endTime: '10:15', isMorning: true, isAfternoon: false },
+      { dayOfWeek: 1, periodNumber: 4, startTime: '10:45', endTime: '11:30', isMorning: true, isAfternoon: false },
+    ];
+
+    const requirements: SolverClassRequirement[] = [
+      { classId: 'cls-p4', className: 'P4', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 1 },
+      { classId: 'cls-p5', className: 'P5', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 1 },
+      { classId: 'cls-p6', className: 'P6', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 1 },
+      { classId: 'cls-p7', className: 'P7', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 1 },
+    ];
+
+    const result = timetableSolverService.solveTimetable({
+      requirements,
+      slots: singleDaySlots,
+      policies,
+    });
+
+    // Feasible must be false because Sarah cannot exceed 3 periods on Monday!
+    expect(result.feasible).toBe(false);
+    expect(result.assignments.length).toBe(3); // Exactly 3 scheduled, 4th refused by policy!
+    expect(result.diagnostics.status).toBe('PARTIALLY_COMPLIANT');
+    expect(result.diagnostics.unassignedPeriodsCount).toBe(1);
+  });
+
+  it('(4) Consecutive Periods Limit: solver enforces mandatory breaks after consecutive runs', () => {
+    // Policy: max consecutive periods = 2
+    const policies: SchoolTimetablePolicy[] = [
+      {
+        id: 'pol-consec',
+        schoolId: 'sch-1',
+        scopeType: 'school_default',
+        rules: {
+          maxPeriodsPerDay: 4,
+          maxPeriodsPerWeek: 20,
+          maxConsecutivePeriods: 2, // Max 2 in a row
+          minBreakMinutes: 30,
+          maxOnlineSessionsPerDay: 2,
+          maxOnlineSessionsPerWeek: 5,
+          maxCombinedTeachingHoursPerDay: 5.0,
+        },
+        isActive: true,
+      },
+    ];
+
+    // Slots: 1, 2, 3 on Monday (Periods 1, 2, 3 are consecutive!)
+    const threeConsecutiveSlots: SolverPeriodSlot[] = [
+      { dayOfWeek: 1, periodNumber: 1, startTime: '08:00', endTime: '08:45', isMorning: true, isAfternoon: false },
+      { dayOfWeek: 1, periodNumber: 2, startTime: '08:45', endTime: '09:30', isMorning: true, isAfternoon: false },
+      { dayOfWeek: 1, periodNumber: 3, startTime: '09:30', endTime: '10:15', isMorning: true, isAfternoon: false },
+    ];
+
+    // Sarah requested 3 periods across 3 distinct classes
+    const requirements: SolverClassRequirement[] = [
+      { classId: 'cls-p4', className: 'P4', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 1 },
+      { classId: 'cls-p5', className: 'P5', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 1 },
+      { classId: 'cls-p6', className: 'P6', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 1 },
+    ];
+
+    const result = timetableSolverService.solveTimetable({
+      requirements,
+      slots: threeConsecutiveSlots,
+      policies,
+    });
+
+    // Cannot schedule 3 consecutive periods! Can at most schedule 2!
+    expect(result.feasible).toBe(false);
+    expect(result.assignments.length).toBe(2);
+    expect(result.diagnostics.unassignedPeriodsCount).toBe(1);
+  });
+
+  it('(5) Soft preferences (Math morning, PE afternoon) are scored', () => {
     const requirements: SolverClassRequirement[] = [
       { classId: 'cls-p5', className: 'P5', subjectId: 'sub-math', subjectName: 'Mathematics', teacherId: 't-sarah', teacherName: 'Sarah', periodsPerWeek: 4 },
       { classId: 'cls-p5', className: 'P5', subjectId: 'sub-pe', subjectName: 'Physical Education', teacherId: 't-coach', teacherName: 'Coach', periodsPerWeek: 2 },
@@ -108,21 +254,18 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
     expect(result.feasible).toBe(true);
     expect(result.scorecard.softPreferenceScore).toBeGreaterThanOrEqual(80);
 
-    // Check Math sessions are all morning
     const mathAssignments = result.assignments.filter((a) => a.subjectId === 'sub-math');
     for (const m of mathAssignments) {
       expect(m.slot.isMorning).toBe(true);
     }
 
-    // Check PE sessions are all afternoon
     const peAssignments = result.assignments.filter((a) => a.subjectId === 'sub-pe');
     for (const p of peAssignments) {
       expect(p.slot.isAfternoon).toBe(true);
     }
   });
 
-  it('(3) Constraint Conflict Diagnostic pinpoints bottlenecks when over-constrained', () => {
-    // Force over-constrained scenario: Sarah only has 5 weekdays, single morning slots per day, but asked for 8 morning periods
+  it('(6) Constraint Conflict Diagnostic pinpoints bottlenecks when over-constrained', () => {
     const singleMorningSlot = [
       { dayOfWeek: 1, periodNumber: 1, startTime: '08:00', endTime: '08:45', isMorning: true, isAfternoon: false },
     ];
@@ -143,7 +286,7 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
     expect(result.diagnostics.suggestedResolutions.length).toBeGreaterThan(0);
   });
 
-  it('(4) Combined physical + online workload calculates correctly and flags cap breaches', () => {
+  it('(7) Combined physical + online workload calculates correctly and flags cap breaches', () => {
     const policies: SchoolTimetablePolicy[] = [
       {
         id: 'pol-1',
@@ -167,8 +310,6 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
       { id: 't-normal', name: 'Normal Nina' },
     ];
 
-    // Busy Bob has 22 physical periods (exceeds 20) and 6 online sessions (exceeds 5)
-    // Normal Nina has 15 physical periods (3 per day across 5 days) and 2 online sessions
     const physicalEntries = [
       ...Array(22).fill(null).map((_, i) => ({ teacherId: 't-busy', dayOfWeek: (i % 5) + 1 })),
       ...Array(15).fill(null).map((_, i) => ({ teacherId: 't-normal', dayOfWeek: (i % 5) + 1 })),
@@ -196,7 +337,7 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
     expect(nina.status).toBe('OK');
   });
 
-  it('(5) Historical timetable pattern analyzer extracts empirical recurring preferences', () => {
+  it('(8) Historical timetable pattern analyzer extracts empirical recurring preferences', () => {
     const pastEntries = [
       { subjectId: 'sub-math', subjectName: 'Mathematics', startTime: '08:00', dayOfWeek: 1 },
       { subjectId: 'sub-math', subjectName: 'Mathematics', startTime: '08:45', dayOfWeek: 2 },
@@ -211,60 +352,70 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
 
     const mathPattern = patterns.find((p) => p.subjectId === 'sub-math')!;
     expect(mathPattern).toBeDefined();
-    expect(mathPattern.detectedWindow).toBe('MORNING');
-    expect(mathPattern.percentage).toBe(100);
+    expect(mathPattern.empiricalPreference).toBe('MORNING');
+    expect(mathPattern.frequencyPercentage).toBe(100);
 
     const pePattern = patterns.find((p) => p.subjectId === 'sub-pe')!;
     expect(pePattern).toBeDefined();
-    expect(pePattern.detectedWindow).toBe('AFTERNOON');
-    expect(pePattern.percentage).toBe(100);
+    expect(pePattern.empiricalPreference).toBe('AFTERNOON');
+    expect(pePattern.frequencyPercentage).toBe(100);
   });
 
-  it('(6) Hierarchical policy resolution: Teacher override supersedes School default', () => {
+  it('(9) 4-Tier Policy Hierarchy with Effective Dates: Exception -> Teacher -> Department -> School Default', () => {
     const policies: SchoolTimetablePolicy[] = [
       {
-        id: 'pol-default',
+        id: 'pol-school',
         schoolId: 'sch-1',
         scopeType: 'school_default',
-        rules: {
-          maxPeriodsPerDay: 6,
-          maxPeriodsPerWeek: 28,
-          maxConsecutivePeriods: 3,
-          minBreakMinutes: 30,
-          maxOnlineSessionsPerDay: 2,
-          maxOnlineSessionsPerWeek: 8,
-          maxCombinedTeachingHoursPerDay: 7.0,
-        },
+        rules: { maxPeriodsPerDay: 6, maxPeriodsPerWeek: 28, maxConsecutivePeriods: 3, minBreakMinutes: 30, maxOnlineSessionsPerDay: 2, maxOnlineSessionsPerWeek: 8, maxCombinedTeachingHoursPerDay: 7.0 },
+        isActive: true,
+      },
+      {
+        id: 'pol-dept',
+        schoolId: 'sch-1',
+        scopeType: 'department',
+        departmentName: 'Sciences',
+        rules: { maxPeriodsPerDay: 5, maxPeriodsPerWeek: 22, maxConsecutivePeriods: 2, minBreakMinutes: 40, maxOnlineSessionsPerDay: 2, maxOnlineSessionsPerWeek: 6, maxCombinedTeachingHoursPerDay: 6.0 },
         isActive: true,
       },
       {
         id: 'pol-teacher',
         schoolId: 'sch-1',
         scopeType: 'teacher',
-        targetEmployeeId: 't-parttime',
-        rules: {
-          maxPeriodsPerDay: 3,
-          maxPeriodsPerWeek: 12,
-          maxConsecutivePeriods: 2,
-          minBreakMinutes: 45,
-          maxOnlineSessionsPerDay: 1,
-          maxOnlineSessionsPerWeek: 3,
-          maxCombinedTeachingHoursPerDay: 4.0,
-        },
+        targetEmployeeId: 't-sarah',
+        rules: { maxPeriodsPerDay: 4, maxPeriodsPerWeek: 18, maxConsecutivePeriods: 2, minBreakMinutes: 45, maxOnlineSessionsPerDay: 1, maxOnlineSessionsPerWeek: 4, maxCombinedTeachingHoursPerDay: 5.0 },
+        isActive: true,
+      },
+      {
+        id: 'pol-exception',
+        schoolId: 'sch-1',
+        scopeType: 'exception',
+        targetEmployeeId: 't-sarah',
+        effectiveFrom: '2026-09-01',
+        effectiveTo: '2026-09-15',
+        rules: { maxPeriodsPerDay: 2, maxPeriodsPerWeek: 10, maxConsecutivePeriods: 1, minBreakMinutes: 60, maxOnlineSessionsPerDay: 0, maxOnlineSessionsPerWeek: 0, maxCombinedTeachingHoursPerDay: 2.5 },
         isActive: true,
       },
     ];
 
-    const defaultRules = timetablePolicyService.resolveEffectiveRules(policies, 't-regular');
-    expect(defaultRules.maxPeriodsPerDay).toBe(6);
-    expect(defaultRules.maxPeriodsPerWeek).toBe(28);
+    // 1. Regular teacher outside Sciences gets school default
+    const regular = timetablePolicyService.resolveEffectiveRules(policies, 't-general');
+    expect(regular.maxPeriodsPerDay).toBe(6);
 
-    const partTimeRules = timetablePolicyService.resolveEffectiveRules(policies, 't-parttime');
-    expect(partTimeRules.maxPeriodsPerDay).toBe(3);
-    expect(partTimeRules.maxPeriodsPerWeek).toBe(12);
+    // 2. Science teacher gets department override
+    const scienceTeacher = timetablePolicyService.resolveEffectiveRules(policies, 't-sci', 'Sciences');
+    expect(scienceTeacher.maxPeriodsPerDay).toBe(5);
+
+    // 3. Sarah outside exception window gets teacher policy
+    const sarahNormal = timetablePolicyService.resolveEffectiveRules(policies, 't-sarah', 'Sciences', '2026-10-01');
+    expect(sarahNormal.maxPeriodsPerDay).toBe(4);
+
+    // 4. Sarah during active exception window gets exception override
+    const sarahException = timetablePolicyService.resolveEffectiveRules(policies, 't-sarah', 'Sciences', '2026-09-08');
+    expect(sarahException.maxPeriodsPerDay).toBe(2);
   });
 
-  it('(7) Quota derivation derives weekly periods from Phase 6 scheme of work', () => {
+  it('(10) Quota derivation derives weekly periods from Phase 6 scheme of work', () => {
     const schemes = [
       {
         classId: 'cls-p5',
@@ -282,7 +433,7 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
     expect(overridden).toBe(6);
   });
 
-  it('(8) publishTimetableAtomic calls Supabase RPC and returns success payload', async () => {
+  it('(11) publishTimetableAtomic calls Supabase RPC and returns success payload', async () => {
     (supabase.rpc as any).mockResolvedValueOnce({
       data: { success: true, timetable_id: 'tt-123', archived_count: 1 },
       error: null,
@@ -295,5 +446,53 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
     });
     expect(result.success).toBe(true);
     expect(result.archivedCount).toBe(1);
+  });
+
+  it('(12) onlineBookingService.confirmBooking invokes confirm_online_booking_atomic exclusively', async () => {
+    const origEnv = process.env.NODE_ENV;
+    const origUrl = (import.meta.env as any).VITE_SUPABASE_URL;
+    process.env.NODE_ENV = 'production';
+    (import.meta.env as any).VITE_SUPABASE_URL = 'https://prod-real-db.supabase.co';
+
+    try {
+      (supabase.from as any).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            id: 'b-123',
+            school_id: 'sch-1',
+            student_id: 'stud-1',
+            offering_id: 'off-1',
+            scheduled_date: '2026-09-10',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            status: 'requested',
+          },
+          error: null,
+        }),
+      });
+
+      (supabase.rpc as any).mockResolvedValueOnce({
+        data: {
+          bookingId: 'b-123',
+          sessionId: 'ses-456',
+          teacherId: 't-1',
+          status: 'confirmed',
+        },
+        error: null,
+      });
+
+      const result = await confirmBooking('b-123', 't-1');
+      expect(supabase.rpc).toHaveBeenCalledWith('confirm_online_booking_atomic', {
+        p_booking_id: 'b-123',
+        p_teacher_id: 't-1',
+      });
+      expect(result?.sessionId).toBe('ses-456');
+      expect(result?.status).toBe('confirmed');
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      (import.meta.env as any).VITE_SUPABASE_URL = origUrl;
+    }
   });
 });

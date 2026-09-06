@@ -26,30 +26,67 @@ const DEFAULT_POLICY_RULES: TimetablePolicyRules = {
   maxCombinedTeachingHoursPerDay: 7.0,
 };
 
+function isWithinEffectiveDates(p: SchoolTimetablePolicy, date?: string): boolean {
+  if (!date) return true;
+  if (p.effectiveFrom && date < p.effectiveFrom) return false;
+  if (p.effectiveTo && date > p.effectiveTo) return false;
+  return true;
+}
+
 export const timetablePolicyService = {
   /**
    * Resolves effective policy rules for a specific teacher on a given date.
-   * Hierarchy: Date Exception -> Teacher Override -> Department Override -> School Default.
+   * Hierarchy: Exception -> Teacher Override -> Department Override -> School Default.
    */
   resolveEffectiveRules(
     policies: SchoolTimetablePolicy[],
     teacherId?: string,
-    _date?: string,
+    departmentName?: string,
+    date?: string,
   ): TimetablePolicyRules {
     const active = policies.filter((p) => p.isActive);
 
-    // 1. Teacher-specific override
+    // 1. Exception (e.g. temporary adjustment for an employee or school-wide on this date)
+    const exceptionPolicy = active.find(
+      (p) =>
+        p.scopeType === 'exception' &&
+        (!p.targetEmployeeId || p.targetEmployeeId === teacherId) &&
+        isWithinEffectiveDates(p, date),
+    );
+    if (exceptionPolicy) {
+      return { ...DEFAULT_POLICY_RULES, ...exceptionPolicy.rules };
+    }
+
+    // 2. Teacher-specific override
     if (teacherId) {
       const teacherPolicy = active.find(
-        (p) => p.scopeType === 'teacher' && p.targetEmployeeId === teacherId,
+        (p) =>
+          p.scopeType === 'teacher' &&
+          p.targetEmployeeId === teacherId &&
+          isWithinEffectiveDates(p, date),
       );
       if (teacherPolicy) {
         return { ...DEFAULT_POLICY_RULES, ...teacherPolicy.rules };
       }
     }
 
-    // 2. School-wide default
-    const schoolDefault = active.find((p) => p.scopeType === 'school_default');
+    // 3. Department override
+    if (departmentName) {
+      const deptPolicy = active.find(
+        (p) =>
+          p.scopeType === 'department' &&
+          p.departmentName?.toLowerCase() === departmentName.toLowerCase() &&
+          isWithinEffectiveDates(p, date),
+      );
+      if (deptPolicy) {
+        return { ...DEFAULT_POLICY_RULES, ...deptPolicy.rules };
+      }
+    }
+
+    // 4. School-wide default
+    const schoolDefault = active.find(
+      (p) => p.scopeType === 'school_default' && isWithinEffectiveDates(p, date),
+    );
     if (schoolDefault) {
       return { ...DEFAULT_POLICY_RULES, ...schoolDefault.rules };
     }
@@ -100,21 +137,33 @@ export const timetablePolicyService = {
    * Verifies that total load does not breach daily or weekly maximums.
    */
   computeTeacherWorkloads(params: {
-    teachers: Array<{ id: string; name: string }>;
-    physicalTimetableEntries: Array<{ teacherId: string; dayOfWeek: number }>;
+    teachers: Array<{ id: string; name: string; departmentName?: string }>;
+    physicalTimetableEntries: Array<{ teacherId: string; dayOfWeek: number; periodNumber?: number }>;
     onlineSessions: Array<{ teacherId: string; scheduledStart: string; status: string }>;
     policies: SchoolTimetablePolicy[];
+    date?: string;
   }): TeacherWorkloadSummary[] {
     return params.teachers.map((t) => {
-      const rules = this.resolveEffectiveRules(params.policies, t.id);
+      const rules = this.resolveEffectiveRules(
+        params.policies,
+        t.id,
+        t.departmentName,
+        params.date,
+      );
 
-      // Physical entries count
+      // Physical entries count & daily distribution
       const physicalEntries = params.physicalTimetableEntries.filter(
         (e) => e.teacherId === t.id,
       );
       const physicalPeriods = physicalEntries.length;
 
-      // Online sessions count (scheduled/confirmed)
+      const physicalDayCounts: Record<number, number> = {};
+      for (const e of physicalEntries) {
+        physicalDayCounts[e.dayOfWeek] = (physicalDayCounts[e.dayOfWeek] || 0) + 1;
+      }
+      const peakDaily = Math.max(0, ...Object.values(physicalDayCounts));
+
+      // Online sessions count & daily distribution
       const activeOnline = params.onlineSessions.filter(
         (s) =>
           s.teacherId === t.id &&
@@ -122,14 +171,25 @@ export const timetablePolicyService = {
       );
       const onlineSessions = activeOnline.length;
 
-      // Peak daily periods
-      const dayCounts: Record<number, number> = {};
-      for (const e of physicalEntries) {
-        dayCounts[e.dayOfWeek] = (dayCounts[e.dayOfWeek] || 0) + 1;
+      const onlineDayCounts: Record<number, number> = {};
+      for (const s of activeOnline) {
+        const d = new Date(s.scheduledStart);
+        // UTC Mon=1..Sun=7
+        const dow = ((d.getUTCDay() + 6) % 7) + 1;
+        onlineDayCounts[dow] = (onlineDayCounts[dow] || 0) + 1;
       }
-      const peakDaily = Math.max(0, ...Object.values(dayCounts));
+      const peakOnlineDaily = Math.max(0, ...Object.values(onlineDayCounts));
 
-      // Each period is approx 45m (0.75h), each online session is approx 1h
+      // Combined daily teaching hours
+      let peakCombinedHours = 0;
+      for (let day = 1; day <= 7; day++) {
+        const phys = physicalDayCounts[day] || 0;
+        const onl = onlineDayCounts[day] || 0;
+        const dailyH = Number((phys * 0.75 + onl * 1.0).toFixed(1));
+        if (dailyH > peakCombinedHours) peakCombinedHours = dailyH;
+      }
+
+      // Total teaching hours
       const totalHours = Number(
         (physicalPeriods * 0.75 + onlineSessions * 1.0).toFixed(1),
       );
@@ -149,13 +209,27 @@ export const timetablePolicyService = {
 
       if (peakDaily > rules.maxPeriodsPerDay) {
         status = 'OVER_CAP';
-        alerts.push(`Daily load (${peakDaily}) exceeds limit (${rules.maxPeriodsPerDay}).`);
+        alerts.push(`Daily physical load (${peakDaily}) exceeds limit (${rules.maxPeriodsPerDay}).`);
       }
 
       if (onlineSessions > rules.maxOnlineSessionsPerWeek) {
         status = 'OVER_CAP';
         alerts.push(
           `Online sessions (${onlineSessions}) exceeds weekly limit (${rules.maxOnlineSessionsPerWeek}).`,
+        );
+      }
+
+      if (peakOnlineDaily > rules.maxOnlineSessionsPerDay) {
+        status = 'OVER_CAP';
+        alerts.push(
+          `Daily online sessions (${peakOnlineDaily}) exceeds daily limit (${rules.maxOnlineSessionsPerDay}).`,
+        );
+      }
+
+      if (peakCombinedHours > rules.maxCombinedTeachingHoursPerDay) {
+        status = 'OVER_CAP';
+        alerts.push(
+          `Combined daily teaching hours (${peakCombinedHours}h) exceeds limit (${rules.maxCombinedTeachingHoursPerDay}h).`,
         );
       }
 

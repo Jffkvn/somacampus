@@ -212,8 +212,10 @@ export async function checkTeacherConflict(
 }
 
 /**
- * Confirm a requested booking after a clean conflict check. Conflicting →
- * throws with nothing written. Non-`requested` bookings throw.
+ * Confirm a requested booking atomically via the authorized PostgreSQL RPC.
+ * Enforces row-level capacity locking, teacher assignment validation,
+ * physical timetable conflict checking, and online session conflict checking.
+ * On success: creates concrete online_sessions row, links participant, marks booking confirmed.
  */
 export async function confirmBooking(bookingId: string, teacherId: string): Promise<ConfirmedBooking | null> {
   if (isMockEnv()) return null;
@@ -221,6 +223,7 @@ export async function confirmBooking(bookingId: string, teacherId: string): Prom
     throw new Error('onlineBookingService.confirmBooking requires teacherId (bookings carry no teacher FK; the caller resolves the assigned teacher)');
   }
 
+  // Verify booking exists and is requested
   const { data: booking, error: readError } = await supabase
     .from('online_bookings')
     .select('id, school_id, student_id, offering_id, scheduled_date, start_time, end_time, status')
@@ -232,28 +235,22 @@ export async function confirmBooking(bookingId: string, teacherId: string): Prom
     throw new Error(`onlineBookingService.confirmBooking: booking ${bookingId} is ${booking.status}, must be requested`);
   }
 
-  const start = new Date(`${booking.scheduled_date}T${String(booking.start_time).slice(0, 8)}Z`);
-  const end = new Date(`${booking.scheduled_date}T${String(booking.end_time).slice(0, 8)}Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    throw new Error(`onlineBookingService.confirmBooking: booking ${bookingId} has unparseable date/time`);
-  }
-  if (await checkTeacherConflict(teacherId, start, end)) {
-    throw new Error(`onlineBookingService.confirmBooking: teacher ${teacherId} has a conflicting session`);
-  }
+  // Authoritative execution via atomic database transaction
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('confirm_online_booking_atomic', {
+    p_booking_id: bookingId,
+    p_teacher_id: teacherId,
+  });
 
-  const { data: updated, error: updateError } = await supabase
-    .from('online_bookings')
-    .update({ status: 'confirmed' })
-    .eq('id', bookingId)
-    .select('id, school_id, student_id, scheduled_date, status')
-    .single();
-  if (updateError || !updated) throw updateError ?? new Error('onlineBookingService.confirmBooking: confirm update returned no row');
+  if (rpcError) {
+    throw new Error(`onlineBookingService.confirmBooking: ${rpcError.message}`);
+  }
 
   return {
-    id: String(updated.id),
-    schoolId: String(updated.school_id),
-    studentId: String(updated.student_id),
-    scheduledDate: String(updated.scheduled_date),
-    status: String(updated.status),
+    id: bookingId,
+    schoolId: String(booking.school_id),
+    studentId: String(booking.student_id),
+    scheduledDate: String(booking.scheduled_date),
+    status: 'confirmed',
+    sessionId: rpcResult?.sessionId ? String(rpcResult.sessionId) : undefined,
   };
 }

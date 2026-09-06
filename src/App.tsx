@@ -203,8 +203,8 @@ export const App: React.FC = () => {
           <Route path="curriculum/:frameworkCode" element={<CurriculumExplorerPage />} />
           <Route path="planning/schemes" element={<SchemesOfWorkPage />} />
           <Route path="planning/schemes/:schemeId" element={<SchemeDetailPage />} />
-          <Route path="planning/policies" element={<TimetablePolicyPage />} />
-          <Route path="planning/timetable/builder" element={<TimetableDraftPage />} />
+          <Route path="planning/policies" element={<RequireAccess path="/planning/policies"><TimetablePolicyPage /></RequireAccess>} />
+          <Route path="planning/timetable/builder" element={<RequireAccess path="/planning/timetable/builder"><TimetableDraftPage /></RequireAccess>} />
           <Route path="activities" element={<ActivitiesPage />} />
 
           {/* Phase 9I Timetable Intelligence & Master Schedule */}
