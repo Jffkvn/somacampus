@@ -187,12 +187,20 @@ export const ParentHomePage: React.FC = () => {
       try {
         setLoadingOverview(true);
         setError(null);
-        const [childOverview, onlineOverview] = await Promise.all([
+        // Isolated fetches: an online-learning failure degrades to an empty
+        // online card only — the main overview must still render.
+        const [mainResult, onlineResult] = await Promise.allSettled([
           parentService.getChildOverview(schoolId, selectedId),
           parentService.getChildOnlineOverview(schoolId, selectedId),
         ]);
-        setOverview(childOverview);
-        setOnline(onlineOverview);
+        if (mainResult.status === 'rejected') throw mainResult.reason;
+        setOverview(mainResult.value);
+        if (onlineResult.status === 'fulfilled') {
+          setOnline(onlineResult.value);
+        } else {
+          console.error('Failed to load child online overview', onlineResult.reason);
+          setOnline(null);
+        }
       } catch (err) {
         console.error('Failed to load child overview', err);
         setError('Could not load this child’s overview. Please try again.');
