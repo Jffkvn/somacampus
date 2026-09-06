@@ -25,6 +25,7 @@ import { AnnouncementsPage } from './modules/communication/AnnouncementsPage';
 import { MessagesPage } from './modules/communication/MessagesPage';
 import { NotificationPreferencesPage } from './modules/notifications/NotificationPreferencesPage';
 import { ParentHomePage } from './modules/parent/ParentHomePage';
+import { StudentOnlineHomePage } from './modules/online/StudentOnlineHomePage';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { AuthProvider, useAuth } from './lib/authContext';
@@ -256,15 +257,15 @@ export const App: React.FC = () => {
               </RequireAccess>
             }
           />
+          {/* Phase 9D Task 1: student online home (sessions + work +
+              feedback). RequireAccess student-only, mirroring /parent/home;
+              teachers/admins fall back to their own dashboards. */}
           <Route
             path="student/home"
             element={
-              <ModulePlaceholder
-                title="Student Learning Cockpit"
-                moduleName="Student Experience"
-                description="Access diagnostic quizzes, classroom worksheets, and learning objectives."
-                scheduledPhase="Phase 5 (Teaching Acceleration)"
-              />
+              <RequireAccess path="/student/home">
+                <StudentOnlineHomePage />
+              </RequireAccess>
             }
           />
 

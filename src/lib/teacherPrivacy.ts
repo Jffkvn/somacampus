@@ -104,6 +104,11 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   // group. Admin support access (view-as-family troubleshooting) is
   // deferred — admins use /admin/overview until that flow is specified.
   { prefix: '/parent', roles: ['parent'] },
+  // Phase 9D student online home: student-only, mirroring the /parent
+  // precedent. Teachers/admins keep their own dashboards (RequireAccess
+  // redirects them to their role landing route); the service layer scopes
+  // all data to the learner's own participant/submission rows.
+  { prefix: '/student', roles: ['student'] },
 ];
 
 /** Longest-prefix match so /fees/import wins over /fees. */
