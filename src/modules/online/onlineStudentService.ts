@@ -96,7 +96,7 @@ const SESSION_SELECT =
   'id, school_id, offering_id, teacher_id, status, scheduled_start, scheduled_end, session_type, join_url, curriculum_objective_id, session_note, offering:online_offerings(id, title, subjects(name))';
 
 const SUBMISSION_SELECT =
-  'id, assignment_id, submission_status, teacher_review_status, teacher_feedback, score, created_at, assignment:assignments!student_submissions_assignment_id_fkey(id, title, due_date, subjects(name))';
+  'id, student_id, assignment_id, submission_status, teacher_review_status, teacher_feedback, score, created_at, assignment:assignments!student_submissions_assignment_id_fkey(id, title, due_date, subjects(name))';
 
 /**
  * UUID student ids pass through; anything else (login email) resolves via
@@ -255,7 +255,7 @@ export const onlineStudentService = {
       .order('created_at', { ascending: false });
     if (submissionError) throw submissionError;
     const submissions = ((submissionRows ?? []) as any[]).filter(
-      (r) => String(r.student_id ?? studentId) === studentId || !r.student_id,
+      (r) => String(r.student_id) === studentId,
     );
 
     const assignmentsDue: OnlineHomeAssignment[] = submissions

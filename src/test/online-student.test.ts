@@ -205,6 +205,23 @@ const SUBMISSION_ROWS = [
       subjects: { name: 'Mathematics' },
     },
   },
+  // Another student's row — must never leak into this student's home even
+  // though it arrives in the same result set (pins the student_id filter).
+  {
+    id: 'sub-9',
+    assignment_id: 'asg-9',
+    student_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    submission_status: 'pending',
+    teacher_review_status: 'reviewed',
+    teacher_feedback: 'Someone else’s feedback — invisible here.',
+    score: 10,
+    assignment: {
+      id: 'asg-9',
+      title: 'Someone else’s worksheet',
+      due_date: '2099-02-01',
+      subjects: { name: 'Mathematics' },
+    },
+  },
 ];
 
 function mockHome() {
@@ -264,6 +281,22 @@ describe('(c) assignments due for the student', () => {
     expect(home.assignmentsDue.map((a) => a.assignmentId)).toEqual(['asg-1']);
     expect(home.assignmentsDue[0].title).toBe('Fractions worksheet 4');
     expect(home.assignmentsDue[0].dueDate).toBe('2099-01-10');
+  });
+
+  it('drops another student’s submission rows from due + feedback', async () => {
+    mockHome();
+    const home = await onlineStudentService.getOnlineHome(AMARI, SCHOOL);
+    expect(home.assignmentsDue.map((a) => a.assignmentId)).not.toContain('asg-9');
+    expect(home.recentFeedback.map((f) => f.text)).not.toContain(
+      'Someone else’s feedback — invisible here.',
+    );
+  });
+
+  it('unknown login email throws instead of resolving another learner', async () => {
+    mockFrom({ people: { data: null, error: null } });
+    await expect(
+      onlineStudentService.getOnlineHome('ghost@somacampus.ug', SCHOOL),
+    ).rejects.toThrow();
   });
 });
 

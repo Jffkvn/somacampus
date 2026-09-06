@@ -21,8 +21,6 @@ import { Video, BookOpen, MessageSquareText, ExternalLink, CalendarClock } from 
  * onlineStudentService). Join = link display; no video build.
  */
 
-const FALLBACK_STUDENT = 'student@somacampus.ug';
-
 const SESSION_PILL: Record<string, StatusVariant> = {
   SCHEDULED: 'info',
   CONFIRMED: 'pending',
@@ -46,7 +44,9 @@ function fmtDateTime(iso: string): string {
 
 export const StudentOnlineHomePage: React.FC = () => {
   const { user, schoolId, fullName } = useAuth();
-  const studentKey = user?.email ?? FALLBACK_STUDENT;
+  // No demo-identity fallback: a missing email must surface an honest
+  // error, never a real-looking learner's home.
+  const studentKey = user?.email ?? null;
 
   const [home, setHome] = useState<OnlineHome | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,8 +54,13 @@ export const StudentOnlineHomePage: React.FC = () => {
 
   useEffect(() => {
     async function load() {
-      if (!schoolId) {
+      if (!schoolId || !studentKey) {
         setHome({ student: null, upcomingSessions: [], assignmentsDue: [], recentFeedback: [] });
+        setLoadError(
+          !studentKey
+            ? 'We could not identify your learner account. Please sign out and sign in again, or contact the school office.'
+            : null,
+        );
         setIsLoading(false);
         return;
       }
@@ -129,7 +134,7 @@ export const StudentOnlineHomePage: React.FC = () => {
               <a
                 href={next.joinUrl}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl bg-brand-teal text-white hover:opacity-90"
               >
                 <ExternalLink className="w-4 h-4" />
@@ -178,7 +183,7 @@ export const StudentOnlineHomePage: React.FC = () => {
                       <a
                         href={s.joinUrl}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
