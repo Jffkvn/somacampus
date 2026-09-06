@@ -19,6 +19,8 @@ import { OnlineSessionCockpitPage } from './modules/online/OnlineSessionCockpitP
 import { CurriculumExplorerPage } from './modules/curriculum/CurriculumExplorerPage';
 import { SchemesOfWorkPage } from './modules/planning/SchemesOfWorkPage';
 import { SchemeDetailPage } from './modules/planning/SchemeDetailPage';
+import { TimetablePolicyPage } from './modules/planning/TimetablePolicyPage';
+import { TimetableDraftPage } from './modules/planning/TimetableDraftPage';
 import { PayrollDashboardPage } from './modules/payroll/PayrollDashboardPage';
 import { MyHRPage } from './modules/hr/MyHRPage';
 import { ActivitiesPage } from './modules/activities/ActivitiesPage';
@@ -201,19 +203,12 @@ export const App: React.FC = () => {
           <Route path="curriculum/:frameworkCode" element={<CurriculumExplorerPage />} />
           <Route path="planning/schemes" element={<SchemesOfWorkPage />} />
           <Route path="planning/schemes/:schemeId" element={<SchemeDetailPage />} />
+          <Route path="planning/policies" element={<TimetablePolicyPage />} />
+          <Route path="planning/timetable/builder" element={<TimetableDraftPage />} />
           <Route path="activities" element={<ActivitiesPage />} />
 
-          <Route
-            path="timetable"
-            element={
-              <ModulePlaceholder
-                title="School Master Timetable"
-                moduleName="Schedule & Context"
-                description="School-wide recurring schedule, room allocations, and conflict detection."
-                scheduledPhase="Backlog (deferred past Phase 2)"
-              />
-            }
-          />
+          {/* Phase 9I Timetable Intelligence & Master Schedule */}
+          <Route path="timetable" element={<TimetableDraftPage />} />
           {/* Phase 8E Task 1: read-only audience-filtered view (RequireAccess
               keeps the route-gate pattern; teacherPrivacy default-allows this
               path and the service + RLS arbitrate the rows). */}

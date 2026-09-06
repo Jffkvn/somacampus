@@ -18,6 +18,7 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Users, BookOpen, CalendarCheck, Wallet, Trophy, Wifi } from 'lucide-react';
 import { explainFeedback } from '../communication/aiDraftService';
+import { ParentAiSummary } from '../online/OnlineAiPanels';
 
 function submissionPill(status: string): { status: StatusVariant; label: string } {
   switch (status) {
@@ -491,6 +492,12 @@ export const ParentHomePage: React.FC = () => {
                           </li>
                         ))}
                       </ul>
+                      {/* Advisory AI (Phase 9I): read-only summary composed from the
+                          already-parent-visible feedback above (approved evidence by
+                          construction). No amounts, no internal notes, no actions. */}
+                      <div className="mt-2">
+                        <ParentAiSummary studentName={selected.name} feedback={online.feedback} />
+                      </div>
                     </div>
                   )}
                 </>
