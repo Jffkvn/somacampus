@@ -92,7 +92,7 @@ export const MatchingPanel: React.FC<{
                     onApprove(s.teacherId);
                   }}
                 >
-                  Approve &amp; assign
+                    Approve suggestion
                 </Button>
                 <Button
                   variant="outline"
