@@ -8,7 +8,8 @@ import type {
 export interface CreateAssignmentPayload {
   schoolId: string;
   teacherId: string;
-  classId: string;
+  classId?: string | null;
+  onlineSessionId?: string | null;
   streamId?: string | null;
   subjectId: string;
   lessonId?: string | null;
@@ -33,7 +34,7 @@ export function validateAssignmentPayload(payload: Partial<CreateAssignmentPaylo
   if (!payload.instructions || !payload.instructions.trim()) {
     errors.push('Instructions are required');
   }
-  if (!payload.classId) {
+  if (!payload.onlineSessionId && !payload.classId) {
     errors.push('Class is required');
   }
   if (!payload.subjectId) {

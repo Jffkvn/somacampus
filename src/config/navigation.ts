@@ -49,6 +49,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     subItems: [
       { label: 'My Classes', href: '/teacher/classes', roles: ['teacher', 'admin'] },
       { label: 'Live Lessons', href: '/teaching/lessons', roles: ['teacher', 'admin', 'principal'] },
+      { label: 'Online Sessions', href: '/teaching/online', roles: ['teacher', 'admin', 'principal'] },
       { label: 'Assignments', href: '/teaching/assignments', roles: ['teacher', 'admin'] },
       { label: 'Worksheets', href: '/teaching/worksheets', roles: ['teacher', 'admin'] },
       { label: 'Quizzes', href: '/teaching/quizzes', roles: ['teacher', 'admin'] },
@@ -102,6 +103,15 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
       // Phase 8E Task 1: staff already reach /calendar via the Academics
       // group; parents had no calendar entry (Family Portal only).
       { label: 'School Calendar', href: '/calendar', roles: ['parent'] },
+    ],
+  },
+  {
+    id: 'student_portal',
+    label: 'Student Portal',
+    icon: GraduationCap,
+    roles: ['student'],
+    subItems: [
+      { label: 'My Online Learning', href: '/student/home', roles: ['student'] },
     ],
   },
   {

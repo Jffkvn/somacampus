@@ -51,6 +51,7 @@ export interface ConfirmedBooking {
   studentId: string;
   scheduledDate: string;
   status: string;
+  sessionId?: string;
 }
 
 /** Online session statuses that occupy the teacher (block new bookings). */
