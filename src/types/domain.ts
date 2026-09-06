@@ -1421,3 +1421,102 @@ export interface ParentChildOverview {
   activities: ParentActivityProjection[];
 }
 
+// ==============================================================================
+// 12. Timetable Intelligence & Institutional Policy Contracts (Phase 9I)
+// ==============================================================================
+
+export type TimetableStatus = 'draft' | 'reviewed' | 'approved' | 'published' | 'archived';
+
+export interface TimetableConstraintScorecard {
+  hardViolationsCount: number;
+  hardViolations: string[];
+  softPreferenceScore: number; // 0..100
+  preferenceBreakdown: Array<{
+    name: string;
+    target: string;
+    satisfiedPercentage: number;
+    details: string;
+  }>;
+  feasible: boolean;
+}
+
+export interface ConstraintConflictDiagnostic {
+  status: 'COMPLIANT' | 'PARTIALLY_COMPLIANT' | 'INFEASIBLE';
+  unassignedPeriodsCount: number;
+  bottlenecks: Array<{
+    type: string;
+    entity: string;
+    description: string;
+  }>;
+  suggestedResolutions: Array<{
+    action: string;
+    description: string;
+    impact: string;
+  }>;
+}
+
+export interface Timetable {
+  id: string;
+  schoolId: string;
+  termId: string;
+  name: string;
+  isActive: boolean;
+  status: TimetableStatus;
+  isAiGenerated?: boolean;
+  baseTimetableId?: string | null;
+  constraintScorecard?: TimetableConstraintScorecard | null;
+  aiExplanation?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  publishedAt?: string | null;
+  entries?: TimetableEntry[];
+}
+
+export interface TimetablePolicyRules {
+  maxPeriodsPerDay: number;
+  maxPeriodsPerWeek: number;
+  maxConsecutivePeriods: number;
+  minBreakMinutes: number;
+  maxOnlineSessionsPerDay: number;
+  maxOnlineSessionsPerWeek: number;
+  maxCombinedTeachingHoursPerDay: number;
+  [key: string]: unknown;
+}
+
+export interface SchoolTimetablePolicy {
+  id: string;
+  schoolId: string;
+  scopeType: 'school_default' | 'department' | 'teacher' | 'exception';
+  targetEmployeeId?: string | null;
+  departmentName?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  rules: TimetablePolicyRules;
+  isActive: boolean;
+}
+
+export interface TimetableSubjectPreference {
+  id: string;
+  schoolId: string;
+  subjectId: string;
+  subjectName?: string;
+  preferredTimeWindow: 'MORNING' | 'MIDDAY' | 'AFTERNOON' | 'ANY';
+  preferredStartTime?: string | null;
+  preferredEndTime?: string | null;
+  priorityWeight: number; // 1..10
+  allowDoublePeriods: boolean;
+  sourceType: 'MANUAL' | 'HISTORICAL_ADOPTED';
+}
+
+export interface TeacherWorkloadSummary {
+  employeeId: string;
+  teacherName: string;
+  physicalPeriods: number;
+  onlineSessions: number;
+  totalTeachingHours: number;
+  peakDailyPeriods: number;
+  dailyLimit: number;
+  weeklyLimit: number;
+  status: 'OK' | 'APPROACHING_CAP' | 'OVER_CAP';
+  alerts: string[];
+}

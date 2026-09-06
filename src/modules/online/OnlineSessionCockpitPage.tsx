@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { onlineTeachingService } from './onlineTeachingService';
 import type { OnlineSessionDetail, ParticipationStatus } from './onlineTeachingService';
-import { MatchingPanel, PrepSummaryPanel, SessionSummaryPanel } from './OnlineAiPanels';
+import { MatchingPanel, PrepSummaryPanel, SessionSummaryPanel, NextStepsPanel } from './OnlineAiPanels';
 import { onlineClassroomService } from './onlineClassroomService';
 import type { ClassroomSignal } from './onlineClassroomService';
 import { useAuth } from '../../lib/authContext';
@@ -428,13 +428,21 @@ export const OnlineSessionCockpitPage: React.FC = () => {
       )}
 
       {session.status === 'COMPLETED' && session.sessionNote && (
-        <SessionSummaryPanel
-          sessionId={session.id}
-          presentCount={session.presentCount}
-          participantCount={session.participantCount}
-          completionNote={session.sessionNote}
-          approverId={teacherKey}
-        />
+        <>
+          <SessionSummaryPanel
+            sessionId={session.id}
+            presentCount={session.presentCount}
+            participantCount={session.participantCount}
+            completionNote={session.sessionNote}
+            approverId={teacherKey}
+            curriculumRef={session.curriculumObjectiveId}
+          />
+          <NextStepsPanel
+            sessionId={session.id}
+            completionNote={session.sessionNote}
+            objectiveRef={session.curriculumObjectiveId}
+          />
+        </>
       )}
 
       {/* No booking UI exists yet, so the cockpit hosts the match hook with

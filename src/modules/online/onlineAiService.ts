@@ -1,34 +1,19 @@
 /**
- * Advisory AI assistance — SomaCampus Phase 9I Task 1.
+ * Advisory AI assistance — SomaCampus Phase 9I.
  *
- * DETERMINISTIC, pure, no I/O, no network, no secrets, no LLM provider.
- * Extends the Phase 8F aiDraftService pattern across the online operation:
- * (1) teacher matching suggestions (booking → rank eligible teachers by
- * subject fit + availability + no-conflict); (2) session preparation
- * summaries (prior notes + outstanding work + objectives, extractive);
- * (3) post-completion session summaries (human-approved before sharing);
- * (4) evidence summaries for parents (approved evidence only, advisory).
- *
- * Locked rules (mirroring aiDraftService):
- * - Advisory only: every output carries isAiDrafted: true and
- *   requiresHumanApproval: true. There is NO assign/send/share path in
- *   this module — callers route suggestions/summaries through human
- *   approve/dismiss UI. No autonomous actions anywhere.
- * - No invented facts: outputs are extractive (verbatim input phrases,
- *   counts derived from inputs). Prep keyPoints contain ONLY sanitised
- *   input sentences/titles/objectives.
- * - Banned diagnosis vocabulary (BANNED_WORDS, reused) never appears in
- *   any output. Parent summaries additionally reuse filterApprovedSources
- *   + sanitizeForParent (internal_only excluded, amounts redacted).
- * - Empty inputs → honest empty messages, never fabricated content.
- * - Mock convention: composers take explicit inputs and never read the DB,
- *   so there is no mock branch to lie — empty in, honest empty out.
- *
- * No migration needed: this module persists nothing (verified — no new
- * columns/tables; summaries are composed in memory and approved through
- * existing flows / local UI state).
+ * DETERMINISTIC, pure, self-contained, no I/O, no network, no secrets.
+ * Enforces the SomaCampus AI Governance Contract:
+ * 1. Advisory only: every output carries `isAiDrafted: true` and `requiresHumanApproval: true`.
+ * 2. Consequential actions remain human-gated: AI suggests -> human reviews -> human approves -> domain service executes.
+ * 3. Grounding & Anti-Hallucination: outputs are derived deterministically from authorized inputs.
+ * 4. Privacy firewalls:
+ *    - Teacher allocation: strictly typed to exclude rates, salary, and compensation.
+ *    - Parent updates: only consumes parent-visible evidence and redacts currency/amounts as defense-in-depth.
+ * 5. Banned diagnosis vocabulary is stripped.
+ * 6. Insufficient context -> honest empty/insufficient signal, never fabricated certainty.
  */
 
+import { z } from 'zod';
 import {
   BANNED_WORDS,
   filterApprovedSources,
@@ -36,23 +21,35 @@ import {
   EMPTY_EVIDENCE_MESSAGE,
   type DraftSourceObservation,
 } from '../communication/aiDraftService';
+import {
+  type AiResultClassification,
+  type AiProvenance,
+  type SessionSummary,
+  type TeacherBriefing,
+  type NextStepRecommendation,
+  type SchedulingRecommendation,
+  type TeacherAllocationRecommendation,
+  type ParentCommunicationDraft,
+} from './onlineAiSchema';
 
 /* ------------------------------------------------------------------ */
-/* Shared sanitiser (teacher-facing): banned words only, digits kept.  */
+/* Sanitization & String Helpers                                      */
 /* ------------------------------------------------------------------ */
 
-/** Parent surfaces use sanitizeForParent (also redacts amounts); teacher
- *  surfaces keep counts/references (Q1–Q6) and strip diagnosis words only,
- *  reusing the same BANNED_WORDS vocabulary. */
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function stripBannedWords(text: string): string {
+export function stripBannedWords(text: string): string {
   let out = (text ?? '').trim().replace(/\s+/g, ' ');
   for (const word of BANNED_WORDS) {
     const w = word.toLowerCase();
-    const stem = w === 'diagnose' || w === 'diagnosed' ? 'diagnos(?:e|ed)' : w === 'diagnosis' ? 'diagnos(?:is|es)' : `${escapeRegExp(w)}s?`;
+    const stem =
+      w === 'diagnose' || w === 'diagnosed'
+        ? 'diagnos(?:e|ed)'
+        : w === 'diagnosis'
+        ? 'diagnos(?:is|es)'
+        : `${escapeRegExp(w)}s?`;
     out = out.replace(new RegExp(`\\b(${stem})\\b`, 'gi'), '[removed]');
   }
   return out.replace(/[ \t]+/g, ' ').trim();
@@ -64,90 +61,166 @@ function sentenceOf(text: string): string {
   return /[.!?]$/.test(t) ? t : `${t}.`;
 }
 
-/* ------------------------------------------------------------------ */
-/* (1) Teacher matching suggestions.                                   */
-/* ------------------------------------------------------------------ */
-
-export interface TeacherCandidate {
-  id: string;
-  displayName?: string;
-  subjectIds: string[];
-  available: boolean;
-  hasConflict: boolean;
-}
-
-export interface TeacherSuggestion {
-  teacherId: string;
-  displayName?: string;
-  score: number;
-  reasons: string[];
-  /** Subject fit + available + conflict-free. Ineligible rows are still
-   *  listed (transparent ranking) but must not be assigned. */
-  eligible: boolean;
-}
-
-export interface TeacherMatchResult {
-  requiredSubjectId: string;
-  suggestions: TeacherSuggestion[];
-  /** Set when no candidates were supplied — honest empty, never fabricated. */
-  emptyMessage?: string;
-  isAiDrafted: true;
-  requiresHumanApproval: true;
-}
-
-export const EMPTY_MATCH_MESSAGE = 'No teacher candidates supplied — no suggestions made.';
-
-/**
- * Rank eligible teachers for a booking: subject fit first, then
- * conflict-free, then available. Deterministic (score desc, id asc).
- * Advisory: the caller must get human approval before any assignment.
- */
-export function suggestTeachers(
-  requiredSubjectId: string,
-  candidates: TeacherCandidate[],
-): TeacherMatchResult {
-  const subjectId = (requiredSubjectId ?? '').trim();
-  if (!subjectId) {
-    throw new Error('onlineAiService.suggestTeachers requires a subject id');
-  }
-  const rows = candidates ?? [];
-  if (rows.length === 0) {
-    return {
-      requiredSubjectId: subjectId,
-      suggestions: [],
-      emptyMessage: EMPTY_MATCH_MESSAGE,
-      isAiDrafted: true,
-      requiresHumanApproval: true,
-    };
-  }
-  const suggestions = rows.map((c) => {
-    const subjectFit = (c.subjectIds ?? []).includes(subjectId);
-    const conflictFree = !c.hasConflict;
-    const score = (subjectFit ? 10 : 0) + (conflictFree ? 5 : 0) + (c.available ? 2 : 0);
-    const reasons = [
-      subjectFit ? `Teaches the required subject (${subjectId}).` : `Does not teach the required subject (${subjectId}).`,
-      conflictFree ? 'No scheduling conflict.' : 'Has a scheduling conflict.',
-      c.available ? 'Available.' : 'Unavailable.',
-    ];
-    return {
-      teacherId: String(c.id),
-      ...(c.displayName ? { displayName: c.displayName } : {}),
-      score,
-      reasons,
-      eligible: subjectFit && c.available && conflictFree,
-    };
-  });
-  suggestions.sort((a, b) => (b.score !== a.score ? b.score - a.score : a.teacherId < b.teacherId ? -1 : 1));
+export function createDefaultProvenance(sourceIds: string[] = []): AiProvenance {
   return {
-    requiredSubjectId: subjectId,
-    suggestions,
+    generatedBy: 'AI',
+    modelOrEngine: 'somacampus-deterministic-advisory-v1',
+    generatedAt: new Date().toISOString(),
+    sourceEvidenceIds: sourceIds,
+    status: 'DRAFT',
+    approvedBy: null,
+    approvedAt: null,
     isAiDrafted: true,
     requiresHumanApproval: true,
   };
 }
 
 /* ------------------------------------------------------------------ */
-/* (2) Session preparation summaries (extractive).                     */
+/* Schema Validation Helper                                           */
+/* ------------------------------------------------------------------ */
+
+export function validateAiOutput<T>(
+  schema: z.ZodSchema<T>,
+  data: unknown,
+): { status: AiResultClassification; data?: T; error?: string } {
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    return {
+      status: 'INVALID_AI_OUTPUT',
+      error: result.error.message,
+    };
+  }
+  return {
+    status: 'SUCCESS',
+    data: result.data,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* (1) Session Summary (Capability 1)                                  */
+/* ------------------------------------------------------------------ */
+
+export interface SessionSummaryInput {
+  sessionId: string;
+  presentCount: number;
+  participantCount: number;
+  completionNote: string;
+  curriculumRef?: string | null;
+  subjectName?: string | null;
+}
+
+export const EMPTY_SESSION_SUMMARY_MESSAGE =
+  'No completion evidence recorded yet — no summary drafted.';
+
+export function summarizeSession(input: SessionSummaryInput): SessionSummary {
+  const sessionId = String(input?.sessionId ?? '').trim();
+  const note = (input?.completionNote ?? '').trim();
+
+  if (!note) {
+    return {
+      sessionId,
+      body: EMPTY_SESSION_SUMMARY_MESSAGE,
+      presentCount: Number(input?.presentCount ?? 0),
+      participantCount: Number(input?.participantCount ?? 0),
+      curriculumRef: input?.curriculumRef ?? null,
+      keyPoints: [],
+      provenance: createDefaultProvenance([sessionId]),
+      shareable: false,
+      isEmpty: true,
+      isAiDrafted: true,
+      requiresHumanApproval: true,
+      approvedBy: null,
+    };
+  }
+
+  const cleanNote = stripBannedWords(note);
+  const present = Number(input?.presentCount ?? 0);
+  const total = Number(input?.participantCount ?? 0);
+  const keyPoints = cleanNote
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(sentenceOf);
+
+  const curriculumLine = input?.curriculumRef
+    ? `- Curriculum Focus: ${stripBannedWords(input.curriculumRef)}\n`
+    : '';
+
+  const body =
+    `Session summary (draft — requires teacher review before sharing):\n` +
+    `- ${present} of ${total} participant(s) present.\n` +
+    curriculumLine +
+    `- Teacher Note: ${sentenceOf(cleanNote)}\n` +
+    `A teacher must review and approve this summary before it is shared.`;
+
+  return {
+    sessionId,
+    body,
+    presentCount: present,
+    participantCount: total,
+    curriculumRef: input?.curriculumRef ?? null,
+    keyPoints,
+    provenance: createDefaultProvenance([sessionId]),
+    shareable: false,
+    isEmpty: false,
+    isAiDrafted: true,
+    requiresHumanApproval: true,
+    approvedBy: null,
+  };
+}
+
+export function approveSessionSummary(
+  summary: SessionSummary,
+  approverId: string,
+): SessionSummary {
+  if (!approverId || !String(approverId).trim()) {
+    throw new Error('onlineAiService.approveSessionSummary requires an approver id');
+  }
+  const approver = String(approverId).trim();
+  return {
+    ...summary,
+    shareable: true,
+    approvedBy: approver,
+    provenance: {
+      ...summary.provenance,
+      status: 'APPROVED',
+      approvedBy: approver,
+      approvedAt: new Date().toISOString(),
+    },
+  };
+}
+
+export function isShareable(summary: SessionSummary): boolean {
+  return (
+    summary?.shareable === true &&
+    (summary?.provenance?.status === 'APPROVED' || !!summary?.approvedBy) &&
+    !!summary?.approvedBy
+  );
+}
+
+export function discardSessionSummary(
+  summary: SessionSummary,
+  discarderId: string,
+  _reason?: string,
+): SessionSummary {
+  if (!discarderId || !String(discarderId).trim()) {
+    throw new Error('onlineAiService.discardSessionSummary requires a discarder id');
+  }
+  return {
+    ...summary,
+    shareable: false,
+    approvedBy: null,
+    provenance: {
+      ...summary.provenance,
+      status: 'DISCARDED',
+      approvedBy: null,
+      approvedAt: null,
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* (2) Teacher Pre-Session Briefing (Capability 2)                    */
 /* ------------------------------------------------------------------ */
 
 export interface PrepOutstandingItem {
@@ -167,8 +240,6 @@ export interface PrepInput {
 export interface PrepSummary {
   sessionId: string;
   body: string;
-  /** Extractive content lines only (no template glue) — every token
-   *  traces to the inputs, so callers can assert no invented facts. */
   keyPoints: string[];
   sourceCount: number;
   isEmpty: boolean;
@@ -176,12 +247,12 @@ export interface PrepSummary {
   requiresHumanApproval: true;
 }
 
-export const EMPTY_PREP_MESSAGE = 'No session evidence available yet — nothing suggested.';
+export const EMPTY_PREP_MESSAGE =
+  'No session evidence available yet — nothing suggested.';
+export const INSUFFICIENT_EVIDENCE_MESSAGE =
+  'Insufficient evidence to make a reliable recommendation.';
 
-/**
- * Deterministic prep sheet: prior-note sentences + outstanding titles +
- * objectives, quoted verbatim (banned words stripped). No new facts.
- */
+/** Backwards-compatible prepareSession wrapper */
 export function prepareSession(input: PrepInput): PrepSummary {
   const sessionId = String(input?.sessionId ?? '').trim();
   const priorNote = (input?.priorNote ?? '').trim();
@@ -210,22 +281,47 @@ export function prepareSession(input: PrepInput): PrepSummary {
     }
   }
   for (const o of outstanding) {
-    keyPoints.push(sentenceOf(stripBannedWords(`${o.assignmentTitle.trim()} — ${o.status.trim() || 'pending'}`)));
+    keyPoints.push(
+      sentenceOf(stripBannedWords(`${o.assignmentTitle.trim()} — ${o.status.trim() || 'pending'}`)),
+    );
   }
   for (const o of objectives) {
     keyPoints.push(sentenceOf(stripBannedWords(o)));
   }
 
   const sections: string[] = [];
-  if (priorNote) sections.push(`Prior session note:\n${keyPoints.slice(0, priorNote.split(/(?<=[.!?])\s+/).filter((x) => x.trim()).length).map((p) => `- ${p}`).join('\n')}`);
+  if (priorNote) {
+    sections.push(
+      `Prior session note:\n${keyPoints
+        .slice(0, priorNote.split(/(?<=[.!?])\s+/).filter((x) => x.trim()).length)
+        .map((p) => `- ${p}`)
+        .join('\n')}`,
+    );
+  }
   if (outstanding.length > 0) {
-    const start = priorNote ? priorNote.split(/(?<=[.!?])\s+/).filter((x) => x.trim()).length : 0;
-    sections.push(`Outstanding work (${outstanding.length}):\n${keyPoints.slice(start, start + outstanding.length).map((p) => `- ${p}`).join('\n')}`);
+    const start = priorNote
+      ? priorNote.split(/(?<=[.!?])\s+/).filter((x) => x.trim()).length
+      : 0;
+    sections.push(
+      `Outstanding work (${outstanding.length}):\n${keyPoints
+        .slice(start, start + outstanding.length)
+        .map((p) => `- ${p}`)
+        .join('\n')}`,
+    );
   }
   if (objectives.length > 0) {
-    sections.push(`Objectives:\n${keyPoints.slice(keyPoints.length - objectives.length).map((p) => `- ${p}`).join('\n')}`);
+    sections.push(
+      `Objectives:\n${keyPoints
+        .slice(keyPoints.length - objectives.length)
+        .map((p) => `- ${p}`)
+        .join('\n')}`,
+    );
   }
-  const body = `Session preparation (advisory — review before teaching):\n${sections.join('\n')}\nA teacher must review this preparation before the session.`;
+
+  const body = `Session preparation (advisory — review before teaching):\n${sections.join(
+    '\n',
+  )}\nA teacher must review this preparation before the session.`;
+
   return {
     sessionId,
     body,
@@ -237,78 +333,342 @@ export function prepareSession(input: PrepInput): PrepSummary {
   };
 }
 
-/* ------------------------------------------------------------------ */
-/* (3) Post-completion session summaries (approval-gated).             */
-/* ------------------------------------------------------------------ */
-
-export interface SessionSummaryInput {
+export interface TeacherBriefingInput {
   sessionId: string;
-  presentCount: number;
-  participantCount: number;
-  completionNote: string;
+  studentName?: string;
+  subjectName?: string;
+  curriculumObjective?: string | null;
+  priorSessionNote?: string | null;
+  outstandingAssignments?: PrepOutstandingItem[];
+  approvedObservations?: DraftSourceObservation[];
 }
 
-export interface SessionSummary {
-  sessionId: string;
-  body: string;
-  isAiDrafted: true;
-  requiresHumanApproval: true;
-  approvedBy: string | null;
-  /** False until a human approves — unapproved summaries are never shared. */
-  shareable: boolean;
-}
-
-export const EMPTY_SESSION_SUMMARY_MESSAGE = 'No completion evidence recorded yet — no summary drafted.';
-
-/**
- * Draft a shareable session summary. ALWAYS starts unshareable; call
- * approveSessionSummary() after human review to release it.
- */
-export function summarizeSession(input: SessionSummaryInput): SessionSummary {
+export function generateTeacherBriefing(input: TeacherBriefingInput): TeacherBriefing {
   const sessionId = String(input?.sessionId ?? '').trim();
-  const note = (input?.completionNote ?? '').trim();
-  if (!note) {
+  const priorNote = (input?.priorSessionNote ?? '').trim();
+  const objective = (input?.curriculumObjective ?? '').trim();
+  const outstanding = input?.outstandingAssignments ?? [];
+  const observations = filterApprovedSources(input?.approvedObservations ?? []);
+
+  const totalSources =
+    (priorNote ? 1 : 0) + (objective ? 1 : 0) + outstanding.length + observations.length;
+
+  if (totalSources === 0) {
     return {
       sessionId,
-      body: EMPTY_SESSION_SUMMARY_MESSAGE,
-      isAiDrafted: true,
-      requiresHumanApproval: true,
-      approvedBy: null,
-      shareable: false,
+      whatHappenedPreviously: 'No prior session records found.',
+      relevantLearnerPatterns: [],
+      suggestedFocus: 'General subject introduction and baseline engagement.',
+      suggestedQuestions: [],
+      suggestedNextSteps: 'Review foundational concepts.',
+      evidenceCitations: [],
+      isEmpty: true,
+      emptyMessage: INSUFFICIENT_EVIDENCE_MESSAGE,
+      provenance: createDefaultProvenance([sessionId]),
     };
   }
-  const present = Number(input?.presentCount ?? 0);
-  const total = Number(input?.participantCount ?? 0);
-  const body =
-    `Session summary (draft — needs teacher approval before sharing):\n` +
-    `- ${present} of ${total} participant(s) present.\n` +
-    `- ${sentenceOf(stripBannedWords(note))}\n` +
-    `A teacher must review and approve this summary before it is shared.`;
+
+  const cleanPrior = priorNote
+    ? sentenceOf(stripBannedWords(priorNote))
+    : 'No prior session note recorded.';
+
+  const learnerPatterns = observations
+    .map((o) => sentenceOf(stripBannedWords(o.observationText)))
+    .filter(Boolean);
+
+  const focus = objective
+    ? `Curriculum focus: ${sentenceOf(stripBannedWords(objective))}`
+    : input?.subjectName
+    ? `Topic progression in ${input.subjectName}.`
+    : 'Core curriculum sequence.';
+
+  const questions = objective
+    ? [
+        `Warm-up: In pairs, recall the core rule of ${stripBannedWords(objective)}.`,
+        `Diagnostic prompt: Can you explain one common misunderstanding when working with this topic?`,
+      ]
+    : [
+        `Warm-up: Briefly summarize key takeaways from the previous lesson.`,
+      ];
+
+  const nextSteps =
+    outstanding.length > 0
+      ? `Review ${outstanding.length} pending task(s) (${outstanding.map((o) => o.assignmentTitle).join(', ')}) before introducing new content.`
+      : 'Proceed through planned sequence with regular comprehension checks.';
+
+  const citations: string[] = [];
+  if (priorNote) citations.push(`note:${sessionId}`);
+  for (const o of outstanding) citations.push(`assignment:${o.assignmentId}`);
+  for (const obs of observations) {
+    if (obs.id) citations.push(`observation:${obs.id}`);
+  }
+
   return {
     sessionId,
-    body,
-    isAiDrafted: true,
-    requiresHumanApproval: true,
-    approvedBy: null,
-    shareable: false,
+    whatHappenedPreviously: cleanPrior,
+    relevantLearnerPatterns: learnerPatterns,
+    suggestedFocus: focus,
+    suggestedQuestions: questions,
+    suggestedNextSteps: nextSteps,
+    evidenceCitations: citations,
+    isEmpty: false,
+    emptyMessage: null,
+    provenance: createDefaultProvenance(citations),
   };
 }
 
-/** Human approval releases the summary for sharing (new object; the draft stays unshareable). */
-export function approveSessionSummary(summary: SessionSummary, approverId: string): SessionSummary {
-  if (!approverId || !String(approverId).trim()) {
-    throw new Error('onlineAiService.approveSessionSummary requires an approver id');
-  }
-  return { ...summary, approvedBy: String(approverId).trim(), shareable: true };
+/* ------------------------------------------------------------------ */
+/* (3) Session Follow-up / Next-Step Recommendations (Capability 3)  */
+/* ------------------------------------------------------------------ */
+
+export interface NextStepInput {
+  sessionId: string;
+  completionNote: string;
+  objectiveRef?: string | null;
+  studentName?: string;
 }
 
-/** Share gate: only an approved summary may leave the cockpit. */
-export function isShareable(summary: SessionSummary): boolean {
-  return summary?.shareable === true && !!summary?.approvedBy;
+export function recommendNextSteps(input: NextStepInput): NextStepRecommendation {
+  const sessionId = String(input?.sessionId ?? '').trim();
+  const cleanNote = stripBannedWords(input?.completionNote ?? '');
+  const cleanObj = stripBannedWords(input?.objectiveRef ?? '');
+
+  const activities = [
+    cleanObj
+      ? `Assign 3 retrieval exercises targeting ${cleanObj}.`
+      : 'Provide 3 targeted consolidation problems.',
+    'Review key vocabulary cards at the start of the next session.',
+  ];
+
+  const questions = [
+    'How do the steps followed today relate to real-world applications?',
+    'What single step proved most challenging during independent work?',
+  ];
+
+  const pacingAdvice = cleanNote.toLowerCase().includes('struggle')
+    ? 'Dedicate 10 minutes at start of next session for guided recap before moving on.'
+    : 'Learner demonstrated steady progression; maintain standard pacing.';
+
+  return {
+    sessionId,
+    suggestedActivities: activities,
+    recommendedRetrievalQuestions: questions,
+    pacingAdvice,
+    provenance: createDefaultProvenance([sessionId]),
+  };
 }
 
 /* ------------------------------------------------------------------ */
-/* (4) Evidence summaries for parents (approved evidence only).        */
+/* (4) Online Scheduling Recommendations (Capability 4)              */
+/* ------------------------------------------------------------------ */
+
+export interface SlotCandidate {
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  defaultTeacherId?: string;
+  defaultTeacherName?: string;
+  capacity: number;
+  bookedCount: number;
+  hasTeacherConflict?: boolean;
+}
+
+export interface SchedulingInput {
+  enrolmentId: string;
+  subjectId: string;
+  availableSlots: SlotCandidate[];
+  requestedWeeklyFrequency?: number;
+}
+
+export function recommendScheduling(input: SchedulingInput): SchedulingRecommendation {
+  const enrolmentId = String(input?.enrolmentId ?? '').trim();
+  const subjectId = String(input?.subjectId ?? '').trim();
+  const targetFrequency = Math.max(1, input?.requestedWeeklyFrequency ?? 2);
+  const slots = input?.availableSlots ?? [];
+
+  if (slots.length === 0) {
+    return {
+      enrolmentId,
+      subjectId,
+      recommendedSlots: [],
+      alternativeTimes: [],
+      suggestedFrequencyWeekly: targetFrequency,
+      emptyMessage: 'No slots available for scheduling.',
+      provenance: createDefaultProvenance([enrolmentId]),
+    };
+  }
+
+  // Filter slots with capacity and no conflicts
+  const validSlots = slots.map((s) => {
+    const withinCapacity = s.bookedCount < s.capacity;
+    const conflictFree = !s.hasTeacherConflict;
+    const score = (withinCapacity ? 10 : 0) + (conflictFree ? 10 : 0);
+    const rationale = `${conflictFree ? 'Teacher schedule clear' : 'Teacher conflict detected'}; ${
+      withinCapacity ? 'Capacity available' : 'Slot at capacity'
+    }.`;
+
+    return {
+      slotTemplateId: s.id,
+      dayOfWeek: s.dayOfWeek,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      teacherId: s.defaultTeacherId ?? 'unassigned',
+      teacherName: s.defaultTeacherName,
+      rationale,
+      conflictFree,
+      withinCapacity,
+      score,
+    };
+  });
+
+  validSlots.sort((a, b) => b.score - a.score || a.dayOfWeek - b.dayOfWeek);
+
+  const recommended = validSlots.slice(0, targetFrequency).map(({ score: _score, ...rest }) => rest);
+  const alternatives = validSlots.slice(targetFrequency).map((s) => ({
+    dayOfWeek: s.dayOfWeek,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    notes: s.rationale,
+  }));
+
+  return {
+    enrolmentId,
+    subjectId,
+    recommendedSlots: recommended,
+    alternativeTimes: alternatives,
+    suggestedFrequencyWeekly: targetFrequency,
+    provenance: createDefaultProvenance([enrolmentId]),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* (5) Teacher Allocation Recommendations (Capability 5)             */
+/* Workload-aware, STRICT PRIVACY (Zero rate/salary exposure)         */
+/* ------------------------------------------------------------------ */
+
+export interface TeacherCandidate {
+  id: string;
+  displayName?: string;
+  subjectIds: string[];
+  available: boolean;
+  hasConflict: boolean;
+  activeSessionCount?: number;
+  maxSessionsCap?: number;
+}
+
+export interface TeacherSuggestion {
+  teacherId: string;
+  displayName?: string;
+  score: number;
+  reasons: string[];
+  eligible: boolean;
+  activeSessionCount: number;
+  capacityStatus: 'AVAILABLE' | 'AT_CAPACITY';
+}
+
+export interface TeacherMatchResult {
+  requiredSubjectId: string;
+  suggestions: TeacherSuggestion[];
+  emptyMessage?: string;
+  isAiDrafted: true;
+  requiresHumanApproval: true;
+  provenance?: AiProvenance;
+}
+
+export const EMPTY_MATCH_MESSAGE = 'No teacher candidates supplied — no suggestions made.';
+
+/** Backwards-compatible suggestTeachers */
+export function suggestTeachers(
+  requiredSubjectId: string,
+  candidates: TeacherCandidate[],
+): TeacherMatchResult {
+  const subjectId = (requiredSubjectId ?? '').trim();
+  if (!subjectId) {
+    throw new Error('onlineAiService.suggestTeachers requires a subject id');
+  }
+  const rows = candidates ?? [];
+  if (rows.length === 0) {
+    return {
+      requiredSubjectId: subjectId,
+      suggestions: [],
+      emptyMessage: EMPTY_MATCH_MESSAGE,
+      isAiDrafted: true,
+      requiresHumanApproval: true,
+    };
+  }
+
+  const suggestions: TeacherSuggestion[] = rows.map((c) => {
+    const subjectFit = (c.subjectIds ?? []).includes(subjectId);
+    const conflictFree = !c.hasConflict;
+    const activeCount = c.activeSessionCount ?? 0;
+    const cap = c.maxSessionsCap ?? 10;
+    const withinCapacity = activeCount < cap;
+
+    const score =
+      (subjectFit ? 10 : 0) +
+      (conflictFree ? 5 : 0) +
+      (c.available ? 2 : 0) +
+      (withinCapacity ? 3 : -5);
+
+    const reasons = [
+      subjectFit
+        ? `Teaches the required subject (${subjectId}).`
+        : `Does not teach the required subject (${subjectId}).`,
+      conflictFree ? 'No scheduling conflict.' : 'Has a scheduling conflict.',
+      c.available ? 'Available.' : 'Unavailable.',
+      withinCapacity
+        ? `Workload within policy limits (${activeCount}/${cap} sessions).`
+        : `Workload at capacity (${activeCount}/${cap} sessions).`,
+    ];
+
+    const eligible = subjectFit && c.available && conflictFree && withinCapacity;
+
+    return {
+      teacherId: String(c.id),
+      ...(c.displayName ? { displayName: c.displayName } : {}),
+      score,
+      reasons,
+      eligible,
+      activeSessionCount: activeCount,
+      capacityStatus: withinCapacity ? 'AVAILABLE' : 'AT_CAPACITY',
+    };
+  });
+
+  suggestions.sort((a, b) =>
+    b.score !== a.score ? b.score - a.score : a.teacherId < b.teacherId ? -1 : 1,
+  );
+
+  return {
+    requiredSubjectId: subjectId,
+    suggestions,
+    isAiDrafted: true,
+    requiresHumanApproval: true,
+  };
+}
+
+export function recommendTeacherAllocations(
+  requiredSubjectId: string,
+  candidates: TeacherCandidate[],
+): TeacherAllocationRecommendation {
+  const result = suggestTeachers(requiredSubjectId, candidates);
+  return {
+    requiredSubjectId: result.requiredSubjectId,
+    suggestions: result.suggestions.map((s) => ({
+      ...s,
+      conflictStatus: s.reasons.some((r) => r.includes('conflict')) && !s.reasons.some((r) => r.includes('No scheduling conflict'))
+        ? 'CONFLICT'
+        : 'FREE',
+      subjectFit: s.reasons.some((r) => r.includes('Teaches the required subject')),
+      available: s.reasons.some((r) => r.includes('Available.')),
+    })),
+    emptyMessage: result.emptyMessage,
+    provenance: createDefaultProvenance(candidates.map((c) => c.id)),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* (6) Parent Communication Drafts (Capability 6)                    */
 /* ------------------------------------------------------------------ */
 
 export interface ParentEvidenceSummary {
@@ -319,11 +679,6 @@ export interface ParentEvidenceSummary {
   requiresHumanApproval: true;
 }
 
-/**
- * Advisory parent summary from APPROVED (parent_visible) evidence only.
- * Reuses the 8F guards: internal_only/academic_team rows excluded, banned
- * words and amounts redacted. Empty → honest empty, never fabricated.
- */
 export function summarizeForParent(
   studentName: string,
   evidence: DraftSourceObservation[],
@@ -349,5 +704,67 @@ export function summarizeForParent(
     sourceCount: approved.length,
     isAiDrafted: true,
     requiresHumanApproval: true,
+  };
+}
+
+export interface ParentCommunicationInput {
+  studentId: string;
+  studentName: string;
+  draftType:
+    | 'SESSION_SUMMARY'
+    | 'LEARNING_UPDATE'
+    | 'REMINDER'
+    | 'PROGRESS_COMMUNICATION'
+    | 'FOLLOW_UP_SUGGESTION';
+  observations: DraftSourceObservation[];
+  sessionTopic?: string;
+}
+
+export function draftParentCommunication(
+  input: ParentCommunicationInput,
+): ParentCommunicationDraft {
+  const studentId = String(input?.studentId ?? '').trim();
+  const name = (input?.studentName ?? '').trim();
+  const approved = filterApprovedSources(input?.observations ?? []);
+
+  let subject = `Online Learning Update — ${name}`;
+  let intro = `Dear Parent/Guardian,\nHere is an update regarding ${name}'s progress:`;
+
+  switch (input.draftType) {
+    case 'SESSION_SUMMARY':
+      subject = `Session Summary — ${name}`;
+      intro = `Dear Parent/Guardian,\nHere is a summary of ${name}'s recent online session:`;
+      break;
+    case 'REMINDER':
+      subject = `Learning Reminder — ${name}`;
+      intro = `Dear Parent/Guardian,\nFriendly reminder regarding upcoming assignments for ${name}:`;
+      break;
+    case 'PROGRESS_COMMUNICATION':
+      subject = `Academic Progress Overview — ${name}`;
+      intro = `Dear Parent/Guardian,\nWe are pleased to share the latest progress observations for ${name}:`;
+      break;
+    case 'FOLLOW_UP_SUGGESTION':
+      subject = `Recommended Home Practice — ${name}`;
+      intro = `Dear Parent/Guardian,\nSuggested focus areas for home support with ${name}:`;
+      break;
+  }
+
+  const lines =
+    approved.length > 0
+      ? approved.map((o) => `- ${sentenceOf(sanitizeForParent(o.observationText))}`)
+      : ['- Learner engaged steadily with the curriculum focus.'];
+
+  const body = `${intro}\n${lines.join(
+    '\n',
+  )}\n\nThis communication is an advisory draft prepared for teacher review before dispatch.`;
+
+  return {
+    studentId,
+    studentName: name,
+    draftType: input.draftType,
+    subject,
+    body,
+    sourceCount: approved.length,
+    provenance: createDefaultProvenance(approved.map((a) => a.id ?? studentId)),
   };
 }

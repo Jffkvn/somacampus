@@ -64,8 +64,10 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     subItems: [
       { label: 'Curriculum Explorer', href: '/curriculum', roles: ['teacher', 'admin', 'principal'] },
       { label: 'Schemes of Work', href: '/planning/schemes', roles: ['teacher', 'admin', 'principal'] },
+      { label: 'Timetable & Teaching Policies', href: '/planning/policies', roles: ['admin', 'principal'] },
+      { label: 'Timetable Builder', href: '/planning/timetable/builder', roles: ['admin', 'principal'] },
       { label: 'School Activities & Sports', href: '/activities', roles: ['teacher', 'admin', 'principal'] },
-      { label: 'Timetable', href: '/timetable' },
+      { label: 'Master Timetable', href: '/timetable' },
       { label: 'School Calendar', href: '/calendar' },
       { label: 'Class & Streams', href: '/classes', roles: ['admin', 'principal'] },
     ],
