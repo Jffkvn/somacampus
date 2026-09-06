@@ -13,6 +13,8 @@ import { StudentDetailPage } from './modules/students/StudentDetailPage';
 import { AssignmentsListPage } from './modules/teaching/AssignmentsListPage';
 import { AssignmentCreatePage } from './modules/teaching/AssignmentCreatePage';
 import { AssignmentReviewPage } from './modules/teaching/AssignmentReviewPage';
+import { OnlineDayPage } from './modules/online/OnlineDayPage';
+import { OnlineSessionCockpitPage } from './modules/online/OnlineSessionCockpitPage';
 import { CurriculumExplorerPage } from './modules/curriculum/CurriculumExplorerPage';
 import { SchemesOfWorkPage } from './modules/planning/SchemesOfWorkPage';
 import { SchemeDetailPage } from './modules/planning/SchemeDetailPage';
@@ -131,6 +133,13 @@ export const App: React.FC = () => {
           <Route path="teaching/assignments" element={<AssignmentsListPage />} />
           <Route path="teaching/assignments/new" element={<AssignmentCreatePage />} />
           <Route path="teaching/assignments/:assignmentId" element={<AssignmentReviewPage />} />
+          {/* Phase 9C Task 1: teacher online day + session cockpit. RequireAccess
+              keeps the route-gate pattern; teacherPrivacy default-allows this
+              path and the service + RLS arbitrate the rows (same precedent as
+              the /calendar route) — a teacher only ever sees their own
+              sessions, scoped by teacher_id in onlineTeachingService. */}
+          <Route path="teaching/online" element={<RequireAccess path="/teaching/online"><OnlineDayPage /></RequireAccess>} />
+          <Route path="teaching/online/:sessionId" element={<RequireAccess path="/teaching/online"><OnlineSessionCockpitPage /></RequireAccess>} />
           <Route
             path="teaching/worksheets"
             element={

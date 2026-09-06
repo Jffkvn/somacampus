@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   History,
   X,
+  Video,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { greetFirstName, toLocalYYYYMMDD } from './scheduleUtils';
@@ -414,9 +415,20 @@ export const TeacherTodayPage: React.FC = () => {
               </p>
             </div>
           </div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">
-            {data.schedule.length} Lessons Scheduled
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">
+              {data.schedule.length} Lessons Scheduled
+            </span>
+            {/* Phase 9C: online teaching day (physical + online merged timeline). */}
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Video className="w-3.5 h-3.5" />}
+              onClick={() => navigate('/teaching/online')}
+            >
+              Online sessions
+            </Button>
+          </div>
         </div>
 
         {/* Hero: Active / Current Scheduled Class, or day-complete state */}
