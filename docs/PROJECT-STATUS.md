@@ -1,6 +1,6 @@
 # SomaCampus — Project Status
 
-> **Honest headline:** Phases 1–8 are **implemented and live-validated**.
+> **Honest headline:** Phases 1–9 (including Phase 9I Advisory Intelligence & School Timetable Engine) are **implemented and validated**.
 > Phase 7 hardening batch is complete (merged, CI green). Full-app tenant
 > lockdown and CI hardening remain queued (see below).
 
@@ -24,13 +24,14 @@
 - [x] **Phase 8F — AI drafting (advisory-only)** ✅ ([plan](plans/2026-09-05-phase8f-ai-drafting.md))
 - [x] **Phase 9 — Online Learning Centre** ✅ + hardened ✅ ([plan](plans/PHASE-9-ONLINE-LEARNING-CENTRE.md))
   (Two operations, one academic core; cross-tenant integrity trigger, RLS authority, classless academic support, presence duration reconnect math, single payroll engine integration)
+- [x] **Phase 9I — Advisory AI Assistance & School Timetable Engine** ✅ ([plan](plans/PHASE-9-ONLINE-LEARNING-CENTRE.md))
+  (7 capabilities: Session Summary, Pre-Session Briefing, Next Steps, Online Scheduling, Teacher Allocation, Parent Communication Drafts, and School Timetable Policy Engine with deterministic CSP solver, conflict diagnostics, and combined physical+online workload tracking)
 
 ## Queued (in order)
 
 1. Tenant-isolation design (finance & online proofs complete; school-wide full read audit)
 2. CI hardening (gate `seed:check`, live-DB nightly)
-3. Phase 9I — Advisory AI Assistance & Scheduling (isolated on `feat/phase9i-ai`)
-4. Phase 10 — Advanced Learning & Hybrid Education
+3. Phase 10 — Advanced Learning & Hybrid Education
 
 ## Standing decisions
 

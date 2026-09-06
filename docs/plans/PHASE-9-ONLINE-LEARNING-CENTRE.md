@@ -54,6 +54,7 @@ Both operations share:
 - `20260915000001_online_rls_hardening.sql`: RLS authority hardening, zero teacher pricing leakage, peer compensation firewall.
 - `20260915000002_online_academic_safe_origin.sql`: Safe `class_id` nullable alteration with origin check constraints and online assignment creator authorization.
 - `20260915000003_online_transactions_and_payroll_bridge.sql`: Atomic offer acceptance, atomic booking confirmation RPC, and idempotent sessional payroll claims table.
+- `20260915000004_school_timetable_policies.sql`: Timetable versioning, hierarchical policy rules (`school_default`, `department`, `teacher`, `exception`), subject time preferences, cross-tenant integrity trigger, and atomic publish RPC.
 
 ---
 
@@ -66,13 +67,16 @@ Both operations share:
 - `onlineClassroomService.ts`: Provider links (Zoom, Google Meet, Teams, custom) and technical signal ingest with reconnect-aware duration calculation.
 - `centreOpsService.ts`: Leadership dashboard for session volume, teaching load, invoiced charges, sessional teacher costs, and gross contribution.
 - `parentService.ts`: Guardian projection allowlist for child's upcoming online sessions and participation history.
+- `onlineAiService.ts`: Advisory AI engine powering 6 online capabilities (Session Summary, Pre-Session Briefing, Next Steps, Scheduling, Teacher Allocation, and Parent Communication Drafts) with schema validation, banned word redaction, and strict financial privacy firewalls.
+- `timetablePolicyService.ts`: School timetable policy hierarchy resolution, combined physical+online workload calculations, and Phase 6 scheme of work quota derivation.
+- `timetableSolverService.ts`: Deterministic CSP constraint solver (0 hard conflicts), preference scorecard, conflict diagnostics, and historical pattern analysis.
 
 ---
 
 ## Verification & Test Metrics
 
-- **Discovered Tests**: 554 tests across 64 test suites.
-- **Mocked / Unit Tests Passing**: 529 passed across 59 active test suites (100% passing).
+- **Discovered Tests**: 578 tests across 66 test suites.
+- **Mocked / Unit Tests Passing**: 553 passed across 61 active test suites (100% passing).
 - **Live DB-Skipped Tests**: 25 skipped (5 integration suites requiring local Supabase instance).
 - **TypeScript Typecheck**: Zero errors (`tsc -b --pretty false`).
-- **Production Bundle Build**: Clean build (`vite build` completed in ~5s).
+- **Production Bundle Build**: Clean build (`vite build` completed in ~4.5s).
