@@ -89,6 +89,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
       { label: 'Operating Expenses', href: '/expenses', roles: ['bursar', 'admin', 'principal'] },
       { label: 'Payroll Engine', href: '/payroll', roles: ['bursar', 'admin', 'principal'] },
       { label: 'Payment Imports', href: '/fees/import', roles: ['bursar', 'admin'] },
+      { label: 'Centre Operations', href: '/online/centre', roles: ['bursar', 'admin', 'principal'] },
     ],
   },
   {

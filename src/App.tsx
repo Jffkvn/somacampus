@@ -14,6 +14,7 @@ import { AssignmentsListPage } from './modules/teaching/AssignmentsListPage';
 import { AssignmentCreatePage } from './modules/teaching/AssignmentCreatePage';
 import { AssignmentReviewPage } from './modules/teaching/AssignmentReviewPage';
 import { OnlineDayPage } from './modules/online/OnlineDayPage';
+import { CentreOpsPage } from './modules/online/CentreOpsPage';
 import { OnlineSessionCockpitPage } from './modules/online/OnlineSessionCockpitPage';
 import { CurriculumExplorerPage } from './modules/curriculum/CurriculumExplorerPage';
 import { SchemesOfWorkPage } from './modules/planning/SchemesOfWorkPage';
@@ -141,6 +142,10 @@ export const App: React.FC = () => {
               sessions, scoped by teacher_id in onlineTeachingService. */}
           <Route path="teaching/online" element={<RequireAccess path="/teaching/online"><OnlineDayPage /></RequireAccess>} />
           <Route path="teaching/online/:sessionId" element={<RequireAccess path="/teaching/online"><OnlineSessionCockpitPage /></RequireAccess>} />
+          {/* Phase 9G Task 1: centre operations dashboard — full page for
+              money roles only (admin/director, principal, bursar; see
+              ROUTE_ROLE_ALLOWLIST). Teachers keep /teaching/online. */}
+          <Route path="online/centre" element={<RequireAccess path="/online/centre"><CentreOpsPage /></RequireAccess>} />
           <Route
             path="teaching/worksheets"
             element={

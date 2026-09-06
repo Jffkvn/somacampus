@@ -96,6 +96,11 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   { prefix: '/administration/inventory', roles: ['admin', 'principal'] },
   { prefix: '/administration/audit', roles: ['admin'] },
   { prefix: '/administration/payroll', roles: ['bursar', 'admin', 'principal'] },
+  // Phase 9G Task 1 centre operations: money-role page (director/admin,
+  // principal, bursar). Teachers keep their operational day view at
+  // /teaching/online and are redirected by RequireAccess; the service
+  // additionally redacts money keys for teachers (defence in depth).
+  { prefix: '/online/centre', roles: ['admin', 'principal', 'bursar'] },
   // NOTE: /administration/hr intentionally open — MyHRPage renders ONLY the
   // viewer's own leave/advances/payslips (service layer is employee_id +
   // school_id scoped with RLS deny->throw). Teachers reach the same data
