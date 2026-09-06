@@ -19,6 +19,10 @@ import { supabase } from '../../lib/supabase';
  *    an explicit argument: online_enquiries carries only a student NAME
  *    (no student_id FK), so student provisioning/matching happens upstream
  *    and the caller passes the resolved students.id (NOT NULL on enrolments).
+ *    Compensation: if the enrolment INSERT fails after offer→accepted, the
+ *    offer is rolled back to `sent` (best-effort — rollback errors are
+ *    swallowed so the original insert error surfaces), leaving no stuck
+ *    accepted-without-enrolment state.
  * 2. checkTeacherConflict: physical load comes from timetable_entries
  *    (day_of_week Mon1..Sun7 + TIME range, half-open overlap: adjacent
  *    slots sharing an endpoint do NOT conflict). Online load comes from
@@ -128,7 +132,17 @@ export async function acceptOffer(offerId: string, studentId: string): Promise<A
     })
     .select('id, school_id, student_id, offering_id, status')
     .single();
-  if (enrolError || !enrolment) throw enrolError ?? new Error('onlineBookingService.acceptOffer: enrolment insert returned no row');
+  if (enrolError || !enrolment) {
+    // Compensation: restore `sent` so the offer is never stuck accepted
+    // without an enrolment. Best-effort — a failing rollback must not mask
+    // the original insert error.
+    try {
+      await supabase.from('online_offers').update({ status: 'sent' }).eq('id', offerId);
+    } catch {
+      /* best-effort rollback */
+    }
+    throw enrolError ?? new Error('onlineBookingService.acceptOffer: enrolment insert returned no row');
+  }
 
   const { error: enquiryError } = await supabase
     .from('online_enquiries')
@@ -156,6 +170,9 @@ export async function checkTeacherConflict(
   end: string | Date,
 ): Promise<boolean> {
   if (isMockEnv()) return false;
+  if (!teacherId || !String(teacherId).trim()) {
+    throw new Error('onlineBookingService.checkTeacherConflict requires teacherId (bookings carry no teacher FK; the caller resolves the assigned teacher)');
+  }
   const startDate = toDate(start, 'start');
   const endDate = toDate(end, 'end');
   if (endDate.getTime() <= startDate.getTime()) {
@@ -199,6 +216,9 @@ export async function checkTeacherConflict(
  */
 export async function confirmBooking(bookingId: string, teacherId: string): Promise<ConfirmedBooking | null> {
   if (isMockEnv()) return null;
+  if (!teacherId || !String(teacherId).trim()) {
+    throw new Error('onlineBookingService.confirmBooking requires teacherId (bookings carry no teacher FK; the caller resolves the assigned teacher)');
+  }
 
   const { data: booking, error: readError } = await supabase
     .from('online_bookings')

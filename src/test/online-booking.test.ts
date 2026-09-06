@@ -163,6 +163,48 @@ describe('acceptOffer', () => {
     await expect(acceptOffer('offer-1', 'stud-1')).rejects.toThrow();
   });
 
+  it('enrolment insert failure rolls the offer back to sent, then rethrows', async () => {
+    mockFrom({
+      online_offers: { data: SENT_OFFER, error: null },
+      online_enrolments: { data: null, error: new Error('insert boom') },
+    });
+    await expect(acceptOffer('offer-1', 'stud-1')).rejects.toThrow('insert boom');
+    const offerUpdates = writeCalls.filter((w) => w.kind === 'update' && w.table === 'online_offers');
+    expect(offerUpdates).toHaveLength(2);
+    expect((offerUpdates[0].payload as any).status).toBe('accepted');
+    expect((offerUpdates[1].payload as any).status).toBe('sent');
+    // No enquiry advance on a failed acceptance.
+    expect(writeCalls.filter((w) => w.table === 'online_enquiries')).toHaveLength(0);
+  });
+
+  it('failing rollback still surfaces the original enrolment error', async () => {
+    let offerUpdateCount = 0;
+    (supabase.from as any).mockImplementation((table: string) => {
+      if (table === 'online_enrolments') {
+        return mockQuery(table, { data: null, error: new Error('insert boom') });
+      }
+      if (table === 'online_offers') {
+        const chain = mockQuery(table, { data: SENT_OFFER, error: null });
+        const origUpdate = chain.update;
+        chain.update = vi.fn((payload: unknown) => {
+          offerUpdateCount += 1;
+          if (offerUpdateCount === 2) {
+            writeCalls.push({ kind: 'update', table, payload });
+            const bad: any = {};
+            bad.eq = vi.fn().mockReturnValue(bad);
+            bad.then = (_resolve: any, reject: any) =>
+              Promise.resolve().then(() => reject(new Error('rollback down')));
+            return bad;
+          }
+          return origUpdate(payload);
+        });
+        return chain;
+      }
+      return mockQuery(table, { data: [], error: null });
+    });
+    await expect(acceptOffer('offer-1', 'stud-1')).rejects.toThrow('insert boom');
+  });
+
   it('(f) mock env no-op: no DB calls', async () => {
     forceMockEnv();
     const out = await acceptOffer('offer-1', 'stud-1');
@@ -251,6 +293,13 @@ describe('checkTeacherConflict', () => {
     await expect(checkTeacherConflict('emp-t1', start, end)).rejects.toThrow();
   });
 
+  it('empty/blank teacherId throws before any DB read', async () => {
+    mockFrom({ timetable_entries: { data: [], error: null }, online_sessions: { data: [], error: null } });
+    await expect(checkTeacherConflict('', start, end)).rejects.toThrow();
+    await expect(checkTeacherConflict('   ', start, end)).rejects.toThrow();
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
   it('(f) mock env → false with no DB calls', async () => {
     forceMockEnv();
     await expect(checkTeacherConflict('emp-t1', start, end)).resolves.toBe(false);
@@ -299,6 +348,18 @@ describe('confirmBooking', () => {
   it('(e) booking-read DB error throws', async () => {
     mockFrom({ online_bookings: { data: null, error: new Error('DB down') } });
     await expect(confirmBooking('book-1', 'emp-t1')).rejects.toThrow();
+  });
+
+  it('empty/blank teacherId throws before any DB read or write', async () => {
+    mockFrom({
+      online_bookings: { data: REQUESTED_BOOKING, error: null },
+      timetable_entries: { data: [], error: null },
+      online_sessions: { data: [], error: null },
+    });
+    await expect(confirmBooking('book-1', '')).rejects.toThrow();
+    await expect(confirmBooking('book-1', '   ')).rejects.toThrow();
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(writeCalls).toHaveLength(0);
   });
 
   it('(f) mock env no-op: no DB calls', async () => {
