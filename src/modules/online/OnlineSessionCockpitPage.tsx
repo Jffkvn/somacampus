@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { onlineTeachingService } from './onlineTeachingService';
 import type { OnlineSessionDetail, ParticipationStatus } from './onlineTeachingService';
+import { onlineClassroomService } from './onlineClassroomService';
+import type { ClassroomSignal } from './onlineClassroomService';
 import { useAuth } from '../../lib/authContext';
 import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
@@ -9,7 +11,7 @@ import { StatusPill } from '../../components/ui/StatusPill';
 import type { StatusVariant } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { ArrowLeft, ExternalLink, Play, CheckCircle2, Lock, StickyNote } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Play, CheckCircle2, Lock, StickyNote, Activity } from 'lucide-react';
 
 const FALLBACK_TEACHER = 'teacher@somacampus.ug';
 
@@ -52,6 +54,7 @@ export const OnlineSessionCockpitPage: React.FC = () => {
   const teacherKey = user?.email ?? FALLBACK_TEACHER;
 
   const [detail, setDetail] = useState<OnlineSessionDetail | null>(null);
+  const [signals, setSignals] = useState<ClassroomSignal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [note, setNote] = useState('');
@@ -70,6 +73,14 @@ export const OnlineSessionCockpitPage: React.FC = () => {
       setLoadError(null);
       const d = await onlineTeachingService.getOnlineSession(sessionId, teacherKey);
       setDetail(d);
+      // Technical signals are evidence only (Phase 9H): a failure here must
+      // never break the cockpit — fall back to an honest empty list.
+      try {
+        const s = await onlineClassroomService.getSessionSignals(sessionId, teacherKey);
+        setSignals(s ?? []);
+      } catch {
+        setSignals([]);
+      }
     } catch (err: any) {
       setLoadError(err?.message ?? 'Could not load session cockpit. Please try again.');
     } finally {
@@ -330,6 +341,47 @@ export const OnlineSessionCockpitPage: React.FC = () => {
               </div>
             ))
           )}
+        </CardContent>
+      </Card>
+
+      {/* Technical signals (evidence only — never participation) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Activity className="w-4 h-4 text-brand-teal" />
+            Technical signals ({signals.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-2">
+          {signals.length === 0 ? (
+            <p className="text-xs text-slate-400">No technical signals recorded for this session yet.</p>
+          ) : (
+            signals.map((s) => {
+              const owner = participants.find((p) => p.studentId === s.studentId);
+              const at = new Date(s.occurredAt);
+              const time = Number.isNaN(at.getTime())
+                ? s.occurredAt
+                : at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              return (
+                <div
+                  key={s.id}
+                  className="px-3 py-2 rounded-xl border border-slate-200/80 bg-slate-50/60 flex items-center justify-between gap-3"
+                >
+                  <div className="text-xs text-slate-700">
+                    <span className="font-bold">{owner?.studentName ?? 'System'}</span>
+                    <span className="text-slate-400"> • {s.signalType} • {time}</span>
+                    {s.recordedSource === 'provider' && (
+                      <span className="text-slate-400"> • provider</span>
+                    )}
+                  </div>
+                  <StatusPill status="info" label={s.signalType} />
+                </div>
+              );
+            })
+          )}
+          <p className="text-[11px] text-slate-400 pt-1">
+            Signals are connection evidence only — they never set participation. Confirm each student manually above.
+          </p>
         </CardContent>
       </Card>
 
