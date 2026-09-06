@@ -24,29 +24,22 @@ import { supabase } from '../../lib/supabase';
  * No video build.
  *
  * State machine (strict, tested):
- * - startSession: SCHEDULED/CONFIRMED → IN_PROGRESS only.
+ * - startSession: SCHEDULED/CONFIRMED → IN_PROGRESS only; stamps started_at.
  * - recordParticipation: session must be IN_PROGRESS; status must be one of
  *   present/absent/late/partial/excused; the participant row must already
  *   exist (participants are provisioned at enrolment/booking time — no
  *   silent upsert that could fabricate a roster place).
  * - completeSession: session must be IN_PROGRESS and the completion note
- *   must be non-empty (validated first, before any DB call). Terminal
- *   states (COMPLETED/CANCELLED/NO_SHOW) are read-only everywhere.
+ *   must be non-empty (validated first, before any DB call); persists
+ *   session_note + completed_at. Terminal states (COMPLETED/CANCELLED/
+ *   NO_SHOW) are read-only everywhere.
  *
- * SCHEMA NOTE (verified against supabase/migrations/20260914000000):
- * public.online_sessions has NO session_note / completed_at / started_at
- * columns, and no migration may be added in this task. Therefore:
- * - start/complete persist ONLY { status } (live-safe — no write to
- *   non-existent columns).
- * - completeSession still REQUIRES a non-empty note (completion gate,
- *   echoed back in the response so the UI can display it in-session).
- * - previousNote reads the latest COMPLETED session of the same offering
- *   (same teacher — never another teacher's session) via select('*') so
- *   the read is live-safe today and picks up a future session_note column
- *   automatically; until that migration lands it degrades to null
- *   (honest empty, pinned by test).
- * Durable note storage needs a follow-up migration adding
- * online_sessions.session_note (+ completed_at/started_at timestamps).
+ * Session notes (migration 20260914000002): public.online_sessions carries
+ * session_note TEXT NULLABLE + started_at/completed_at TIMESTAMPTZ NULLABLE.
+ * The non-empty-note rule stays app-side (history rows predate the feature,
+ * so the column is nullable by design); previousNote reads the latest
+ * COMPLETED same-offering (+same-teacher — never another teacher's session)
+ * note, null when none.
  */
 
 export type ParticipationStatus =
@@ -69,6 +62,10 @@ export interface OnlineSessionSummary {
   sessionType?: string;
   joinUrl?: string;
   curriculumObjectiveId?: string;
+  /** Completion note (migration 20260914000002); null until completed. */
+  sessionNote?: string;
+  startedAt?: string;
+  completedAt?: string;
 }
 
 export interface OnlineDaySession extends OnlineSessionSummary {
@@ -96,7 +93,7 @@ export interface OnlineSessionDetail {
 
 export interface CompletedSession {
   session: OnlineSessionSummary;
-  /** Echo of the validated completion note (see SCHEMA NOTE). */
+  /** The validated completion note (also persisted as session.sessionNote). */
   note: string;
 }
 
@@ -199,6 +196,9 @@ function mapSessionSummary(row: any): OnlineSessionSummary {
     ...(row.curriculum_objective_id
       ? { curriculumObjectiveId: String(row.curriculum_objective_id) }
       : {}),
+    ...(row.session_note ? { sessionNote: String(row.session_note) } : {}),
+    ...(row.started_at ? { startedAt: String(row.started_at) } : {}),
+    ...(row.completed_at ? { completedAt: String(row.completed_at) } : {}),
   };
 }
 
@@ -222,7 +222,7 @@ function mapParticipant(row: any): OnlineSessionParticipant {
 }
 
 const SESSION_SELECT =
-  'id, school_id, offering_id, teacher_id, status, scheduled_start, scheduled_end, session_type, join_url, curriculum_objective_id, offering:online_offerings(id, title)';
+  'id, school_id, offering_id, teacher_id, status, scheduled_start, scheduled_end, session_type, join_url, curriculum_objective_id, session_note, started_at, completed_at, offering:online_offerings(id, title)';
 
 const PARTICIPANT_SELECT =
   'id, session_id, student_id, participation_status, joined_at, left_at, student:students(id, admission_number, person:people(first_name, last_name))';
@@ -361,11 +361,13 @@ export const onlineTeachingService = {
     let previousNote: string | null = null;
     const offeringId = (sessionRow as any).offering_id;
     if (offeringId) {
-      // select('*'): live-safe today (no session_note column yet — see
-      // SCHEMA NOTE) and future-proof once the follow-up migration lands.
+      // Explicit narrow select: the note column exists since migration
+      // 20260914000002 (no select('*') — unknown columns must never ride a
+      // production read). Latest COMPLETED first; the note may still be
+      // NULL for rows completed before notes existed → honest null.
       const { data: priorRows, error: priorError } = await supabase
         .from('online_sessions')
-        .select('*')
+        .select('id, session_note')
         .eq('offering_id', offeringId)
         .eq('teacher_id', teacherId)
         .eq('status', 'COMPLETED')
@@ -390,9 +392,9 @@ export const onlineTeachingService = {
   },
 
   /**
-   * SCHEDULED/CONFIRMED → IN_PROGRESS, assigned teacher only. Anything
-   * else (incl. already-live/terminal) throws with nothing written.
-   * Mock → null.
+   * SCHEDULED/CONFIRMED → IN_PROGRESS, assigned teacher only, stamping
+   * started_at. Anything else (incl. already-live/terminal) throws with
+   * nothing written. Mock → null.
    */
   async startSession(
     sessionId: string,
@@ -408,7 +410,7 @@ export const onlineTeachingService = {
     }
     const { data: updated, error: updateError } = await supabase
       .from('online_sessions')
-      .update({ status: 'IN_PROGRESS' })
+      .update({ status: 'IN_PROGRESS', started_at: new Date().toISOString() })
       .eq('id', sessionId)
       .select(SESSION_SELECT)
       .single();
@@ -469,8 +471,8 @@ export const onlineTeachingService = {
   /**
    * IN_PROGRESS → COMPLETED with a REQUIRED non-empty completion note
    * (validated before any DB call; blank throws with nothing written).
-   * The note is echoed in the response — durable storage awaits the
-   * follow-up session_note migration (see SCHEMA NOTE). Mock → null.
+   * Persists session_note + completed_at (migration 20260914000002).
+   * Mock → null.
    */
   async completeSession(
     sessionId: string,
@@ -488,15 +490,16 @@ export const onlineTeachingService = {
         `onlineTeachingService.completeSession: session ${sessionId} is ${current.status}, must be IN_PROGRESS`,
       );
     }
+    const trimmedNote = note.trim();
     const { data: updated, error: updateError } = await supabase
       .from('online_sessions')
-      .update({ status: 'COMPLETED' })
+      .update({ status: 'COMPLETED', session_note: trimmedNote, completed_at: new Date().toISOString() })
       .eq('id', sessionId)
       .select(SESSION_SELECT)
       .single();
     if (updateError || !updated) {
       throw updateError ?? new Error('onlineTeachingService.completeSession: complete update returned no row');
     }
-    return { session: mapSessionSummary(updated), note: note.trim() };
+    return { session: mapSessionSummary(updated), note: trimmedNote };
   },
 };

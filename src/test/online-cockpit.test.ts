@@ -243,6 +243,18 @@ describe('(b) session cockpit loads session + participants + prior note', () => 
     const detail = await onlineTeachingService.getOnlineSession('ses-1', TEACHER_A);
     expect(detail!.previousNote).toBeNull();
   });
+
+  it('prior COMPLETED row with NULL note (pre-migration history) → null', async () => {
+    mockFrom({
+      online_sessions: [
+        { data: SESSION_SCHEDULED, error: null },
+        { data: [{ id: 'ses-0', session_note: null }], error: null },
+      ],
+      online_session_participants: { data: PARTICIPANTS, error: null },
+    });
+    const detail = await onlineTeachingService.getOnlineSession('ses-1', TEACHER_A);
+    expect(detail!.previousNote).toBeNull();
+  });
 });
 
 describe('(c) start session', () => {
@@ -250,7 +262,7 @@ describe('(c) start session', () => {
     mockFrom({
       online_sessions: [
         { data: SESSION_SCHEDULED, error: null },
-        { data: { ...SESSION_SCHEDULED, status: 'IN_PROGRESS' }, error: null },
+        { data: { ...SESSION_SCHEDULED, status: 'IN_PROGRESS', started_at: '2026-09-08T09:01:00Z' }, error: null },
       ],
     });
     const out = await onlineTeachingService.startSession('ses-1', TEACHER_A);
@@ -258,6 +270,10 @@ describe('(c) start session', () => {
     const updates = writeCalls.filter((w) => w.table === 'online_sessions');
     expect(updates).toHaveLength(1);
     expect((updates[0].payload as any).status).toBe('IN_PROGRESS');
+    // started_at is stamped on start (migration 20260914000002).
+    expect((updates[0].payload as any).started_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(out!.startedAt).toBeDefined();
+    expect(out!.startedAt).toBe('2026-09-08T09:01:00Z');
   });
 
   it('CONFIRMED → IN_PROGRESS', async () => {
@@ -349,19 +365,46 @@ describe('(e) complete session — note required', () => {
     expect(writeCalls).toHaveLength(0);
   });
 
-  it('IN_PROGRESS + note → COMPLETED', async () => {
+  it('IN_PROGRESS + note → COMPLETED with session_note + completed_at persisted', async () => {
+    const NOTE = 'Covered fractions Q1–Q6.';
     mockFrom({
       online_sessions: [
         { data: { ...SESSION_SCHEDULED, status: 'IN_PROGRESS' }, error: null },
-        { data: { ...SESSION_SCHEDULED, status: 'COMPLETED' }, error: null },
+        {
+          data: { ...SESSION_SCHEDULED, status: 'COMPLETED', session_note: NOTE, completed_at: '2026-09-08T10:05:00Z' },
+          error: null,
+        },
       ],
     });
-    const out = await onlineTeachingService.completeSession('ses-1', TEACHER_A, 'Covered fractions Q1–Q6.');
+    const out = await onlineTeachingService.completeSession('ses-1', TEACHER_A, NOTE);
     expect(out!.session.status).toBe('COMPLETED');
-    expect(out!.note).toBe('Covered fractions Q1–Q6.');
+    expect(out!.note).toBe(NOTE);
     const updates = writeCalls.filter((w) => w.table === 'online_sessions');
     expect(updates).toHaveLength(1);
     expect((updates[0].payload as any).status).toBe('COMPLETED');
+    expect((updates[0].payload as any).session_note).toBe(NOTE);
+    expect((updates[0].payload as any).completed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // Persisted columns map back onto the returned session.
+    expect(out!.session.sessionNote).toBe(NOTE);
+    expect(out!.session.completedAt).toBe('2026-09-08T10:05:00Z');
+  });
+
+  it('persisted completion note is returned on cockpit reload', async () => {
+    const NOTE = 'Covered fractions Q1–Q6.';
+    mockFrom({
+      online_sessions: [
+        {
+          data: { ...SESSION_SCHEDULED, status: 'COMPLETED', session_note: NOTE, completed_at: '2026-09-08T10:05:00Z' },
+          error: null,
+        },
+        { data: [], error: null },
+      ],
+      online_session_participants: { data: PARTICIPANTS, error: null },
+    });
+    const detail = await onlineTeachingService.getOnlineSession('ses-1', TEACHER_A);
+    expect(detail!.session.status).toBe('COMPLETED');
+    expect(detail!.session.sessionNote).toBe(NOTE);
+    expect(detail!.session.completedAt).toBe('2026-09-08T10:05:00Z');
   });
 
   it('completing an unstarted (SCHEDULED) session throws', async () => {
