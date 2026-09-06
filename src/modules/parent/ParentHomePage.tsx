@@ -9,14 +9,14 @@
  * finance view is read-only (no Pay Now). No phone numbers anywhere.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { parentService } from './parentService';
+import { parentService, type ParentOnlineOverview } from './parentService';
 import type { ParentChildSummary, ParentChildOverview } from '../../types/domain';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { StatusPill, type StatusVariant } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { Users, BookOpen, CalendarCheck, Wallet, Trophy } from 'lucide-react';
+import { Users, BookOpen, CalendarCheck, Wallet, Trophy, Wifi } from 'lucide-react';
 import { explainFeedback } from '../communication/aiDraftService';
 
 function submissionPill(status: string): { status: StatusVariant; label: string } {
@@ -62,6 +62,25 @@ function activityPill(status: string): { status: StatusVariant; label: string } 
     default:
       return { status: 'pending', label: 'Pending review' };
   }
+}
+
+function participationPill(status: string): { status: StatusVariant; label: string } {
+  switch (status) {
+    case 'present':
+      return { status: 'success', label: 'Present' };
+    case 'late':
+      return { status: 'warning', label: 'Late' };
+    case 'absent':
+      return { status: 'critical', label: 'Absent' };
+    default:
+      return { status: 'pending', label: status || 'Pending' };
+  }
+}
+
+function formatSessionStart(start: string): string {
+  const d = new Date(start);
+  if (Number.isNaN(d.getTime())) return start;
+  return d.toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function formatMoney(amount: number, currency: string): string {
@@ -128,6 +147,7 @@ export const ParentHomePage: React.FC = () => {
   const [children, setChildren] = useState<ParentChildSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [overview, setOverview] = useState<ParentChildOverview | null>(null);
+  const [online, setOnline] = useState<ParentOnlineOverview | null>(null);
   const [loadingChildren, setLoadingChildren] = useState(true);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,16 +181,23 @@ export const ParentHomePage: React.FC = () => {
     async function loadOverview() {
       if (!schoolId || !selectedId) {
         setOverview(null);
+        setOnline(null);
         return;
       }
       try {
         setLoadingOverview(true);
         setError(null);
-        setOverview(await parentService.getChildOverview(schoolId, selectedId));
+        const [childOverview, onlineOverview] = await Promise.all([
+          parentService.getChildOverview(schoolId, selectedId),
+          parentService.getChildOnlineOverview(schoolId, selectedId),
+        ]);
+        setOverview(childOverview);
+        setOnline(onlineOverview);
       } catch (err) {
         console.error('Failed to load child overview', err);
         setError('Could not load this child’s overview. Please try again.');
         setOverview(null);
+        setOnline(null);
       } finally {
         setLoadingOverview(false);
       }
@@ -219,7 +246,7 @@ export const ParentHomePage: React.FC = () => {
       <div className="pb-6 border-b border-slate-200/80">
         <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Family Portal</span>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">Home &amp; Overview</h1>
-        <p className="text-sm text-slate-500 mt-1">Learning progress, attendance, fees and activities for your {children.length > 1 ? 'children' : 'child'}.</p>
+        <p className="text-sm text-slate-500 mt-1">Learning progress, attendance, online learning, fees and activities for your {children.length > 1 ? 'children' : 'child'}.</p>
       </div>
 
       {children.length > 1 && (
@@ -368,6 +395,97 @@ export const ParentHomePage: React.FC = () => {
                     </li>
                   ))}
                 </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>
+                  <span className="inline-flex items-center gap-2"><Wifi className="w-4 h-4 text-brand-teal" /> Online Learning</span>
+                </CardTitle>
+                <CardDescription>Upcoming online sessions, participation and teacher feedback.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {!online ||
+              (online.upcomingSessions.length === 0 &&
+                online.participation.length === 0 &&
+                online.charges.length === 0 &&
+                online.feedback.length === 0) ? (
+                <p className="text-sm text-slate-400">No online learning yet</p>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Upcoming sessions</p>
+                    {online.upcomingSessions.length === 0 ? (
+                      <p className="text-sm text-slate-400">No upcoming online sessions.</p>
+                    ) : (
+                      <ul className="divide-y divide-slate-100">
+                        {online.upcomingSessions.map((s) => (
+                          <li key={s.sessionId} className="flex items-center justify-between gap-4 py-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 truncate">{s.subject}</p>
+                              <p className="text-xs text-slate-400">{s.teacherName} • {formatSessionStart(s.start)}</p>
+                            </div>
+                            <StatusPill status="info" label={s.status} />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Participation history</p>
+                    {online.participation.length === 0 ? (
+                      <p className="text-sm text-slate-400">No participation history yet.</p>
+                    ) : (
+                      <ul className="divide-y divide-slate-100">
+                        {online.participation.map((p) => {
+                          const pill = participationPill(p.status);
+                          return (
+                            <li key={p.sessionId} className="flex items-center justify-between gap-4 py-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-slate-800 truncate">{p.subject}</p>
+                                <p className="text-xs text-slate-400">{p.date}{p.teacherNote ? ` • ${p.teacherNote}` : ''}</p>
+                              </div>
+                              <StatusPill status={pill.status} label={pill.label} />
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                  {online.charges.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Online charges (read-only)</p>
+                      <ul className="divide-y divide-slate-100">
+                        {online.charges.map((c) => (
+                          <li key={c.id} className="flex items-center justify-between gap-4 py-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 truncate">{c.description}</p>
+                              <p className="text-xs text-slate-400">Due {c.dueDate}</p>
+                            </div>
+                            <p className="text-sm font-bold text-slate-900 shrink-0">{formatMoney(c.balance, c.currency)}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {online.feedback.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Teacher feedback</p>
+                      <ul className="space-y-2">
+                        {online.feedback.map((f, i) => (
+                          <li key={`${f.sessionId}-${i}`} className="text-sm bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                            <p className="font-semibold text-slate-800">{f.subject} <span className="font-normal text-slate-400">• {f.date}</span></p>
+                            <p className="text-slate-600 mt-0.5">{f.text}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
