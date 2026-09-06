@@ -378,7 +378,7 @@ export function toParentOnlineOverview(input: ParentOnlineInput): ParentOnlineOv
 }
 
 const ONLINE_PARENT_SESSION_SELECT =
-  'id, school_id, offering_id, teacher_id, status, scheduled_start, scheduled_end, session_type, join_url, session_note, offering:online_offerings(id, title, subjects(name))';
+  'id, school_id, offering_id, teacher_id, status, scheduled_start, scheduled_end, session_type, session_note, offering:online_offerings(id, title, subjects(name))';
 
 const UPCOMING_SESSION_STATUSES: ReadonlySet<string> = new Set(['SCHEDULED', 'CONFIRMED']);
 
