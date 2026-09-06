@@ -105,10 +105,13 @@ export const CentreOpsPage: React.FC = () => {
     if (!schoolId) return;
     try {
       setCatalogueError(null);
-      const progs = await centreOpsService.listProgrammes(schoolId, viewer);
+      // Management view loads the FULL catalogue (active + inactive) so
+      // retired rows stay listed with re-activate actions; dropdowns below
+      // derive their active-only options from the same lists.
+      const progs = await centreOpsService.listProgrammes(schoolId, viewer, { includeInactive: true });
       setProgrammes(progs);
-      setSelectedProgrammeId((prev) => prev || progs[0]?.id || '');
-      const offs = await centreOpsService.listOfferings(schoolId, viewer);
+      setSelectedProgrammeId((prev) => prev || progs.find((p) => p.active)?.id || progs[0]?.id || '');
+      const offs = await centreOpsService.listOfferings(schoolId, viewer, undefined, { includeInactive: true });
       setOfferings(offs);
     } catch (err: any) {
       setCatalogueError(err?.message ?? 'Could not load programmes. Please try again.');
@@ -178,7 +181,7 @@ export const CentreOpsPage: React.FC = () => {
         viewer,
       );
       setNewOfferingTitle('');
-      const offs = await centreOpsService.listOfferings(schoolId, viewer);
+      const offs = await centreOpsService.listOfferings(schoolId, viewer, undefined, { includeInactive: true });
       setOfferings(offs);
     } catch (err: any) {
       setSaveError(err?.message ?? 'Could not create offering.');
@@ -192,10 +195,22 @@ export const CentreOpsPage: React.FC = () => {
     try {
       setSaveError(null);
       await centreOpsService.updateOffering(schoolId, offering.id, { active: !offering.active }, viewer);
-      const offs = await centreOpsService.listOfferings(schoolId, viewer);
+      const offs = await centreOpsService.listOfferings(schoolId, viewer, undefined, { includeInactive: true });
       setOfferings(offs);
     } catch (err: any) {
       setSaveError(err?.message ?? 'Could not update offering.');
+    }
+  }
+
+  async function handleToggleProgramme(programme: CentreProgramme) {
+    if (!schoolId) return;
+    try {
+      setSaveError(null);
+      await centreOpsService.updateProgramme(schoolId, programme.id, { active: !programme.active }, viewer);
+      const progs = await centreOpsService.listProgrammes(schoolId, viewer, { includeInactive: true });
+      setProgrammes(progs);
+    } catch (err: any) {
+      setSaveError(err?.message ?? 'Could not update programme.');
     }
   }
 
@@ -212,6 +227,12 @@ export const CentreOpsPage: React.FC = () => {
   const programmeOfferings = offerings.filter((o) =>
     selectedProgrammeId ? o.programmeId === selectedProgrammeId : true,
   );
+  // Dropdowns stay active-only; the manager below lists the full catalogue
+  // (including inactive rows with re-activate actions).
+  const activeProgrammes = programmes.filter((p) => p.active);
+  const managerProgrammes = selectedProgrammeId
+    ? programmes.filter((p) => p.id === selectedProgrammeId)
+    : programmes;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -326,7 +347,7 @@ export const CentreOpsPage: React.FC = () => {
                 aria-label="Programme"
               >
                 <option value="">Select programme</option>
-                {programmes.map((p) => (
+                {activeProgrammes.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
@@ -467,6 +488,34 @@ export const CentreOpsPage: React.FC = () => {
               Add offering
             </Button>
           </div>
+
+          {managerProgrammes.length === 0 ? (
+            <EmptyState
+              icon={Layers}
+              title="No programmes"
+              description="Create the first programme above to start managing the centre catalogue."
+            />
+          ) : (
+            <div className="space-y-2">
+              {managerProgrammes.map((p) => (
+                <div
+                  key={p.id}
+                  className="p-3 rounded-xl border bg-white border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{p.name}</p>
+                    {p.description && <p className="text-xs text-slate-500">{p.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusPill status={p.active ? 'success' : 'neutral'} label={p.active ? 'Active' : 'Inactive'} />
+                    <Button variant="outline" size="sm" onClick={() => handleToggleProgramme(p)}>
+                      {p.active ? 'Deactivate' : 'Activate'}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {programmeOfferings.length === 0 ? (
             <EmptyState

@@ -19,6 +19,9 @@ import { supabase } from '../../lib/supabase';
  *   bursar. getCentreDay includes revenue/cost/margin keys ONLY for these
  *   roles; teacher results omit the keys entirely (never null/0 — absent).
  * - getProgrammeEconomics is a money-only surface: non-money roles throw.
+ * - getCentreDay is staff-only (admin/principal/bursar/teacher):
+ *   parents/students/learners/guardians throw (D1 deny) and never receive
+ *   centre operational counts.
  * - Teachers keep their existing operational day view (/teaching/online);
  *   the CentreOpsPage route (/online/centre) is gated to money roles.
  * - Catalogue reads: staff (teacher + money roles). Catalogue writes
@@ -328,6 +331,10 @@ export const centreOpsService = {
    * teachers, teaching hours, session list. Money roles additionally get
    * revenue/cost/margin for the day; teachers get NO money keys.
    *
+   * Staff gate: admin/principal/teacher/bursar only (mirrors the catalogue
+   * reads). Non-staff roles (parent/student/learner/guardian) throw — D1
+   * deny, never an empty-masquerade that could be mistaken for a quiet day.
+   *
    * Status buckets (every session lands in exactly one):
    * - scheduled: SCHEDULED + CONFIRMED
    * - completed: COMPLETED (the approved terminal state — see module doc)
@@ -339,6 +346,7 @@ export const centreOpsService = {
     date: string,
     viewer: CentreOpsViewer,
   ): Promise<CentreDayResult> {
+    assertStaff(viewer, 'getCentreDay');
     const isMoney = MONEY_ROLES.has(viewer.role);
     if (isMockEnv()) {
       const base: CentreDayResult = { date, stats: emptyStats(), sessions: [] };
@@ -550,37 +558,53 @@ export const centreOpsService = {
     return { programmeId, period, offerings: econOfferings, totals };
   },
 
-  /** Catalogue: active programmes for a school. Staff only. Mock → []. */
-  async listProgrammes(schoolId: string, viewer: CentreOpsViewer): Promise<CentreProgramme[]> {
+  /**
+   * Catalogue: programmes for a school. Staff only. Mock → [].
+   * Default is active-only (dropdowns); pass { includeInactive: true }
+   * for the management view (inactive rows listed with re-activate).
+   * The active filter is applied app-side too (defence in depth).
+   */
+  async listProgrammes(
+    schoolId: string,
+    viewer: CentreOpsViewer,
+    options?: { includeInactive?: boolean },
+  ): Promise<CentreProgramme[]> {
     assertStaff(viewer, 'listProgrammes');
     if (isMockEnv()) return [];
-    const { data, error } = await supabase
+    let query = supabase
       .from('online_programmes')
       .select('id, school_id, name, description, active')
-      .eq('school_id', schoolId)
-      .eq('active', true)
-      .order('name');
+      .eq('school_id', schoolId);
+    if (!options?.includeInactive) query = query.eq('active', true);
+    const { data, error } = await query.order('name');
     if (error) throw error;
-    return ((data ?? []) as any[]).map(mapProgramme);
+    const rows = ((data ?? []) as any[]).map(mapProgramme);
+    return options?.includeInactive ? rows : rows.filter((r) => r.active);
   },
 
-  /** Offerings for a programme (or all school offerings when omitted). Staff only. Mock → []. */
+  /**
+   * Offerings for a programme (or all school offerings when omitted).
+   * Staff only. Mock → []. Same includeInactive contract as
+   * listProgrammes: active-only by default, full list for management.
+   */
   async listOfferings(
     schoolId: string,
     viewer: CentreOpsViewer,
     programmeId?: string,
+    options?: { includeInactive?: boolean },
   ): Promise<CentreOffering[]> {
     assertStaff(viewer, 'listOfferings');
     if (isMockEnv()) return [];
     let query = supabase
       .from('online_offerings')
       .select('id, school_id, programme_id, title, delivery_format, active')
-      .eq('school_id', schoolId)
-      .eq('active', true);
+      .eq('school_id', schoolId);
+    if (!options?.includeInactive) query = query.eq('active', true);
     if (programmeId) query = query.eq('programme_id', programmeId);
     const { data, error } = await query.order('title');
     if (error) throw error;
-    return ((data ?? []) as any[]).map(mapOffering);
+    const rows = ((data ?? []) as any[]).map(mapOffering);
+    return options?.includeInactive ? rows : rows.filter((r) => r.active);
   },
 
   /**

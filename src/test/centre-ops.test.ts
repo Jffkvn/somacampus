@@ -298,6 +298,75 @@ describe('programme/offering management basics (staff-only)', () => {
   });
 });
 
+describe('centre day staff gate (D1: deny, never empty-masquerade)', () => {
+  it('parent role throws (no centre operational counts leak)', async () => {
+    mockCentreTables();
+    await expect(centreOpsService.getCentreDay('s1', DAY, { role: 'parent' })).rejects.toThrow();
+  });
+
+  it('student role throws', async () => {
+    mockCentreTables();
+    await expect(centreOpsService.getCentreDay('s1', DAY, { role: 'student' })).rejects.toThrow();
+  });
+
+  it('parent throws even in mock env (deny, not honest-empty)', async () => {
+    forceMockEnv();
+    await expect(centreOpsService.getCentreDay('s1', DAY, { role: 'parent' })).rejects.toThrow();
+  });
+
+  it('teacher gets counts without money keys', async () => {
+    mockCentreTables();
+    const day = await centreOpsService.getCentreDay('s1', DAY, { role: 'teacher' });
+    expect(day.stats.total).toBe(4);
+    expect(day).not.toHaveProperty('revenue');
+    expect(day).not.toHaveProperty('cost');
+    expect(day).not.toHaveProperty('margin');
+  });
+});
+
+describe('inactive catalogue management', () => {
+  const mixedProgrammes = [
+    { id: 'prog-1', school_id: 's1', name: 'Holiday Coding', description: 'Kids code', active: true },
+    { id: 'prog-2', school_id: 's1', name: 'Retired Bootcamp', description: null, active: false },
+  ];
+  const mixedOfferings = [
+    { id: 'off-1', school_id: 's1', programme_id: 'prog-1', title: 'Python Basics', delivery_format: 'small_group', active: true },
+    { id: 'off-9', school_id: 's1', programme_id: 'prog-1', title: 'Retired Module', delivery_format: 'group', active: false },
+  ];
+
+  it('listProgrammes defaults to active-only (dropdowns)', async () => {
+    mockFrom({ online_programmes: { data: mixedProgrammes, error: null } });
+    const rows = await centreOpsService.listProgrammes('s1', { role: 'bursar' });
+    expect(rows.map((r) => r.id)).toEqual(['prog-1']);
+  });
+
+  it('listProgrammes includeInactive lists retired rows for management', async () => {
+    mockFrom({ online_programmes: { data: mixedProgrammes, error: null } });
+    const rows = await centreOpsService.listProgrammes('s1', { role: 'bursar' }, { includeInactive: true });
+    expect(rows.map((r) => r.id)).toEqual(['prog-1', 'prog-2']);
+    expect(rows.find((r) => r.id === 'prog-2')!.active).toBe(false);
+  });
+
+  it('listOfferings defaults to active-only; includeInactive lists retired', async () => {
+    mockFrom({ online_offerings: { data: mixedOfferings, error: null } });
+    const activeOnly = await centreOpsService.listOfferings('s1', { role: 'bursar' }, 'prog-1');
+    expect(activeOnly.map((r) => r.id)).toEqual(['off-1']);
+    const all = await centreOpsService.listOfferings('s1', { role: 'bursar' }, 'prog-1', { includeInactive: true });
+    expect(all.map((r) => r.id)).toEqual(['off-1', 'off-9']);
+  });
+
+  it('re-activates a retired programme (management write)', async () => {
+    mockFrom({
+      online_programmes: {
+        data: { id: 'prog-2', school_id: 's1', name: 'Retired Bootcamp', description: null, active: true },
+        error: null,
+      },
+    });
+    const row = await centreOpsService.updateProgramme('s1', 'prog-2', { active: true }, { role: 'principal' });
+    expect(row?.active).toBe(true);
+  });
+});
+
 describe('mock honest', () => {
   it('mock env -> honest empty day (zeros, no mock data)', async () => {
     forceMockEnv();
