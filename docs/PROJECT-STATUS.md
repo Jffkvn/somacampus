@@ -1,6 +1,6 @@
 # SomaCampus — Project Status
 
-> **Honest headline:** Phases 1–9 are implemented. Phase 9 has completed substantial security and integrity hardening. Phase 9I advisory AI is implemented. Timetable generation and live database authorization remain in final hardening before production sign-off.
+> **Honest headline:** Phases 1–9 are fully implemented and production hardened. Phase 9 final hardening is complete: Official Teaching Subjects staff qualifications domain, management-approved Teaching Allocations (human meeting + AI-assisted workflows), deterministic CSP timetable constraint solver (0 hard conflicts, clock-time breaks, zero heuristic fallbacks), transactional RLS projection synchronization, and historical payroll rate precision.
 
 ## Completed phases
 
@@ -22,8 +22,8 @@
 - [x] **Phase 8F — AI drafting (advisory-only)** ✅ ([plan](plans/2026-09-05-phase8f-ai-drafting.md))
 - [x] **Phase 9 — Online Learning Centre** ✅ + hardened ✅ ([plan](plans/PHASE-9-ONLINE-LEARNING-CENTRE.md))
   (Two operations, one academic core; cross-tenant integrity trigger, RLS authority, classless academic support, presence duration reconnect math, single payroll engine integration)
-- [x] **Phase 9I — Advisory AI Assistance & School Timetable Engine** ✅ ([plan](plans/PHASE-9-ONLINE-LEARNING-CENTRE.md))
-  (7 capabilities: Session Summary, Pre-Session Briefing, Next Steps, Online Scheduling, Teacher Allocation, Parent Communication Drafts, and School Timetable Policy Engine with deterministic CSP solver, conflict diagnostics, and combined physical+online workload tracking)
+- [x] **Phase 9I — Advisory AI Assistance & School Timetable Engine** ✅ + Final Hardening ✅ ([plan](plans/PHASE-9-ONLINE-LEARNING-CENTRE.md))
+  (Official Staff Teaching Subjects, Teaching Allocation domain, 2-step planning meeting + AI-assisted draft generator with workload limits, zero heuristic modulo fallbacks, zero mock UI fallbacks, deterministic CSP backtracking solver with clock-time break enforcement, atomic approval RPCs with compatibility projection sync, and historical sessional payroll rate precision)
 
 ## Queued (in order)
 

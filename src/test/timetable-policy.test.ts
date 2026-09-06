@@ -495,4 +495,55 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
       (import.meta.env as any).VITE_SUPABASE_URL = origUrl;
     }
   });
+
+  it('(13) Clock-time break policy resets consecutive period counter when interval >= minBreakMinutes', () => {
+    // 3 slots:
+    // Slot 1: 08:00 - 08:45 (Period 1)
+    // Slot 2: 08:45 - 09:30 (Period 2)
+    // Slot 3: 10:00 - 10:45 (Period 3) -> 30 min break between 09:30 and 10:00!
+    const slotsWithBreak: SolverPeriodSlot[] = [
+      { dayOfWeek: 1, periodNumber: 1, startTime: '08:00', endTime: '08:45', isMorning: true, isAfternoon: false },
+      { dayOfWeek: 1, periodNumber: 2, startTime: '08:45', endTime: '09:30', isMorning: true, isAfternoon: false },
+      { dayOfWeek: 1, periodNumber: 3, startTime: '10:00', endTime: '10:45', isMorning: true, isAfternoon: false },
+    ];
+
+    // Policy: max consecutive = 2 periods, min break = 30 mins
+    const breakPolicy: SchoolTimetablePolicy[] = [
+      {
+        id: 'pol-break',
+        schoolId: 'sch-1',
+        scopeType: 'school_default',
+        rules: {
+          maxPeriodsPerDay: 6,
+          maxPeriodsPerWeek: 28,
+          maxConsecutivePeriods: 2,
+          minBreakMinutes: 30,
+          maxOnlineSessionsPerDay: 2,
+          maxOnlineSessionsPerWeek: 8,
+          maxCombinedTeachingHoursPerDay: 7,
+        },
+        isActive: true,
+      },
+    ];
+
+    const reqs: SolverClassRequirement[] = [
+      { classId: 'cls-1', className: 'P1', subjectId: 'sub-m', subjectName: 'Math', teacherId: 't-1', teacherName: 'Teacher 1', periodsPerWeek: 1, isAllocated: true },
+      { classId: 'cls-1', className: 'P1', subjectId: 'sub-e', subjectName: 'English', teacherId: 't-1', teacherName: 'Teacher 1', periodsPerWeek: 1, isAllocated: true },
+      { classId: 'cls-2', className: 'P2', subjectId: 'sub-m', subjectName: 'Math', teacherId: 't-1', teacherName: 'Teacher 1', periodsPerWeek: 1, isAllocated: true },
+    ];
+
+    // Teacher 1 takes Period 1, Period 2, and Period 3.
+    // Period 1 and Period 2 are consecutive (2 periods = max consecutive limit).
+    // Period 3 is after a 30-minute break (09:30 to 10:00 = 30 mins >= minBreakMinutes 30).
+    // Because break >= 30 mins, consecutive counter resets, and all 3 periods are scheduled successfully!
+    const result = timetableSolverService.solveTimetable({
+      requirements: reqs,
+      policies: breakPolicy,
+      slots: slotsWithBreak,
+    });
+
+    expect(result.feasible).toBe(true);
+    expect(result.scorecard.hardViolationsCount).toBe(0);
+    expect(result.assignments).toHaveLength(3);
+  });
 });

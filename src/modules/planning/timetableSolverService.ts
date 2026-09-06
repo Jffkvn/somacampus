@@ -32,6 +32,7 @@ export interface SolverClassRequirement {
   teacherName: string;
   departmentName?: string;
   periodsPerWeek: number;
+  isAllocated?: boolean;
 }
 
 export interface SolverPeriodSlot {
@@ -76,6 +77,11 @@ const DEFAULT_POLICY_RULES: TimetablePolicyRules = {
   maxOnlineSessionsPerWeek: 8,
   maxCombinedTeachingHoursPerDay: 7.0,
 };
+
+function parseTimeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
 
 export const timetableSolverService = {
   /**
@@ -159,6 +165,40 @@ export const timetableSolverService = {
       preferenceMap[pref.subjectId] = pref;
     }
 
+    // Invariant: Verify all requirements have an approved teacher allocation
+    const unallocatedReqs = requirements.filter((r) => !r.teacherId || r.teacherId === 'UNASSIGNED');
+    if (unallocatedReqs.length > 0) {
+      return {
+        feasible: false,
+        assignments: [],
+        scorecard: {
+          hardViolationsCount: unallocatedReqs.length,
+          hardViolations: unallocatedReqs.map(
+            (r) => `${r.className} ${r.subjectName} has no approved teacher allocation.`,
+          ),
+          softPreferenceScore: 0,
+          preferenceBreakdown: [],
+          feasible: false,
+        },
+        diagnostics: {
+          status: 'INFEASIBLE',
+          unassignedPeriodsCount: unallocatedReqs.reduce((acc, r) => acc + r.periodsPerWeek, 0),
+          bottlenecks: unallocatedReqs.map((r) => ({
+            type: 'UNASSIGNED_TEACHER',
+            entity: `${r.className} - ${r.subjectName}`,
+            description: `${r.className} ${r.subjectName} has no approved teacher allocation. Timetable cannot be published until all teaching allocations are approved.`,
+          })),
+          suggestedResolutions: [
+            {
+              action: 'Assign Teachers to Unallocated Subjects',
+              description: 'Go to Teaching Allocations and assign qualified teachers whose Official Teaching Subjects include these subjects.',
+              impact: 'Resolves unassigned teaching requirement blockers.',
+            },
+          ],
+        },
+      };
+    }
+
     // Decompose requirements into discrete period variables
     const variables: TimetableVariable[] = [];
     for (const req of requirements) {
@@ -175,6 +215,7 @@ export const timetableSolverService = {
     const teacherOccupied = new Set<string>(); // `${day}-${period}-${teacherId}`
     const classOccupied = new Set<string>(); // `${day}-${period}-${classId}`
     const teacherDayPeriods: Record<string, number[]> = {}; // `${teacherId}-${day}` -> periodNumbers[]
+    const teacherDaySlots: Record<string, SolverPeriodSlot[]> = {}; // `${teacherId}-${day}` -> SolverPeriodSlot[]
     const teacherWeekCount: Record<string, number> = {}; // `${teacherId}` -> count
     const classDaySubjectPeriods: Record<string, number[]> = {}; // `${classId}-${day}-${subjectId}` -> periodNumbers[]
     const assignments: ScheduledAssignment[] = [];
@@ -217,12 +258,20 @@ export const timetableSolverService = {
         return false;
       }
 
-      // 4. Consecutive Periods Limit
-      const allPeriods = [...dayPeriods, slot.periodNumber].sort((a, b) => a - b);
-      let maxConsec = 1;
+      // 4. Consecutive Periods and Clock-Time Minimum Break Enforcement
+      const daySlots = teacherDaySlots[teacherDayKey] || [];
+      const allSlotsOnDay = [...daySlots, slot].sort(
+        (a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime),
+      );
+
       let currentConsec = 1;
-      for (let i = 1; i < allPeriods.length; i++) {
-        if (allPeriods[i] === allPeriods[i - 1] + 1) {
+      let maxConsec = 1;
+      for (let i = 1; i < allSlotsOnDay.length; i++) {
+        const prevEnd = parseTimeToMinutes(allSlotsOnDay[i - 1].endTime);
+        const currStart = parseTimeToMinutes(allSlotsOnDay[i].startTime);
+        const breakGap = currStart - prevEnd;
+
+        if (breakGap < rules.minBreakMinutes) {
           currentConsec++;
           if (currentConsec > maxConsec) maxConsec = currentConsec;
         } else {
@@ -264,6 +313,8 @@ export const timetableSolverService = {
       const teacherDayKey = `${v.req.teacherId}-${slot.dayOfWeek}`;
       if (!teacherDayPeriods[teacherDayKey]) teacherDayPeriods[teacherDayKey] = [];
       teacherDayPeriods[teacherDayKey].push(slot.periodNumber);
+      if (!teacherDaySlots[teacherDayKey]) teacherDaySlots[teacherDayKey] = [];
+      teacherDaySlots[teacherDayKey].push(slot);
 
       teacherWeekCount[v.req.teacherId] = (teacherWeekCount[v.req.teacherId] || 0) + 1;
 
@@ -297,6 +348,9 @@ export const timetableSolverService = {
       const teacherDayKey = `${v.req.teacherId}-${slot.dayOfWeek}`;
       teacherDayPeriods[teacherDayKey] = (teacherDayPeriods[teacherDayKey] || []).filter(
         (p) => p !== slot.periodNumber,
+      );
+      teacherDaySlots[teacherDayKey] = (teacherDaySlots[teacherDayKey] || []).filter(
+        (s) => !(s.periodNumber === slot.periodNumber && s.dayOfWeek === slot.dayOfWeek),
       );
 
       teacherWeekCount[v.req.teacherId] = Math.max(0, (teacherWeekCount[v.req.teacherId] || 1) - 1);

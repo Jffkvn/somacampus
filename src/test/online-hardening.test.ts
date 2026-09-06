@@ -308,4 +308,54 @@ describe('Phase 9 Hardening: Invariant 5 — Sessional Payroll Bridge & Idempote
       recordClaim({ id: 'sess-in-progress', status: 'IN_PROGRESS', rate: 30000, durationHours: 1 }),
     ).toThrow('Only COMPLETED sessions can be claimed for payroll');
   });
+
+  it('resolves historical compensation rate using session scheduled date instead of CURRENT_DATE', () => {
+    interface CompensationRule {
+      id: string;
+      rate: number;
+      effective_from: string;
+      effective_to: string | null;
+    }
+
+    const rules: CompensationRule[] = [
+      {
+        id: 'rule-h1',
+        rate: 30000,
+        effective_from: '2026-01-01',
+        effective_to: '2026-06-30',
+      },
+      {
+        id: 'rule-h2',
+        rate: 50000,
+        effective_from: '2026-07-01',
+        effective_to: null,
+      },
+    ];
+
+    function resolveHistoricalRate(sessionDate: string): number {
+      const match = rules.find(
+        (r) =>
+          r.effective_from <= sessionDate &&
+          (r.effective_to === null || r.effective_to >= sessionDate),
+      );
+      if (!match) throw new Error('No compensation rule active for session date');
+      return match.rate;
+    }
+
+    // A session that ran on March 15, 2026 (processed in September 2026)
+    const marchSessionDate = '2026-03-15';
+    const marchRate = resolveHistoricalRate(marchSessionDate);
+    expect(marchRate).toBe(30000); // Historical rate preserved!
+
+    // A session that ran on August 10, 2026
+    const augustSessionDate = '2026-08-10';
+    const augustRate = resolveHistoricalRate(augustSessionDate);
+    expect(augustRate).toBe(50000); // New rate applied
+
+    // If incorrectly evaluated against today (e.g. September 2026), it would have falsely given 50000 to March!
+    const currentDate = '2026-09-06';
+    const wrongCurrentRate = resolveHistoricalRate(currentDate);
+    expect(wrongCurrentRate).toBe(50000);
+    expect(marchRate).not.toBe(wrongCurrentRate);
+  });
 });

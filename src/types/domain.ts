@@ -1520,3 +1520,39 @@ export interface TeacherWorkloadSummary {
   status: 'OK' | 'APPROACHING_CAP' | 'OVER_CAP';
   alerts: string[];
 }
+
+export interface TeacherOfficialSubject {
+  id: string;
+  schoolId: string;
+  teacherId: string;
+  subjectId: string;
+  teacherName?: string;
+  subjectName?: string;
+  appointedAt?: string;
+  notes?: string | null;
+}
+
+export type TeachingAllocationStatus = 'draft' | 'reviewed' | 'approved' | 'archived';
+export type TeachingAllocationSource = 'human' | 'ai_draft';
+
+export interface TeachingAllocation {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  classId: string;
+  className?: string;
+  streamId?: string | null;
+  streamName?: string | null;
+  subjectId: string;
+  subjectName?: string;
+  teacherId: string;
+  teacherName?: string;
+  periodsPerWeek: number;
+  status: TeachingAllocationStatus;
+  allocationSource: TeachingAllocationSource;
+  proposalReason?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+}
