@@ -255,8 +255,9 @@ export interface Assignment {
   schoolId: string;
   teacherId: string;
   teacherName?: string;
-  classId: string;
+  classId?: string | null;
   className?: string;
+  onlineSessionId?: string | null;
   streamId?: string | null;
   streamName?: string;
   subjectId: string;
@@ -310,8 +311,9 @@ export interface TeacherObservation {
   studentName?: string;
   teacherId: string;
   teacherName?: string;
-  classId: string;
+  classId?: string | null;
   className?: string;
+  onlineSessionId?: string | null;
   streamId?: string | null;
   streamName?: string;
   subjectId?: string | null;

@@ -282,9 +282,9 @@ export const CentreOpsPage: React.FC = () => {
 
           {(day.revenue !== undefined || day.cost !== undefined || day.margin !== undefined) && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard label="Revenue" value={formatUGX(day.revenue ?? 0)} subValue="Charges from online enrolments" icon={Wallet} iconColor="text-emerald-600" />
-              <StatCard label="Teacher cost" value={formatUGX(day.cost ?? 0)} subValue="Completed sessions × rates" icon={Coins} iconColor="text-orange-600" />
-              <StatCard label="Contribution margin" value={formatUGX(day.margin ?? 0)} subValue="Revenue minus teacher cost" icon={Scale} iconColor="text-brand-teal" />
+              <StatCard label="Invoiced Charges" value={formatUGX(day.revenue ?? 0)} subValue="Charges from online enrolments" icon={Wallet} iconColor="text-emerald-600" />
+              <StatCard label="Teacher Sessional Cost" value={formatUGX(day.cost ?? 0)} subValue="Completed sessions × compensation rates" icon={Coins} iconColor="text-orange-600" />
+              <StatCard label="Gross Contribution" value={formatUGX(day.margin ?? 0)} subValue="Invoiced charges minus teacher cost" icon={Scale} iconColor="text-brand-teal" />
             </div>
           )}
 

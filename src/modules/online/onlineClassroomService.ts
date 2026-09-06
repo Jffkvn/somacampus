@@ -197,32 +197,54 @@ export function computePresenceDurations(signals: Array<{
   occurred_at?: string;
   occurredAt?: string;
 }>): PresenceDuration[] {
-  const byStudent = new Map<string, { joined: string[]; left: string[] }>();
+  type Event = { type: 'joined' | 'left'; time: number; at: string };
+  const byStudent = new Map<string, Event[]>();
+
   for (const s of signals ?? []) {
     const studentId = s.student_id ?? s.studentId ?? null;
     const type = s.signal_type ?? s.signalType ?? '';
     const at = s.occurred_at ?? s.occurredAt ?? '';
     if (!studentId || (type !== 'joined' && type !== 'left')) continue;
-    if (!at || Number.isNaN(new Date(at).getTime())) continue;
-    let entry = byStudent.get(studentId);
-    if (!entry) {
-      entry = { joined: [], left: [] };
-      byStudent.set(studentId, entry);
+    const time = new Date(at).getTime();
+    if (!at || Number.isNaN(time)) continue;
+
+    let list = byStudent.get(studentId);
+    if (!list) {
+      list = [];
+      byStudent.set(studentId, list);
     }
-    if (type === 'joined') entry.joined.push(at);
-    else entry.left.push(at);
+    list.push({ type: type as 'joined' | 'left', time, at });
   }
+
   const out: PresenceDuration[] = [];
-  for (const [studentId, entry] of byStudent) {
-    entry.joined.sort();
-    entry.left.sort();
-    const joinedAt = entry.joined[0];
-    const leftAt = entry.left.length > 0 ? entry.left[entry.left.length - 1] : undefined;
+  for (const [studentId, events] of byStudent) {
+    events.sort((a, b) => a.time - b.time);
+    const joinedEvents = events.filter((e) => e.type === 'joined');
+    const leftEvents = events.filter((e) => e.type === 'left');
+    const joinedAt = joinedEvents.length > 0 ? joinedEvents[0].at : undefined;
+    const leftAt = leftEvents.length > 0 ? leftEvents[leftEvents.length - 1].at : undefined;
+
     let durationSeconds: number | null = null;
     if (joinedAt && leftAt) {
-      const ms = new Date(leftAt).getTime() - new Date(joinedAt).getTime();
-      durationSeconds = ms >= 0 ? Math.round(ms / 1000) : null;
+      let totalDurationMs = 0;
+      let activeJoinTime: number | null = null;
+      for (const ev of events) {
+        if (ev.type === 'joined') {
+          if (activeJoinTime === null) {
+            activeJoinTime = ev.time;
+          }
+        } else if (ev.type === 'left') {
+          if (activeJoinTime !== null) {
+            if (ev.time > activeJoinTime) {
+              totalDurationMs += ev.time - activeJoinTime;
+            }
+            activeJoinTime = null;
+          }
+        }
+      }
+      durationSeconds = totalDurationMs >= 0 ? Math.round(totalDurationMs / 1000) : null;
     }
+
     out.push({
       studentId,
       ...(joinedAt ? { joinedAt } : {}),

@@ -102,7 +102,7 @@ export interface SessionWorkInput {
 }
 
 export interface CreateSessionAssignmentInput {
-  classId: string;
+  classId?: string | null;
   subjectId: string;
   streamId?: string | null;
   title: string;
@@ -116,7 +116,7 @@ export interface CreateSessionAssignmentInput {
 
 export interface RecordSessionObservationInput {
   studentId: string;
-  classId: string;
+  classId?: string | null;
   streamId?: string | null;
   subjectId?: string | null;
   assignmentId?: string | null;
@@ -212,7 +212,7 @@ function mapAssignmentRow(r: any): SessionAssignment {
     schoolId: String(r.school_id),
     teacherId: String(r.teacher_id),
     ...(teacherName ? { teacherName } : {}),
-    classId: String(r.class_id),
+    classId: r.class_id ? String(r.class_id) : null,
     ...(cls?.name ? { className: cls.name } : {}),
     streamId: r.stream_id ?? null,
     ...(stm?.name ? { streamName: stm.name } : {}),
@@ -254,7 +254,7 @@ function mapObservationRow(r: any): SessionObservation {
     ...(studentName ? { studentName } : {}),
     teacherId: String(r.teacher_id),
     ...(teacherName ? { teacherName } : {}),
-    classId: String(r.class_id),
+    classId: r.class_id ? String(r.class_id) : null,
     ...(cls?.name ? { className: cls.name } : {}),
     streamId: r.stream_id ?? null,
     ...(stm?.name ? { streamName: stm.name } : {}),
@@ -334,6 +334,7 @@ export const onlineAcademicService = {
       schoolId: String(session.school_id),
       teacherId,
       ...input,
+      onlineSessionId: sessionId,
     });
     if (!validation.isValid) {
       throw new Error(validation.errors.join(', '));
@@ -344,7 +345,7 @@ export const onlineAcademicService = {
       .insert({
         school_id: String(session.school_id),
         teacher_id: teacherId,
-        class_id: input.classId,
+        class_id: input.classId ?? null,
         stream_id: input.streamId ?? null,
         subject_id: input.subjectId,
         lesson_id: null,
@@ -468,9 +469,6 @@ export const onlineAcademicService = {
     if (!input.studentId) {
       throw new Error('Student ID is required');
     }
-    if (!input.classId) {
-      throw new Error('Class ID is required');
-    }
     const teacherId = await resolveTeacherId(teacherIdOrEmail);
     const session = await loadOwnedSession(sessionId, teacherId);
     const { data, error } = await supabase
@@ -479,7 +477,7 @@ export const onlineAcademicService = {
         school_id: String(session.school_id),
         student_id: input.studentId,
         teacher_id: teacherId,
-        class_id: input.classId,
+        class_id: input.classId ?? null,
         stream_id: input.streamId ?? null,
         subject_id: input.subjectId ?? null,
         lesson_id: null,

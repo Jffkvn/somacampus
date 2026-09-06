@@ -63,8 +63,8 @@ const builderFor = (table: string) => {
 };
 
 const REAL_URL = 'https://prod-real-db.supabase.co';
+const PLACEHOLDER_URL = 'https://placeholder.supabase.co';
 const origNodeEnv = process.env.NODE_ENV;
-const origViteUrl = (import.meta.env as any).VITE_SUPABASE_URL;
 
 function forceLiveEnv() {
   process.env.NODE_ENV = 'production';
@@ -73,11 +73,7 @@ function forceLiveEnv() {
 
 function restoreMockEnv() {
   process.env.NODE_ENV = origNodeEnv;
-  if (origViteUrl === undefined) {
-    delete (import.meta.env as any).VITE_SUPABASE_URL;
-  } else {
-    (import.meta.env as any).VITE_SUPABASE_URL = origViteUrl;
-  }
+  (import.meta.env as any).VITE_SUPABASE_URL = PLACEHOLDER_URL;
 }
 
 beforeEach(() => {

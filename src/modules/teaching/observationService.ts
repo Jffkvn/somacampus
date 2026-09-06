@@ -5,7 +5,8 @@ export interface CreateObservationInput {
   schoolId: string;
   studentId: string;
   teacherId: string;
-  classId: string;
+  classId?: string | null;
+  onlineSessionId?: string | null;
   streamId?: string | null;
   subjectId?: string | null;
   lessonId?: string | null;
@@ -27,7 +28,7 @@ export const observationService = {
     if (!input.teacherId) {
       throw new Error('Teacher ID is required');
     }
-    if (!input.classId) {
+    if (!input.classId && !input.onlineSessionId) {
       throw new Error('Class ID is required');
     }
 
@@ -37,7 +38,8 @@ export const observationService = {
         school_id: input.schoolId,
         student_id: input.studentId,
         teacher_id: input.teacherId,
-        class_id: input.classId,
+        class_id: input.classId ?? null,
+        online_session_id: input.onlineSessionId ?? null,
         stream_id: input.streamId ?? null,
         subject_id: input.subjectId ?? null,
         lesson_id: input.lessonId ?? null,
@@ -139,8 +141,9 @@ function mapObservationRow(r: any): TeacherObservation {
     studentName,
     teacherId: String(r.teacher_id),
     teacherName,
-    classId: String(r.class_id),
+    classId: r.class_id ? String(r.class_id) : null,
     className: cls?.name,
+    onlineSessionId: r.online_session_id ? String(r.online_session_id) : null,
     streamId: r.stream_id,
     streamName: stm?.name,
     subjectId: r.subject_id,

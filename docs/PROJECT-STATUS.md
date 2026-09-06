@@ -22,12 +22,15 @@
 - [x] **Phase 8D — Messaging** ✅ ([plan](plans/2026-09-05-phase8d-messaging.md))
 - [x] **Phase 8E — Calendar** ✅ ([plan](plans/2026-09-05-phase8e-calendar.md))
 - [x] **Phase 8F — AI drafting (advisory-only)** ✅ ([plan](plans/2026-09-05-phase8f-ai-drafting.md))
+- [x] **Phase 9 — Online Learning Centre** ✅ + hardened ✅ ([plan](plans/PHASE-9-ONLINE-LEARNING-CENTRE.md))
+  (Two operations, one academic core; cross-tenant integrity trigger, RLS authority, classless academic support, presence duration reconnect math, single payroll engine integration)
 
 ## Queued (in order)
 
-1. Tenant-isolation design (finance-scoped proof exists; full read lockdown separate)
+1. Tenant-isolation design (finance & online proofs complete; school-wide full read audit)
 2. CI hardening (gate `seed:check`, live-DB nightly)
-3. Phase 9+ (advanced learning, hybrid, special needs, homeschool)
+3. Phase 9I — Advisory AI Assistance & Scheduling (isolated on `feat/phase9i-ai`)
+4. Phase 10 — Advanced Learning & Hybrid Education
 
 ## Standing decisions
 

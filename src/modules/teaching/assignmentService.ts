@@ -31,7 +31,8 @@ export const assignmentService = {
       .insert({
         school_id: payload.schoolId,
         teacher_id: payload.teacherId,
-        class_id: payload.classId,
+        class_id: payload.classId ?? null,
+        online_session_id: payload.onlineSessionId ?? null,
         stream_id: payload.streamId ?? null,
         subject_id: payload.subjectId,
         lesson_id: payload.lessonId ?? null,
@@ -54,13 +55,14 @@ export const assignmentService = {
     const assignment = mapAssignmentRow(assignmentRow);
 
     // 2. Automatically establish expected student participants from active class enrolments
-    try {
-      let enrolmentQuery = supabase
-        .from('student_enrolments')
-        .select('student_id')
-        .eq('school_id', payload.schoolId)
-        .eq('class_id', payload.classId)
-        .eq('status', 'active');
+    if (payload.classId) {
+      try {
+        let enrolmentQuery = supabase
+          .from('student_enrolments')
+          .select('student_id')
+          .eq('school_id', payload.schoolId)
+          .eq('class_id', payload.classId)
+          .eq('status', 'active');
 
       if (payload.streamId) {
         enrolmentQuery = enrolmentQuery.eq('stream_id', payload.streamId);
@@ -83,9 +85,10 @@ export const assignmentService = {
     } catch (err) {
       console.warn('Assignment roster provisioning fallback:', err);
     }
+  }
 
-    return assignment;
-  },
+  return assignment;
+},
 
   async getAssignments(
     schoolId: string,
@@ -277,8 +280,9 @@ function mapAssignmentRow(r: any): Assignment {
     schoolId: String(r.school_id),
     teacherId: String(r.teacher_id),
     teacherName,
-    classId: String(r.class_id),
+    classId: r.class_id ? String(r.class_id) : null,
     className: cls?.name,
+    onlineSessionId: r.online_session_id ? String(r.online_session_id) : null,
     streamId: r.stream_id,
     streamName: stm?.name,
     subjectId: String(r.subject_id),
