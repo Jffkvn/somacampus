@@ -19,11 +19,13 @@ import {
 } from '../../types/domain';
 import { buildEffectiveLeaveBalances, EffectiveLeaveBalanceItem } from './effectiveLeaveBalances';
 
-const isMockEnv = (): boolean =>
-  process.env.NODE_ENV === 'test' ||
-  !import.meta.env.VITE_SUPABASE_URL ||
-  import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
-  import.meta.env.VITE_SUPABASE_URL.includes('mock');
+const isMockEnv = (): boolean => {
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  if (url === 'https://test.supabase.co') return false;
+  if (!url || url.includes('placeholder') || url.includes('mock')) return true;
+  if (process.env.NODE_ENV === 'test') return true;
+  return false;
+};
 
 // Seed mock leave types
 let mockLeaveTypes: LeaveType[] = [
@@ -167,12 +169,36 @@ export const hrService = {
   },
 
   /**
+   * Fetch active public holidays for a school
+   */
+  async getSchoolHolidays(schoolId?: string): Promise<PublicHoliday[]> {
+    if (isMockEnv()) return mockHolidays;
+    try {
+      const { data, error } = await supabase
+        .from('public_holidays')
+        .select('*')
+        .or(`school_id.is.null,school_id.eq.${schoolId || '00000000-0000-0000-0000-000000000000'}`)
+        .eq('is_active', true);
+      if (error) return mockHolidays;
+      return (data || []).map((h: any) => ({
+        id: h.id,
+        holidayDate: h.holiday_date,
+        name: h.name,
+        isActive: h.is_active,
+      }));
+    } catch {
+      return mockHolidays;
+    }
+  },
+
+  /**
    * Calculate working days skipping weekends and public holidays
    */
   calculateWorkingDays(
     startDate: string,
     endDate: string,
-    dayPortion: DayPortion = 'full'
+    dayPortion: DayPortion = 'full',
+    customHolidays?: PublicHoliday[]
   ): number {
     if (dayPortion === 'morning' || dayPortion === 'afternoon') {
       return 0.5;
@@ -184,6 +210,7 @@ export const hrService = {
 
     let count = 0;
     const current = new Date(start);
+    const holidays = customHolidays || mockHolidays;
 
     while (current <= end) {
       const dayOfWeek = current.getDay();
@@ -191,7 +218,7 @@ export const hrService = {
 
       // Exclude Saturday (6) and Sunday (0)
       if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        const isHoliday = mockHolidays.some((h) => h.holidayDate === dateStr && h.isActive);
+        const isHoliday = holidays.some((h) => h.holidayDate === dateStr && h.isActive);
         if (!isHoliday) {
           count++;
         }
@@ -417,11 +444,13 @@ export const hrService = {
       );
     }
 
-    // Soft cap check: default 50%
+    // Enforce 50% gross salary cap
     const base = payload.baseSalary || 1800000;
     const maxAllowed = base * 0.5;
     if (payload.amount > maxAllowed) {
-      // Soft cap warning or block
+      throw new Error(
+        `Policy Invariant Violation: Salary advance request of UGX ${payload.amount.toLocaleString()} exceeds the 50% monthly salary cap (UGX ${maxAllowed.toLocaleString()}).`
+      );
     }
 
     const monthlyDeduction = Math.round(payload.amount / payload.numInstalments);
@@ -478,14 +507,14 @@ export const hrService = {
     try {
       const { data: leaves, error: leavesError } = await supabase
         .from('leave_requests')
-        .select(`*, leave_type:leave_types(name), employee:employees(job_title, person:people(first_name, last_name))`)
+        .select(`*, leave_type:leave_types(name), employee:employees(role, department, person:people(first_name, last_name))`)
         .eq('school_id', schoolId)
         .eq('status', 'pending');
       if (leavesError) throw leavesError;
 
       const { data: advs, error: advsError } = await supabase
         .from('staff_advances')
-        .select(`*, employee:employees(job_title, person:people(first_name, last_name))`)
+        .select(`*, employee:employees(role, department, person:people(first_name, last_name))`)
         .eq('school_id', schoolId)
         .eq('status', 'pending');
       if (advsError) throw advsError;
@@ -494,11 +523,11 @@ export const hrService = {
         leaveRequests: (leaves || []).map((l: any) => ({
           ...l,
           leaveTypeName: l.leave_type?.name,
-          employeeName: `${l.employee?.person?.first_name} ${l.employee?.person?.last_name}`,
+          employeeName: `${l.employee?.person?.first_name || ''} ${l.employee?.person?.last_name || ''}`.trim(),
         })),
         advances: (advs || []).map((a: any) => ({
           ...a,
-          employeeName: `${a.employee?.person?.first_name} ${a.employee?.person?.last_name}`,
+          employeeName: `${a.employee?.person?.first_name || ''} ${a.employee?.person?.last_name || ''}`.trim(),
         })),
       };
     } catch (err) {
@@ -509,27 +538,41 @@ export const hrService = {
   /**
    * Approve or reject a leave request
    */
-  async decideLeaveRequest(requestId: string, status: 'approved' | 'rejected', reason?: string): Promise<boolean> {
+  async decideLeaveRequest(
+    requestId: string,
+    status: 'approved' | 'rejected',
+    reason?: string,
+    callerUserId?: string
+  ): Promise<boolean> {
     if (isMockEnv()) {
       const found = mockLeaveRequests.find((r) => r.id === requestId);
       if (found) {
+        if (found.status !== 'pending') {
+          throw new Error('Invalid State: Leave request has already been decided.');
+        }
         found.status = status;
         found.decisionReason = reason;
+        found.decidedBy = callerUserId;
         found.decidedAt = new Date().toISOString();
         return true;
       }
       return false;
     }
-    const { data: current } = await supabase
+    const { data: current, error: fetchErr } = await supabase
       .from('leave_requests')
-      .select('school_id,status')
+      .select('school_id, status')
       .eq('id', requestId)
       .single();
+    if (fetchErr) throw fetchErr;
+    if (current && (current as any).status && (current as any).status !== 'pending') {
+      throw new Error('Invalid State: Leave request has already been decided.');
+    }
     const { error } = await supabase
       .from('leave_requests')
       .update({
         status,
         decision_reason: reason,
+        decided_by: callerUserId || null,
         decided_at: new Date().toISOString(),
       })
       .eq('id', requestId);
@@ -541,7 +584,7 @@ export const hrService = {
       action: status,
       reason: reason ?? `decideLeaveRequest ${status}`,
       previousData: { status: (current as any)?.status ?? 'pending' },
-      newData: { id: requestId, status },
+      newData: { id: requestId, status, decided_by: callerUserId },
     });
     return true;
   },
@@ -549,27 +592,41 @@ export const hrService = {
   /**
    * Approve or reject a staff salary advance
    */
-  async decideAdvanceRequest(advanceId: string, status: 'active' | 'rejected', reason?: string): Promise<boolean> {
+  async decideAdvanceRequest(
+    advanceId: string,
+    status: 'active' | 'rejected',
+    reason?: string,
+    callerUserId?: string
+  ): Promise<boolean> {
     if (isMockEnv()) {
       const found = mockAdvances.find((a) => a.id === advanceId);
       if (found) {
+        if (found.status !== 'pending') {
+          throw new Error('Invalid State: Salary advance request has already been decided.');
+        }
         found.status = status;
         found.decisionReason = reason;
+        found.decidedBy = callerUserId;
         found.decidedAt = new Date().toISOString();
         return true;
       }
       return false;
     }
-    const { data: current } = await supabase
+    const { data: current, error: fetchErr } = await supabase
       .from('staff_advances')
-      .select('school_id,status')
+      .select('school_id, status')
       .eq('id', advanceId)
       .single();
+    if (fetchErr) throw fetchErr;
+    if (current && (current as any).status && (current as any).status !== 'pending') {
+      throw new Error('Invalid State: Salary advance request has already been decided.');
+    }
     const { error } = await supabase
       .from('staff_advances')
       .update({
         status,
         decision_reason: reason,
+        decided_by: callerUserId || null,
         decided_at: new Date().toISOString(),
       })
       .eq('id', advanceId);
@@ -581,8 +638,139 @@ export const hrService = {
       action: status,
       reason: reason ?? `decideAdvanceRequest ${status}`,
       previousData: { status: (current as any)?.status ?? 'pending' },
-      newData: { id: advanceId, status },
+      newData: { id: advanceId, status, decided_by: callerUserId },
     });
     return true;
+  },
+
+  /**
+   * Save or update a leave type
+   */
+  async saveLeaveType(payload: Partial<LeaveType> & { schoolId: string; name: string; code: string }): Promise<LeaveType> {
+    if (isMockEnv()) {
+      const existing = mockLeaveTypes.find((lt) => lt.id === payload.id);
+      if (existing) {
+        Object.assign(existing, payload);
+        return existing;
+      }
+      const newLt: LeaveType = {
+        id: `lt-${Date.now()}`,
+        schoolId: payload.schoolId,
+        code: payload.code,
+        name: payload.name,
+        isPaid: payload.isPaid ?? true,
+        defaultEntitlementDays: payload.defaultEntitlementDays ?? 21,
+        requiresEvidence: payload.requiresEvidence ?? false,
+        color: payload.color ?? '#059669',
+        displayOrder: payload.displayOrder ?? mockLeaveTypes.length + 1,
+      };
+      mockLeaveTypes.push(newLt);
+      return newLt;
+    }
+    const row = {
+      school_id: payload.schoolId,
+      code: payload.code,
+      name: payload.name,
+      is_paid: payload.isPaid ?? true,
+      default_entitlement_days: payload.defaultEntitlementDays ?? 21,
+      requires_evidence: payload.requiresEvidence ?? false,
+      color: payload.color ?? '#059669',
+      display_order: payload.displayOrder ?? 1,
+    };
+    if (payload.id) {
+      const { data, error } = await supabase
+        .from('leave_types')
+        .update(row)
+        .eq('id', payload.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return {
+        id: data.id,
+        schoolId: data.school_id,
+        code: data.code,
+        name: data.name,
+        isPaid: data.is_paid,
+        defaultEntitlementDays: data.default_entitlement_days,
+        requiresEvidence: data.requires_evidence,
+        color: data.color,
+        displayOrder: data.display_order,
+      };
+    } else {
+      const { data, error } = await supabase
+        .from('leave_types')
+        .insert(row)
+        .select()
+        .single();
+      if (error) throw error;
+      return {
+        id: data.id,
+        schoolId: data.school_id,
+        code: data.code,
+        name: data.name,
+        isPaid: data.is_paid,
+        defaultEntitlementDays: data.default_entitlement_days,
+        requiresEvidence: data.requires_evidence,
+        color: data.color,
+        displayOrder: data.display_order,
+      };
+    }
+  },
+
+  /**
+   * Fetch active payroll profiles for school employees
+   */
+  async getEmployeePayrollProfiles(schoolId: string): Promise<any[]> {
+    if (isMockEnv()) return [];
+    const { data, error } = await supabase
+      .from('employee_payroll_profiles')
+      .select('*, employee:employees(id, employee_number, role, person:people(first_name, last_name))')
+      .eq('school_id', schoolId)
+      .is('effective_to', null);
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Upsert an employee payroll profile atomically
+   */
+  async upsertPayrollProfile(payload: {
+    schoolId: string;
+    employeeId: string;
+    baseSalary: number;
+    currency?: string;
+    payBasis?: string;
+    paymentMethod?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+    nssfApplicable?: boolean;
+    effectiveFrom?: string;
+  }): Promise<void> {
+    if (isMockEnv()) return;
+    const effectiveFrom = payload.effectiveFrom || new Date().toISOString().slice(0, 10);
+    // Close existing profile
+    await supabase
+      .from('employee_payroll_profiles')
+      .update({ effective_to: effectiveFrom })
+      .eq('employee_id', payload.employeeId)
+      .is('effective_to', null);
+
+    const { error } = await supabase
+      .from('employee_payroll_profiles')
+      .insert({
+        school_id: payload.schoolId,
+        employee_id: payload.employeeId,
+        effective_from: effectiveFrom,
+        base_salary: payload.baseSalary,
+        currency: payload.currency || 'UGX',
+        pay_basis: payload.payBasis || 'salaried',
+        payment_method: payload.paymentMethod || 'bank_transfer',
+        bank_name: payload.bankName || null,
+        bank_account_number: payload.bankAccountNumber || null,
+        bank_account_name: payload.bankAccountName || null,
+        nssf_applicable: payload.nssfApplicable ?? true,
+      });
+    if (error) throw error;
   },
 };

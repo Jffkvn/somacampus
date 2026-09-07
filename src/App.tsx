@@ -36,6 +36,9 @@ import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
 import { HireStaffWizardPage } from './modules/staff/HireStaffWizardPage';
 import { StaffDetailPage } from './modules/staff/StaffDetailPage';
+import { ClassesPage } from './modules/classes/ClassesPage';
+import { BulkAttendanceRegisterPage } from './modules/attendance/BulkAttendanceRegisterPage';
+import { HRApprovalsPage } from './modules/hr/HRApprovalsPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
 import { canAccessPath } from './lib/teacherPrivacy';
@@ -130,14 +133,7 @@ export const App: React.FC = () => {
           />
           <Route
             path="teaching/classes/:classId/attendance"
-            element={
-              <ModulePlaceholder
-                title="Fast Bulk Attendance Register"
-                moduleName="Attendance Engine"
-                description="Mark all present in one click, adjust exceptions, and persist to student longitudinal records."
-                scheduledPhase="Backlog (deferred past Phase 2)"
-              />
-            }
+            element={<BulkAttendanceRegisterPage />}
           />
           <Route path="teaching/assignments" element={<AssignmentsListPage />} />
           <Route path="teaching/assignments/new" element={<AssignmentCreatePage />} />
@@ -236,12 +232,9 @@ export const App: React.FC = () => {
           <Route
             path="classes"
             element={
-              <ModulePlaceholder
-                title="Classes & Streams"
-                moduleName="Academics"
-                description="Stage classes, streams, room assignments, and student enrolment capacities."
-                scheduledPhase="Backlog (deferred past Phase 2)"
-              />
+              <RequireAccess path="/classes">
+                <ClassesPage />
+              </RequireAccess>
             }
           />
 
@@ -316,6 +309,14 @@ export const App: React.FC = () => {
             }
           />
           <Route path="administration/hr" element={<MyHRPage />} />
+          <Route
+            path="administration/hr/approvals"
+            element={
+              <RequireAccess path="/administration/hr/approvals">
+                <HRApprovalsPage />
+              </RequireAccess>
+            }
+          />
           <Route path="administration/payroll" element={<RequireAccess path="/administration/payroll"><PayrollDashboardPage /></RequireAccess>} />
           <Route
             path="administration/inventory"

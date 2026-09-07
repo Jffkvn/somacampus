@@ -137,6 +137,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
       { label: 'School Setup', href: '/admin/overview', roles: ['admin'] },
       { label: 'Staff Directory', href: '/staff', roles: ['admin', 'principal'] },
       { label: 'Admissions Queue', href: '/admissions', roles: ['admin', 'principal'] },
+      { label: 'HR Approvals & Leave', href: '/administration/hr/approvals', roles: ['admin', 'principal'] },
       { label: 'Inventory & Assets', href: '/administration/inventory' },
       { label: 'Audit Log', href: '/administration/audit', roles: ['admin'] },
     ],

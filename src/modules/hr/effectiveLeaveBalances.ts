@@ -36,7 +36,12 @@ export function buildEffectiveLeaveBalances(
       ? Number(explicit.entitledDays)
       : Number(type.defaultEntitlementDays || 0);
 
-    const usedDays = explicit?.usedDays ? Number(explicit.usedDays) : 0;
+    const approvedDays = pendingRequests
+      .filter((req) => req.leaveTypeId === type.id && req.status === 'approved')
+      .reduce((sum, req) => sum + Number(req.workingDays || 0), 0);
+
+    const baseUsed = explicit?.usedDays ? Number(explicit.usedDays) : 0;
+    const usedDays = baseUsed + approvedDays;
 
     // Sum working days of any pending requests for this leave type
     const pendingDays = pendingRequests
