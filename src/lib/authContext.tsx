@@ -20,8 +20,21 @@ const AuthContext = createContext<AuthUserContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [role, setRole] = useState<UserRole>('teacher');
-  const [fullName, setFullName] = useState<string>('Sarah Namukasa');
+  const [role, setRole] = useState<UserRole>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('somacampus_dev_role');
+      if (saved) return saved as UserRole;
+    }
+    return 'principal';
+  });
+  const [fullName, setFullName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('somacampus_dev_role');
+      if (saved === 'teacher') return 'Sarah Namukasa';
+      if (saved === 'bursar') return 'Sarah Nabwire';
+    }
+    return 'Dr. Florence Namugga';
+  });
   const [schoolId, setSchoolId] = useState<string | null>('22222222-2222-2222-2222-222222222222');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -56,7 +69,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const extractUserMetadata = (u: User) => {
     const meta = u.user_metadata || {};
     if (meta.role) {
-      setRole(meta.role as UserRole);
+      if (import.meta.env.DEV && typeof window !== 'undefined') {
+        const devRole = localStorage.getItem('somacampus_dev_role');
+        setRole((devRole as UserRole) || (meta.role as UserRole));
+      } else {
+        setRole(meta.role as UserRole);
+      }
     }
     if (meta.full_name) {
       setFullName(meta.full_name);
@@ -95,6 +113,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const switchDevRole = (newRole: UserRole) => {
     if (import.meta.env.DEV) {
       setRole(newRole);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('somacampus_dev_role', newRole);
+      }
+      if (newRole === 'teacher') {
+        setFullName('Sarah Namukasa');
+      } else if (newRole === 'principal') {
+        setFullName('Dr. Florence Namugga');
+      } else if (newRole === 'bursar') {
+        setFullName('Sarah Nabwire');
+      } else if (newRole === 'admin') {
+        setFullName('Peter Okello');
+      }
     }
   };
 

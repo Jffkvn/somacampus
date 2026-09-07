@@ -168,6 +168,7 @@ export const App: React.FC = () => {
           {/* Reception admissions queue — top-level (reception workflow,
               not system admin). Leadership-gated like an admin route. */}
           <Route path="admissions" element={<RequireAccess path="/admissions"><AdmissionsQueuePage /></RequireAccess>} />
+          <Route path="admissions/queue" element={<Navigate to="/admissions" replace />} />
           
           {/* Staff & Faculty Routes (Slice 1 Task 4) */}
           <Route path="staff" element={<RequireAccess path="/staff"><StaffDirectoryPage /></RequireAccess>} />
@@ -184,6 +185,7 @@ export const App: React.FC = () => {
           <Route path="planning/schemes/:schemeId" element={<SchemeDetailPage />} />
           <Route path="planning/policies" element={<RequireAccess path="/planning/policies"><TimetablePolicyPage /></RequireAccess>} />
           <Route path="planning/timetable/builder" element={<RequireAccess path="/planning/timetable/builder"><TimetableDraftPage initialView="allocation" /></RequireAccess>} />
+          <Route path="planning/timetable/draft" element={<Navigate to="/planning/timetable/builder" replace />} />
           <Route path="activities" element={<ActivitiesPage />} />
 
           {/* Phase 9I Timetable Intelligence & Master Schedule */}
@@ -214,6 +216,7 @@ export const App: React.FC = () => {
 
           {/* Finance Routes */}
           <Route path="expenses" element={<RequireAccess path="/expenses"><ExpensesPage /></RequireAccess>} />
+          <Route path="finance/expenses" element={<RequireAccess path="/finance/expenses"><Navigate to="/expenses" replace /></RequireAccess>} />
           <Route path="payroll" element={<RequireAccess path="/payroll"><PayrollDashboardPage /></RequireAccess>} />
           <Route path="payroll/runs" element={<RequireAccess path="/payroll"><PayrollDashboardPage /></RequireAccess>} />
           <Route

@@ -92,6 +92,7 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   { prefix: '/fees/import', roles: ['bursar', 'admin'] },
   { prefix: '/fees', roles: ['bursar', 'admin', 'principal'] },
   { prefix: '/expenses', roles: ['bursar', 'admin', 'principal'] },
+  { prefix: '/finance', roles: ['bursar', 'admin', 'principal'] },
   { prefix: '/payroll', roles: ['bursar', 'admin', 'principal'] },
   { prefix: '/dashboard/school', roles: ['principal', 'admin'] },
   { prefix: '/admin/overview', roles: ['admin'] },
