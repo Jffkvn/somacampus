@@ -138,6 +138,13 @@ let mockHolidays: PublicHoliday[] = [
   { id: 'hol-2', holidayDate: '2026-12-25', name: 'Christmas Day', isActive: true },
 ];
 
+let mockLeaveEntitlements: LeaveEntitlement[] = [
+  { id: 'ent-1', schoolId: 'school-default', employeeId: 'emp-1', leaveTypeId: 'lt-annual', leaveYear: 2026, entitledDays: 21, usedDays: 3 },
+  { id: 'ent-2', schoolId: 'school-default', employeeId: 'emp-1', leaveTypeId: 'lt-sick', leaveYear: 2026, entitledDays: 30, usedDays: 1 },
+];
+
+let mockEmployeePayrollProfiles: any[] = [];
+
 export const hrService = {
   /**
    * List available leave types for the school
@@ -237,11 +244,14 @@ export const hrService = {
     const requests = await this.getMyLeaveRequests(employeeId, schoolId);
 
     if (isMockEnv()) {
-      const defaultEntitlements: LeaveEntitlement[] = [
+      const empEntitlements = mockLeaveEntitlements.filter(
+        (e) => e.employeeId === employeeId && e.schoolId === schoolId
+      );
+      const fallbackEntitlements: LeaveEntitlement[] = empEntitlements.length > 0 ? empEntitlements : [
         { id: 'ent-1', schoolId, employeeId, leaveTypeId: 'lt-annual', leaveYear: 2026, entitledDays: 21, usedDays: 3 },
         { id: 'ent-2', schoolId, employeeId, leaveTypeId: 'lt-sick', leaveYear: 2026, entitledDays: 30, usedDays: 1 },
       ];
-      return buildEffectiveLeaveBalances(types, defaultEntitlements, requests);
+      return buildEffectiveLeaveBalances(types, fallbackEntitlements, requests);
     }
 
     try {
@@ -721,7 +731,9 @@ export const hrService = {
    * Fetch active payroll profiles for school employees
    */
   async getEmployeePayrollProfiles(schoolId: string): Promise<any[]> {
-    if (isMockEnv()) return [];
+    if (isMockEnv()) {
+      return mockEmployeePayrollProfiles.filter((p) => p.school_id === schoolId);
+    }
     const { data, error } = await supabase
       .from('employee_payroll_profiles')
       .select('*, employee:employees(id, employee_number, role, person:people(first_name, last_name))')
@@ -747,8 +759,33 @@ export const hrService = {
     nssfApplicable?: boolean;
     effectiveFrom?: string;
   }): Promise<void> {
-    if (isMockEnv()) return;
     const effectiveFrom = payload.effectiveFrom || new Date().toISOString().slice(0, 10);
+
+    if (isMockEnv()) {
+      // Deactivate previous
+      mockEmployeePayrollProfiles = mockEmployeePayrollProfiles.map((p) =>
+        p.employee_id === payload.employeeId && !p.effective_to
+          ? { ...p, effective_to: effectiveFrom }
+          : p
+      );
+      mockEmployeePayrollProfiles.push({
+        id: `pay-${Date.now()}`,
+        school_id: payload.schoolId,
+        employee_id: payload.employeeId,
+        effective_from: effectiveFrom,
+        effective_to: null,
+        base_salary: payload.baseSalary,
+        currency: payload.currency || 'UGX',
+        pay_basis: payload.payBasis || 'salaried',
+        payment_method: payload.paymentMethod || 'bank_transfer',
+        bank_name: payload.bankName || null,
+        bank_account_number: payload.bankAccountNumber || null,
+        bank_account_name: payload.bankAccountName || null,
+        nssf_applicable: payload.nssfApplicable ?? true,
+      });
+      return;
+    }
+
     // Close existing profile
     await supabase
       .from('employee_payroll_profiles')
@@ -771,6 +808,59 @@ export const hrService = {
         bank_account_name: payload.bankAccountName || null,
         nssf_applicable: payload.nssfApplicable ?? true,
       });
+    if (error) throw error;
+  },
+
+  /**
+   * Upsert an employee leave entitlement for a specific leave year
+   */
+  async upsertLeaveEntitlement(payload: {
+    schoolId: string;
+    employeeId: string;
+    leaveTypeId: string;
+    leaveYear?: number;
+    entitledDays: number;
+  }): Promise<void> {
+    const leaveYear = payload.leaveYear || new Date().getFullYear();
+
+    if (isMockEnv()) {
+      const idx = mockLeaveEntitlements.findIndex(
+        (e) =>
+          e.employeeId === payload.employeeId &&
+          e.leaveTypeId === payload.leaveTypeId &&
+          e.leaveYear === leaveYear
+      );
+      if (idx >= 0) {
+        mockLeaveEntitlements[idx] = {
+          ...mockLeaveEntitlements[idx],
+          entitledDays: payload.entitledDays,
+        };
+      } else {
+        mockLeaveEntitlements.push({
+          id: `ent-${Date.now()}`,
+          schoolId: payload.schoolId,
+          employeeId: payload.employeeId,
+          leaveTypeId: payload.leaveTypeId,
+          leaveYear,
+          entitledDays: payload.entitledDays,
+          usedDays: 0,
+        });
+      }
+      return;
+    }
+
+    const { error } = await supabase
+      .from('leave_entitlements')
+      .upsert(
+        {
+          school_id: payload.schoolId,
+          employee_id: payload.employeeId,
+          leave_type_id: payload.leaveTypeId,
+          leave_year: leaveYear,
+          entitled_days: payload.entitledDays,
+        },
+        { onConflict: 'employee_id,leave_type_id,leave_year' }
+      );
     if (error) throw error;
   },
 };

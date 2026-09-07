@@ -50,6 +50,7 @@ describe('Staff Directory & Staff Dossier (Slice 1 Task 4)', () => {
     });
     b.ilike = vi.fn(() => b);
     b.or = vi.fn(() => b);
+    b.is = vi.fn(() => b);
     b.order = vi.fn(() => b);
     b.insert = vi.fn(() => b);
     b.update = vi.fn(() => b);

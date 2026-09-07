@@ -10,6 +10,8 @@ import { StaffEditModal } from './StaffEditModal';
 import { StaffExitModal } from './StaffExitModal';
 import { StaffSubjectAppointModal } from './StaffSubjectAppointModal';
 import { StaffDocumentUploadModal } from './StaffDocumentUploadModal';
+import { StaffPayrollEditModal } from './StaffPayrollEditModal';
+import { StaffLeaveEntitlementModal } from './StaffLeaveEntitlementModal';
 import {
   ArrowLeft,
   Printer,
@@ -47,6 +49,8 @@ export const StaffDetailPage: React.FC = () => {
   const [showExitModal, setShowExitModal] = useState(false);
   const [showAppointModal, setShowAppointModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   const loadDossier = async () => {
     if (!id) return;
@@ -68,6 +72,7 @@ export const StaffDetailPage: React.FC = () => {
   }, [id, role, user?.id]);
 
   const canManage = role === 'admin' || role === 'principal';
+  const canManagePayroll = canManage || role === 'bursar';
 
   const handleRemoveSubject = async (subjectApptId: string) => {
     if (!window.confirm('Are you sure you want to remove this official subject appointment?')) {
@@ -559,11 +564,22 @@ export const StaffDetailPage: React.FC = () => {
       {/* TAB 4: HR & Leave Balances */}
       {activeTab === 'leave' && (
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="w-4 h-4 text-brand-teal" />
               <span>Leave Entitlements & Balances</span>
             </CardTitle>
+            {canManage && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowLeaveModal(true)}
+                className="flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Assign Entitlements</span>
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {dossier.leaveBalances.length === 0 ? (
@@ -613,17 +629,32 @@ export const StaffDetailPage: React.FC = () => {
               <DollarSign className="w-4 h-4 text-brand-teal" />
               <span>Payroll Profile & Statutory Setup</span>
             </CardTitle>
-            <Link
-              to="/payroll"
-              className="inline-flex items-center gap-1 text-xs font-bold text-brand-teal hover:underline"
-            >
-              <span>Open Payroll Engine</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex items-center gap-2">
+              {canManagePayroll && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPayrollModal(true)}
+                  className="flex items-center gap-1.5"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  <span>
+                    {dossier.payrollSummary.profileConfigured ? 'Edit Compensation' : 'Configure Profile'}
+                  </span>
+                </Button>
+              )}
+              <Link
+                to="/payroll"
+                className="inline-flex items-center gap-1 text-xs font-bold text-brand-teal hover:underline ml-2"
+              >
+                <span>Open Payroll Engine</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {!dossier.payrollSummary.profileConfigured ? (
-              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-3">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-amber-600" />
                   <span className="font-bold text-xs uppercase tracking-wider">
@@ -631,35 +662,68 @@ export const StaffDetailPage: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  This employee does not have a salary structure or banking profile set up. Configure their compensation in the Payroll Engine before running the monthly payroll batch.
+                  This employee does not have an active compensation profile or disbursement method set up. Configure their remuneration details to include them in monthly payroll batches.
                 </p>
-                <Link
-                  to="/payroll"
-                  className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 underline"
-                >
-                  Configure Profile in Payroll Engine →
-                </Link>
+                {canManagePayroll && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setShowPayrollModal(true)}
+                    className="flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Configure Profile Now</span>
+                  </Button>
+                )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className="text-slate-400 font-medium">Base Salary</span>
-                  <p className="font-black text-slate-900 text-lg mt-1">
-                    {dossier.payrollSummary.currency}{' '}
-                    {dossier.payrollSummary.baseSalary?.toLocaleString() || '0'}
-                  </p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-400 font-medium">Base Salary</span>
+                    <p className="font-black text-slate-900 text-lg mt-1">
+                      {dossier.payrollSummary.currency}{' '}
+                      {dossier.payrollSummary.baseSalary?.toLocaleString() || '0'}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-400 font-medium">Bank Institution</span>
+                    <p className="font-bold text-slate-900 text-sm mt-1">
+                      {dossier.payrollSummary.bankName || 'Not configured'}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-400 font-medium">Account Number</span>
+                    <p className="font-mono font-bold text-slate-900 text-sm mt-1">
+                      {dossier.payrollSummary.accountNumber || '—'}
+                    </p>
+                  </div>
                 </div>
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className="text-slate-400 font-medium">Bank Institution</span>
-                  <p className="font-bold text-slate-900 text-sm mt-1">
-                    {dossier.payrollSummary.bankName || 'Not configured'}
-                  </p>
-                </div>
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className="text-slate-400 font-medium">Account Number</span>
-                  <p className="font-mono font-bold text-slate-900 text-sm mt-1">
-                    {dossier.payrollSummary.accountNumber || '—'}
-                  </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-400 font-medium">Pay Basis & Method</span>
+                    <p className="font-bold text-slate-800 capitalize mt-1">
+                      {dossier.payrollSummary.payBasis || 'Salaried'} •{' '}
+                      {(dossier.payrollSummary.paymentMethod || 'bank_transfer').replace('_', ' ')}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-400 font-medium">Account Name</span>
+                    <p className="font-bold text-slate-800 mt-1">
+                      {dossier.payrollSummary.bankAccountName || dossier.personal.fullName}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-400 font-medium">Statutory NSSF</span>
+                    <p className="font-bold text-slate-800 mt-1">
+                      {dossier.payrollSummary.nssfApplicable !== false ? (
+                        <span className="text-emerald-700 font-semibold">Active (10% + 5%)</span>
+                      ) : (
+                        <span className="text-slate-500">Exempt</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -757,6 +821,24 @@ export const StaffDetailPage: React.FC = () => {
         <StaffDocumentUploadModal
           isOpen={showUploadModal}
           onClose={() => setShowUploadModal(false)}
+          dossier={dossier}
+          onSuccess={loadDossier}
+        />
+      )}
+
+      {showPayrollModal && (
+        <StaffPayrollEditModal
+          isOpen={showPayrollModal}
+          onClose={() => setShowPayrollModal(false)}
+          dossier={dossier}
+          onSuccess={loadDossier}
+        />
+      )}
+
+      {showLeaveModal && (
+        <StaffLeaveEntitlementModal
+          isOpen={showLeaveModal}
+          onClose={() => setShowLeaveModal(false)}
           dossier={dossier}
           onSuccess={loadDossier}
         />

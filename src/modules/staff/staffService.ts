@@ -388,33 +388,39 @@ export const staffService = {
       effectiveTo: row.effective_to,
     }));
 
-    // Query leave entitlements & balances
-    const { data: leaveData } = await supabase
-      .from('employee_leave_entitlements')
-      .select(`
-        id,
-        annual_allowance,
-        used_days,
-        leave_types:leave_type_id (
-          id,
-          name,
-          code
-        )
-      `)
-      .eq('employee_id', employeeId);
+    // Query leave entitlements & types
+    let leaveBalances: StaffDossier['leaveBalances'] = [];
+    try {
+      const { data: typesData } = await supabase
+        .from('leave_types')
+        .select('id, name, code, default_entitlement_days')
+        .eq('school_id', emp.school_id)
+        .order('display_order', { ascending: true });
 
-    const leaveBalances = (leaveData || []).map((item: any) => {
-      const allowance = Number(item.annual_allowance) || 0;
-      const used = Number(item.used_days) || 0;
-      return {
-        leaveTypeId: item.leave_types?.id || item.id,
-        leaveTypeName: item.leave_types?.name || 'General Leave',
-        code: item.leave_types?.code || 'GEN',
-        annualAllowance: allowance,
-        usedDays: used,
-        remainingDays: Math.max(0, allowance - used),
-      };
-    });
+      const { data: entData } = await supabase
+        .from('leave_entitlements')
+        .select('id, leave_type_id, entitled_days')
+        .eq('employee_id', employeeId)
+        .eq('leave_year', new Date().getFullYear());
+
+      const entMap = new Map((entData || []).map((e: any) => [e.leave_type_id, Number(e.entitled_days)]));
+
+      leaveBalances = (typesData || []).map((lt: any) => {
+        const allowance = entMap.has(lt.id)
+          ? Number(entMap.get(lt.id))
+          : Number(lt.default_entitlement_days || 0);
+        return {
+          leaveTypeId: lt.id,
+          leaveTypeName: lt.name,
+          code: lt.code,
+          annualAllowance: allowance,
+          usedDays: 0,
+          remainingDays: allowance,
+        };
+      });
+    } catch {
+      leaveBalances = [];
+    }
 
     // Query staff documents
     const { data: docData } = await supabase
@@ -445,8 +451,9 @@ export const staffService = {
     if (canViewPayroll) {
       const { data: payProfile } = await supabase
         .from('employee_payroll_profiles')
-        .select('base_salary, bank_name, bank_account_number, currency')
+        .select('base_salary, bank_name, bank_account_number, bank_account_name, currency, pay_basis, payment_method, nssf_applicable')
         .eq('employee_id', employeeId)
+        .is('effective_to', null)
         .maybeSingle();
 
       if (payProfile) {
@@ -456,6 +463,10 @@ export const staffService = {
           baseSalary: payProfile.base_salary ? Number(payProfile.base_salary) : null,
           bankName: payProfile.bank_name ?? null,
           accountNumber: payProfile.bank_account_number ?? null,
+          bankAccountName: payProfile.bank_account_name ?? null,
+          payBasis: payProfile.pay_basis ?? 'salaried',
+          paymentMethod: payProfile.payment_method ?? 'bank_transfer',
+          nssfApplicable: payProfile.nssf_applicable ?? true,
           currency: payProfile.currency || 'UGX',
         };
       } else {

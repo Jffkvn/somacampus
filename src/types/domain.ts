@@ -1635,6 +1635,10 @@ export interface StaffDossier {
     baseSalary?: number | null;
     bankName?: string | null;
     accountNumber?: string | null;
+    bankAccountName?: string | null;
+    payBasis?: string | null;
+    paymentMethod?: string | null;
+    nssfApplicable?: boolean;
     currency?: string;
     recentPayslipsCount?: number;
   } | null;
