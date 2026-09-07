@@ -118,6 +118,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionCode[]> = {
   ],
   student: [
     'calendar.view',
+    // F3: mirror the parent portal set where applicable — /student/home
+    // renders the learner's own sessions, assignments and feedback
+    // (learning) and learners receive school broadcasts. Excluded by
+    // design: portal.children/fees (parent-side), portal.attendance
+    // (online-only learners see no attendance artifacts), messages.view
+    // (no student messaging surface).
+    'portal.learning.view',
+    'announcements.view',
   ],
 };
 

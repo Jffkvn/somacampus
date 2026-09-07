@@ -67,7 +67,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
       { label: 'Timetable & Teaching Policies', href: '/planning/policies', roles: ['admin', 'principal'] },
       { label: 'Timetable Builder', href: '/planning/timetable/builder', roles: ['admin', 'principal'] },
       { label: 'School Activities & Sports', href: '/activities', roles: ['teacher', 'admin', 'principal'] },
-      { label: 'Master Timetable', href: '/timetable' },
+      { label: 'Master Timetable', href: '/timetable', roles: ['teacher', 'admin', 'principal'] },
       { label: 'School Calendar', href: '/calendar' },
       { label: 'Class & Streams', href: '/classes', roles: ['admin', 'principal'] },
     ],
@@ -102,6 +102,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     roles: ['parent'],
     subItems: [
       { label: 'Home & Overview', href: '/parent/home', roles: ['parent'] },
+      // Online content lives as a card in /parent/home — no separate nav item.
       // Phase 8E Task 1: staff already reach /calendar via the Academics
       // group; parents had no calendar entry (Family Portal only).
       { label: 'School Calendar', href: '/calendar', roles: ['parent'] },

@@ -208,7 +208,10 @@ export const App: React.FC = () => {
           <Route path="activities" element={<ActivitiesPage />} />
 
           {/* Phase 9I Timetable Intelligence & Master Schedule */}
-          <Route path="timetable" element={<TimetableDraftPage />} />
+          {/* F3: canonical mount gated to teacher/admin/principal (same page
+              component as the leadership-only builder; RLS + service scope
+              the rows). Parent/student/bursar fall back to landing. */}
+          <Route path="timetable" element={<RequireAccess path="/timetable"><TimetableDraftPage /></RequireAccess>} />
           {/* Phase 8E Task 1: read-only audience-filtered view (RequireAccess
               keeps the route-gate pattern; teacherPrivacy default-allows this
               path and the service + RLS arbitrate the rows). */}

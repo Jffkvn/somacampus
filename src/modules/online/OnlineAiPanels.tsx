@@ -92,6 +92,10 @@ export const MatchingPanel: React.FC<{
   );
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [approvedId, setApprovedId] = useState<string | null>(null);
+  // F3: hide the panel entirely when no candidates exist — no dead
+  // "No teacher candidates supplied" UI. Renders only when candidates exist
+  // (early return after hooks to preserve hook order).
+  if (candidates.length === 0) return null;
   const visible = result.suggestions.filter((s) => !dismissed.has(s.teacherId));
 
   return (

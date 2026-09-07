@@ -27,7 +27,9 @@
  *   /fees/import              <-> fees.import_reconcile   (bursar, admin; principal denied)
  *   /expenses                 <-> expenses.view           (bursar, admin, principal)
  *   /payroll + /admin payroll <-> hr.payroll.view         (bursar, admin, principal)
- *   /dashboard/school         <-> school.dashboard.view   (principal, admin)
+  *   /dashboard/school         <-> school.dashboard.view   (principal, admin)
+  *   /timetable                <-> timetable.view_all / timetable.view_assigned
+  *     (teacher, admin, principal; builder stays leadership-only)
  *   /admin/overview           <-> school.settings.manage  (admin)
  *   /administration/inventory <-> inventory.manage        (admin, principal)
  *   /administration/audit     <-> admin-only allowlist entry (no dedicated
@@ -118,6 +120,10 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   // Teachers reach their own operational schedules via /teacher/today and /timetable.
   { prefix: '/planning/policies', roles: ['admin', 'principal'] },
   { prefix: '/planning/timetable/builder', roles: ['admin', 'principal'] },
+  // F3: canonical /timetable mount — teacher/admin/principal only (same page
+  // component as the builder; builder stays leadership-only). Teachers keep
+  // their operational schedule; parent/student/bursar fall back to landing.
+  { prefix: '/timetable', roles: ['teacher', 'admin', 'principal'] },
 ];
 
 /** Longest-prefix match so /fees/import wins over /fees. */
