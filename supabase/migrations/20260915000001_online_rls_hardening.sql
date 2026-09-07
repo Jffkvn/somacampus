@@ -37,8 +37,9 @@ AS $$
   SELECT s.id
   FROM public.students s
   JOIN public.people p ON p.id = s.person_id
+  JOIN public.student_enrolments se ON se.student_id = s.id
   WHERE p.auth_user_id = auth.uid()
-    AND s.school_id = p_school_id
+    AND se.school_id = p_school_id AND se.status = 'active'
   ORDER BY s.id
   LIMIT 1;
 $$;
