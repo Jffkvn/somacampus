@@ -33,6 +33,9 @@ import { ParentHomePage } from './modules/parent/ParentHomePage';
 import { StudentOnlineHomePage } from './modules/online/StudentOnlineHomePage';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
+import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
+import { HireStaffWizardPage } from './modules/staff/HireStaffWizardPage';
+import { StaffDetailPage } from './modules/staff/StaffDetailPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
 import { canAccessPath } from './lib/teacherPrivacy';
@@ -193,6 +196,12 @@ export const App: React.FC = () => {
           {/* Reception admissions queue — top-level (reception workflow,
               not system admin). Leadership-gated like an admin route. */}
           <Route path="admissions" element={<RequireAccess path="/admissions"><AdmissionsQueuePage /></RequireAccess>} />
+          
+          {/* Staff & Faculty Routes (Slice 1 Task 4) */}
+          <Route path="staff" element={<RequireAccess path="/staff"><StaffDirectoryPage /></RequireAccess>} />
+          <Route path="staff/new" element={<RequireAccess path="/staff/new"><HireStaffWizardPage /></RequireAccess>} />
+          <Route path="staff/:id" element={<RequireAccess path="/staff"><StaffDetailPage /></RequireAccess>} />
+
           <Route
             path="students/attendance"
             element={

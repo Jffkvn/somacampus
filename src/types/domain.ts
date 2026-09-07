@@ -1556,3 +1556,115 @@ export interface TeachingAllocation {
   effectiveFrom?: string;
   effectiveTo?: string | null;
 }
+
+// ------------------------------------------------------------------------------
+// Staff Operations Domain Types (Slice 1 Task 4)
+// ------------------------------------------------------------------------------
+
+export interface StaffMemberSummary {
+  id: string;
+  personId: string;
+  schoolId: string;
+  employeeNumber: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  role: string;
+  department: string;
+  isTeacher: boolean;
+  status: 'active' | 'on_leave' | 'terminated';
+  hireDate: string | null;
+  contractType: string | null;
+  qualification: string | null;
+  officialSubjects: Array<{ id: string; subjectId: string; subjectName: string }>;
+}
+
+export interface StaffDocumentItem {
+  id: string;
+  employeeId: string;
+  docType: 'cv' | 'national_id' | 'qualification_certificate' | 'contract' | 'photo' | 'other';
+  storagePath: string;
+  uploadedAt: string;
+}
+
+export interface StaffDossier {
+  id: string;
+  personId: string;
+  schoolId: string;
+  employeeNumber: string;
+  personal: {
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    email: string | null;
+    phone: string | null;
+    dateOfBirth: string | null;
+    gender: string | null;
+    nationalId: string | null;
+    nationality: string | null;
+    address: string | null;
+    photoUrl: string | null;
+  };
+  employment: {
+    role: string;
+    department: string;
+    isTeacher: boolean;
+    status: 'active' | 'on_leave' | 'terminated';
+    hireDate: string | null;
+    exitDate: string | null;
+    exitReason: string | null;
+    contractType: string | null;
+    qualification: string | null;
+    notes: string | null;
+  };
+  officialSubjects: TeacherOfficialSubject[];
+  activeAllocations: TeachingAllocation[];
+  leaveBalances: Array<{
+    leaveTypeId: string;
+    leaveTypeName: string;
+    code: string;
+    annualAllowance: number;
+    usedDays: number;
+    remainingDays: number;
+  }>;
+  payrollSummary: {
+    canView: boolean;
+    profileConfigured: boolean;
+    baseSalary?: number | null;
+    bankName?: string | null;
+    accountNumber?: string | null;
+    currency?: string;
+    recentPayslipsCount?: number;
+  } | null;
+  documents: StaffDocumentItem[];
+}
+
+export interface HireStaffPayload {
+  schoolId: string;
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  phone?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  nationalId?: string | null;
+  nationality?: string | null;
+  address?: string | null;
+  role: string;
+  department: string;
+  isTeacher: boolean;
+  hireDate?: string | null;
+  contractType: 'permanent' | 'probation' | 'fixed_term' | 'casual' | 'volunteer' | 'other';
+  qualification?: string | null;
+  employeeNumber?: string | null;
+  subjectIds?: string[];
+}
+
+export interface StaffExitPayload {
+  exitDate: string;
+  exitReason: 'resigned' | 'contract_ended' | 'retired' | 'terminated' | 'dismissed' | 'other';
+  notes?: string;
+  status?: 'terminated' | 'on_leave';
+}

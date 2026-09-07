@@ -130,6 +130,8 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   // arbitrate the rows; the service additionally gates submit/approve/reject.
   { prefix: '/admissions', roles: ['admin', 'principal'] },
   { prefix: '/students/new', roles: ['admin', 'principal'] },
+  // Slice 1 Task 4 staff directory & personnel dossiers: admin/principal only.
+  { prefix: '/staff', roles: ['admin', 'principal'] },
 ];
 
 /** Longest-prefix match so /fees/import wins over /fees. */
