@@ -282,6 +282,29 @@ export const admissionService = {
   },
 
   /**
+   * Assign or update target class and stream for an admission application.
+   */
+  async assignClass(
+    applicationId: string,
+    classId: string,
+    streamId?: string | null,
+    actorRole?: UserRole,
+  ): Promise<void> {
+    if (actorRole) assertAdmissionsRole(actorRole, 'assign class to admission application');
+    if (isMockEnv()) {
+      throw new Error('admissionService.assignClass: unavailable in mock environment');
+    }
+    const { error } = await supabase
+      .from('admission_applications')
+      .update({
+        class_id: classId,
+        stream_id: streamId || null,
+      })
+      .eq('id', applicationId);
+    if (error) throw new Error(`admissionService.assignClass: ${errMessage(error)}`);
+  },
+
+  /**
    * Atomic approve via RPC: people + students + enrolment + guardians are
    * created in ONE transaction server-side. Client gate runs before any DB
    * call so unauthorized roles never reach the database.
@@ -289,10 +312,20 @@ export const admissionService = {
   async approveApplication(
     applicationId: string,
     actorRole: UserRole,
+    overrideClass?: { classId: string; streamId?: string | null },
   ): Promise<{ studentId: string }> {
     assertAdmissionsRole(actorRole, 'approve admission applications');
     if (isMockEnv()) {
       throw new Error('admissionService.approveApplication: unavailable in mock environment (no fake writes)');
+    }
+    if (overrideClass?.classId) {
+      await supabase
+        .from('admission_applications')
+        .update({
+          class_id: overrideClass.classId,
+          stream_id: overrideClass.streamId || null,
+        })
+        .eq('id', applicationId);
     }
     const { data, error } = await supabase.rpc('approve_admission_application', {
       p_application_id: applicationId,

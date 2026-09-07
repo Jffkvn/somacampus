@@ -266,6 +266,21 @@ describe('Admissions flow (Slice 1 Task 2)', () => {
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
+  it('(c2) approve with class placement updates application before calling RPC', async () => {
+    mockRpc.mockResolvedValue({ data: 'student-10', error: null });
+
+    const res = await admissionService.approveApplication('app-2', 'principal', {
+      classId: 'class-p5',
+      streamId: 'stream-p5a',
+    });
+
+    expect(res.studentId).toBe('student-10');
+    expect(mockFrom).toHaveBeenCalledWith('admission_applications');
+    expect(mockRpc).toHaveBeenCalledWith('approve_admission_application', {
+      p_application_id: 'app-2',
+    });
+  });
+
   it('(d) non-principal approve throws before touching the DB', async () => {
     for (const role of ['teacher', 'bursar', 'parent', 'student'] as const) {
       await expect(admissionService.approveApplication('app-1', role)).rejects.toThrow();

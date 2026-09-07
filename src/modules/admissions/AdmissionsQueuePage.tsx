@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertCircle, ArrowRight, CheckCircle2, FileText, Search, Users, XCircle } from 'lucide-react';
 import { admissionService, type AdmissionApplicationRow } from './admissionService';
 import { useAuth } from '../../lib/authContext';
+import { supabase } from '../../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusPill, type StatusVariant } from '../../components/ui/StatusPill';
@@ -19,6 +20,10 @@ export const AdmissionsQueuePage: React.FC = () => {
   const effectiveSchoolId = schoolId ?? PILOT_SCHOOL_ID;
 
   const [rows, setRows] = useState<AdmissionApplicationRow[]>([]);
+  const [availableClasses, setAvailableClasses] = useState<Array<{ id: string; name: string }>>([]);
+  const [availableStreams, setAvailableStreams] = useState<Array<{ id: string; class_id: string; name: string }>>([]);
+  const [assignedClassId, setAssignedClassId] = useState('');
+  const [assignedStreamId, setAssignedStreamId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
@@ -33,7 +38,14 @@ export const AdmissionsQueuePage: React.FC = () => {
     try {
       setIsLoading(true);
       setLoadError(null);
-      setRows(await admissionService.listApplications(effectiveSchoolId));
+      const [apps, clsRes, strmRes] = await Promise.all([
+        admissionService.listApplications(effectiveSchoolId),
+        supabase.from('classes').select('id, name').eq('school_id', effectiveSchoolId).order('name'),
+        supabase.from('streams').select('id, class_id, name').order('name'),
+      ]);
+      setRows(apps);
+      setAvailableClasses(clsRes.data || []);
+      setAvailableStreams(strmRes.data || []);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load the admissions queue.');
       setRows([]);
@@ -60,12 +72,33 @@ export const AdmissionsQueuePage: React.FC = () => {
 
   const selected = rows.find((r) => r.id === selectedId) ?? null;
 
+  const filteredStreams = useMemo(() => {
+    const targetClass = assignedClassId || selected?.classId;
+    if (!targetClass) return [];
+    return availableStreams.filter((s) => s.class_id === targetClass);
+  }, [availableStreams, assignedClassId, selected?.classId]);
+
+  useEffect(() => {
+    if (selected) {
+      setAssignedClassId(selected.classId || '');
+      setAssignedStreamId(selected.streamId || '');
+    }
+  }, [selected]);
+
   const handleApprove = async () => {
     if (!selected) return;
+    const finalClassId = assignedClassId || selected.classId;
+    if (!finalClassId) {
+      setActionError('Please select a target class before approving the student.');
+      return;
+    }
     setActionError(null);
     setIsActing(true);
     try {
-      const res = await admissionService.approveApplication(selected.id, role);
+      const res = await admissionService.approveApplication(selected.id, role, {
+        classId: finalClassId,
+        streamId: assignedStreamId || selected.streamId || null,
+      });
       setApprovedStudentId(res.studentId);
       await load();
     } catch (err) {
@@ -204,7 +237,9 @@ export const AdmissionsQueuePage: React.FC = () => {
                     <CardDescription>
                       Applied {selected.createdAt ? selected.createdAt.slice(0, 10) : 'recently'}
                       {selected.dob ? ` • born ${selected.dob}` : ''}
-                      {selected.classId ? '' : ' • no class assigned yet'}
+                      {selected.classId
+                        ? ` • Target: ${availableClasses.find((c) => c.id === selected.classId)?.name || 'Class Assigned'}`
+                        : ' • No class assigned yet'}
                     </CardDescription>
                   </div>
                   <StatusPill status={statusVariant(selected.status)} label={selected.status} />
@@ -279,7 +314,67 @@ export const AdmissionsQueuePage: React.FC = () => {
                   </div>
 
                   {selected.status === 'pending' && (
-                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <div className="space-y-4 pt-4 border-t border-slate-200/70">
+                      {/* Target Class & Stream Allocation */}
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Class & Stream Placement
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Allocate the student to an academic class prior to principal approval.
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1" htmlFor="assign-class">
+                              Target Class <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              id="assign-class"
+                              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/50"
+                              value={assignedClassId}
+                              onChange={(e) => {
+                                setAssignedClassId(e.target.value);
+                                setAssignedStreamId('');
+                              }}
+                            >
+                              <option value="">Select target class...</option>
+                              {availableClasses.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1" htmlFor="assign-stream">
+                              Stream / Section
+                            </label>
+                            <select
+                              id="assign-stream"
+                              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/50 disabled:bg-slate-100 disabled:text-slate-400"
+                              value={assignedStreamId}
+                              onChange={(e) => setAssignedStreamId(e.target.value)}
+                              disabled={!assignedClassId || filteredStreams.length === 0}
+                            >
+                              <option value="">
+                                {!assignedClassId
+                                  ? 'Select class first'
+                                  : filteredStreams.length === 0
+                                  ? 'No streams (unstreamed)'
+                                  : 'Select stream (optional)...'}
+                              </option>
+                              {filteredStreams.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
                       {actionError && (
                         <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
                           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -287,13 +382,19 @@ export const AdmissionsQueuePage: React.FC = () => {
                         </div>
                       )}
                       <div className="flex flex-wrap gap-2">
-                        <Button variant="primary" size="sm" isLoading={isActing} onClick={handleApprove}>
-                          Approve
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          isLoading={isActing}
+                          onClick={handleApprove}
+                          disabled={!assignedClassId}
+                        >
+                          Approve & Enrol Student
                         </Button>
                       </div>
-                      <div>
+                      <div className="pt-2 border-t border-slate-100">
                         <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5" htmlFor="reject-reason">
-                          Rejection reason (required)
+                          Rejection reason (required to reject)
                         </label>
                         <textarea
                           id="reject-reason"

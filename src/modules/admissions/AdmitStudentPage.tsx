@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, FileText, Plus, Upload, Users, X } from 'lucide-react';
 import {
@@ -7,6 +7,7 @@ import {
   type SubmitApplicationInput,
 } from './admissionService';
 import { useAuth } from '../../lib/authContext';
+import { supabase } from '../../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
@@ -57,6 +58,10 @@ export const AdmitStudentPage: React.FC = () => {
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState('');
   const [classId, setClassId] = useState('');
+  const [streamId, setStreamId] = useState('');
+  const [availableClasses, setAvailableClasses] = useState<Array<{ id: string; name: string }>>([]);
+  const [availableStreams, setAvailableStreams] = useState<Array<{ id: string; class_id: string; name: string }>>([]);
+  const [isLoadingClasses, setIsLoadingClasses] = useState(false);
   const [guardians, setGuardians] = useState<GuardianDraft[]>([
     { id: nextDraftId(), name: '', relationship: '', phone: '', email: '', isEmergency: true, isPrimary: true },
   ]);
@@ -64,6 +69,33 @@ export const AdmitStudentPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [applicationId, setApplicationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadAcademicClasses() {
+      try {
+        setIsLoadingClasses(true);
+        const { data: clsData } = await supabase
+          .from('classes')
+          .select('id, name')
+          .eq('school_id', effectiveSchoolId)
+          .order('name');
+        setAvailableClasses(clsData || []);
+
+        const { data: strmData } = await supabase
+          .from('streams')
+          .select('id, class_id, name')
+          .order('name');
+        setAvailableStreams(strmData || []);
+      } catch (err) {
+        console.error('Failed to load classes for admission wizard', err);
+      } finally {
+        setIsLoadingClasses(false);
+      }
+    }
+    loadAcademicClasses();
+  }, [effectiveSchoolId]);
+
+  const filteredStreams = availableStreams.filter((s) => s.class_id === classId);
 
   const stepIndex = STEPS.indexOf(step);
 
@@ -125,7 +157,7 @@ export const AdmitStudentPage: React.FC = () => {
         dob: dob || null,
         gender: (gender as 'male' | 'female' | 'other' | null) || null,
         classId: classId.trim() || null,
-        streamId: null,
+        streamId: streamId.trim() || null,
         guardians: guardians.map((g) => ({
           name: g.name.trim(),
           relationship: g.relationship.trim(),
@@ -249,9 +281,47 @@ export const AdmitStudentPage: React.FC = () => {
                     <option value="other">Other</option>
                   </select>
                 </div>
-                <div className="sm:col-span-2">
-                  <label className={labelClass} htmlFor="admit-class">Class ID (optional — required before approval)</label>
-                  <input id="admit-class" className={inputClass} value={classId} onChange={(e) => setClassId(e.target.value)} placeholder="e.g. class UUID for P5" />
+                <div>
+                  <label className={labelClass} htmlFor="admit-class">Target Class (Optional at Admission)</label>
+                  <select
+                    id="admit-class"
+                    className={inputClass}
+                    value={classId}
+                    onChange={(e) => {
+                      setClassId(e.target.value);
+                      setStreamId('');
+                    }}
+                  >
+                    <option value="">{isLoadingClasses ? 'Loading classes...' : 'Select target class...'}</option>
+                    {availableClasses.map((cls) => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="admit-stream">Stream / Section</label>
+                  <select
+                    id="admit-stream"
+                    className={inputClass}
+                    value={streamId}
+                    onChange={(e) => setStreamId(e.target.value)}
+                    disabled={!classId || filteredStreams.length === 0}
+                  >
+                    <option value="">
+                      {!classId
+                        ? 'Select class first'
+                        : filteredStreams.length === 0
+                        ? 'No streams (unstreamed)'
+                        : 'Select stream (optional)...'}
+                    </option>
+                    {filteredStreams.map((strm) => (
+                      <option key={strm.id} value={strm.id}>
+                        {strm.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </>
