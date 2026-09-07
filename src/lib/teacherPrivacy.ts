@@ -124,6 +124,12 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   // component as the builder; builder stays leadership-only). Teachers keep
   // their operational schedule; parent/student/bursar fall back to landing.
   { prefix: '/timetable', roles: ['teacher', 'admin', 'principal'] },
+  // Slice 1 Task 2 reception admissions pipeline: admin/principal only.
+  // Bursar is excluded by design (finance role — no admissions decisions);
+  // teachers/parents/students fall back to landing. RLS + the approve RPC
+  // arbitrate the rows; the service additionally gates submit/approve/reject.
+  { prefix: '/admissions', roles: ['admin', 'principal'] },
+  { prefix: '/students/new', roles: ['admin', 'principal'] },
 ];
 
 /** Longest-prefix match so /fees/import wins over /fees. */

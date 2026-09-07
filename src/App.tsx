@@ -10,6 +10,8 @@ import { LoginPage } from './modules/auth/LoginPage';
 import { LessonCockpitPage } from './modules/teaching/LessonCockpitPage';
 import { StudentDirectoryPage } from './modules/students/StudentDirectoryPage';
 import { StudentDetailPage } from './modules/students/StudentDetailPage';
+import { AdmitStudentPage } from './modules/admissions/AdmitStudentPage';
+import { AdmissionsQueuePage } from './modules/admissions/AdmissionsQueuePage';
 import { AssignmentsListPage } from './modules/teaching/AssignmentsListPage';
 import { AssignmentCreatePage } from './modules/teaching/AssignmentCreatePage';
 import { AssignmentReviewPage } from './modules/teaching/AssignmentReviewPage';
@@ -184,7 +186,13 @@ export const App: React.FC = () => {
 
           {/* Students & Learning Routes */}
           <Route path="students" element={<StudentDirectoryPage />} />
+          {/* Static segment outranks :studentId in RRv7 ranking; declared
+              first for clarity. Leadership-gated (admin/principal). */}
+          <Route path="students/new" element={<RequireAccess path="/students/new"><AdmitStudentPage /></RequireAccess>} />
           <Route path="students/:studentId" element={<StudentDetailPage />} />
+          {/* Reception admissions queue — top-level (reception workflow,
+              not system admin). Leadership-gated like an admin route. */}
+          <Route path="admissions" element={<RequireAccess path="/admissions"><AdmissionsQueuePage /></RequireAccess>} />
           <Route
             path="students/attendance"
             element={
