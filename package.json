@@ -13,7 +13,9 @@
     "test:ci": "vitest run",
     "test:unit": "vitest run src/test/design-system.test.tsx",
     "test:watch": "vitest",
-    "seed:check": "node scripts/validate-seed.mjs"
+    "seed:check": "node scripts/validate-seed.mjs",
+    "seed:demo:gen": "node scripts/generate-demo-seed.mjs",
+    "seed:demo:check": "node scripts/validate-seed.mjs scripts/seed-demo-school.sql"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.0",
