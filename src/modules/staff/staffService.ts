@@ -32,227 +32,7 @@ export function assertLeadershipRole(role?: UserRole): void {
   }
 }
 
-const DEMO_STAFF_MEMBERS: StaffMemberSummary[] = [
-  {
-    id: '99999999-9999-9999-9999-999999999991',
-    personId: '88888888-8888-8888-8888-888888888881',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    employeeNumber: 'TCH-001',
-    firstName: 'Sarah',
-    lastName: 'Namukasa',
-    fullName: 'Sarah Namukasa',
-    email: 'sarah.n@graceschool.ac.ug',
-    phone: '+256770123456',
-    role: 'teacher',
-    department: 'Academics',
-    isTeacher: true,
-    status: 'active',
-    hireDate: '2023-01-15',
-    contractType: 'permanent',
-    qualification: 'B.Ed Primary Education (Makerere)',
-    officialSubjects: [{ id: 'tos-1', subjectId: 'sub-math', subjectName: 'Mathematics' }],
-  },
-  {
-    id: '99999999-9999-9999-9999-999999999992',
-    personId: '88888888-8888-8888-8888-888888888882',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    employeeNumber: 'TCH-002',
-    firstName: 'David',
-    lastName: 'Musoke',
-    fullName: 'David Musoke',
-    email: 'david.m@graceschool.ac.ug',
-    phone: '+256770123457',
-    role: 'teacher',
-    department: 'Academics',
-    isTeacher: true,
-    status: 'active',
-    hireDate: '2022-05-10',
-    contractType: 'permanent',
-    qualification: 'B.Sc Science with Education (Kyambogo)',
-    officialSubjects: [{ id: 'tos-2', subjectId: 'sub-sci', subjectName: 'Science' }],
-  },
-  {
-    id: '99999999-9999-9999-9999-999999999993',
-    personId: '88888888-8888-8888-8888-888888888883',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    employeeNumber: 'TCH-003',
-    firstName: 'Mary',
-    lastName: 'Nabatanzi',
-    fullName: 'Mary Nabatanzi',
-    email: 'mary.n@graceschool.ac.ug',
-    phone: '+256770123458',
-    role: 'teacher',
-    department: 'Academics',
-    isTeacher: true,
-    status: 'active',
-    hireDate: '2021-08-01',
-    contractType: 'permanent',
-    qualification: 'B.A Arts with Education (English/Literature)',
-    officialSubjects: [{ id: 'tos-3', subjectId: 'sub-eng', subjectName: 'English' }],
-  },
-  {
-    id: '99999999-9999-9999-9999-999999999994',
-    personId: '88888888-8888-8888-8888-888888888884',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    employeeNumber: 'TCH-004',
-    firstName: 'James',
-    lastName: 'Kato',
-    fullName: 'James Kato',
-    email: 'james.k@graceschool.ac.ug',
-    phone: '+256770123459',
-    role: 'teacher',
-    department: 'Academics',
-    isTeacher: true,
-    status: 'active',
-    hireDate: '2024-01-08',
-    contractType: 'contract',
-    qualification: 'Dip. Ed Primary Education',
-    officialSubjects: [{ id: 'tos-4', subjectId: 'sub-sst', subjectName: 'Social Studies' }],
-  },
-  {
-    id: '99999999-9999-9999-9999-999999999995',
-    personId: '88888888-8888-8888-8888-888888888885',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    employeeNumber: 'TCH-005',
-    firstName: 'Paul',
-    lastName: 'Mukasa',
-    fullName: 'Paul Mukasa',
-    email: 'paul.m@graceschool.ac.ug',
-    phone: '+256770123460',
-    role: 'teacher',
-    department: 'Academics',
-    isTeacher: true,
-    status: 'active',
-    hireDate: '2023-09-01',
-    contractType: 'permanent',
-    qualification: 'B.Ed Physical Education',
-    officialSubjects: [{ id: 'tos-5', subjectId: 'sub-pe', subjectName: 'Physical Education' }],
-  },
-];
 
-let fallbackStaffList: StaffMemberSummary[] = [...DEMO_STAFF_MEMBERS];
-
-function buildDemoDossier(s: StaffMemberSummary, requestedId: string): StaffDossier {
-  return {
-    id: requestedId,
-    personId: s.personId,
-    schoolId: s.schoolId,
-    employeeNumber: s.employeeNumber,
-    personal: {
-      firstName: s.firstName,
-      lastName: s.lastName,
-      fullName: s.fullName,
-      email: s.email,
-      phone: s.phone,
-      dateOfBirth: '1988-04-12',
-      gender: 'female',
-      nationalId: 'CM88012345678A',
-      nationality: 'Ugandan',
-      address: 'Plot 14, Kiwatule Road, Kampala',
-      photoUrl: null,
-    },
-    employment: {
-      role: s.role,
-      department: s.department,
-      isTeacher: s.isTeacher,
-      status: s.status,
-      hireDate: s.hireDate || '2023-01-15',
-      exitDate: null,
-      exitReason: null,
-      contractType: s.contractType || 'permanent',
-      qualification: s.qualification || 'B.Ed Primary Education (Makerere University)',
-      notes: 'Senior faculty member and Cambridge Stage 5 class mentor.',
-    },
-    officialSubjects: (s.officialSubjects || []).map((sub) => ({
-      id: sub.id,
-      schoolId: s.schoolId,
-      teacherId: requestedId,
-      subjectId: sub.subjectId,
-      subjectName: sub.subjectName,
-      appointedAt: '2023-01-15',
-    })),
-    activeAllocations: [
-      {
-        id: 'alloc-demo-1',
-        schoolId: s.schoolId,
-        academicYearId: 'ay-2026',
-        classId: '55555555-5555-5555-5555-555555555551',
-        className: 'Stage 5',
-        streamId: '66666666-6666-6666-6666-666666666661',
-        streamName: 'Blue',
-        subjectId: 'sub-math',
-        subjectName: 'Mathematics',
-        teacherId: requestedId,
-        periodsPerWeek: 5,
-        status: 'approved',
-        allocationSource: 'human',
-        effectiveFrom: '2026-01-01',
-      },
-    ],
-    leaveBalances: [
-      {
-        leaveTypeId: 'lt-annual',
-        leaveTypeName: 'Annual Leave',
-        code: 'ANNUAL',
-        annualAllowance: 21,
-        usedDays: 5,
-        remainingDays: 16,
-      },
-      {
-        leaveTypeId: 'lt-sick',
-        leaveTypeName: 'Sick Leave',
-        code: 'SICK',
-        annualAllowance: 10,
-        usedDays: 1,
-        remainingDays: 9,
-      },
-      {
-        leaveTypeId: 'lt-maternity',
-        leaveTypeName: 'Maternity / Paternity Leave',
-        code: 'PARENTAL',
-        annualAllowance: 60,
-        usedDays: 0,
-        remainingDays: 60,
-      },
-    ],
-    documents: [
-      {
-        id: 'doc-demo-1',
-        employeeId: requestedId,
-        docType: 'national_id',
-        storagePath: 'staff/demo_national_id.pdf',
-        uploadedAt: '2024-01-10T10:00:00Z',
-      },
-      {
-        id: 'doc-demo-2',
-        employeeId: requestedId,
-        docType: 'cv',
-        storagePath: 'staff/demo_curriculum_vitae.pdf',
-        uploadedAt: '2024-01-10T10:00:00Z',
-      },
-      {
-        id: 'doc-demo-3',
-        employeeId: requestedId,
-        docType: 'qualification_certificate',
-        storagePath: 'staff/demo_degree_certificate.pdf',
-        uploadedAt: '2024-01-10T10:00:00Z',
-      },
-    ],
-    payrollSummary: {
-      canView: true,
-      profileConfigured: true,
-      baseSalary: 1800000,
-      currency: 'UGX',
-      bankName: 'Stanbic Bank Uganda',
-      bankAccountName: s.fullName,
-      accountNumber: '9030012345678',
-      paymentMethod: 'bank_transfer',
-      payBasis: 'monthly',
-      nssfApplicable: true,
-      recentPayslipsCount: 1,
-    },
-  };
-}
 
 export const staffService = {
   /**
@@ -356,35 +136,16 @@ export const staffService = {
         const baseRes = await baseQuery;
         if (!baseRes.error) {
           data = baseRes.data;
+        } else {
+          throw baseRes.error;
         }
-      } catch {
-        // Fall through to fallbackStaffList
+      } catch (baseErr: any) {
+        throw new Error(`staffService.listStaff: ${baseErr?.message || 'Database query failed'}`);
       }
     }
 
     if (!data || data.length === 0) {
-      const demoMatches = fallbackStaffList.filter((s) => {
-        if (s.schoolId !== schoolId && schoolId !== '22222222-2222-2222-2222-222222222222') {
-          return false;
-        }
-        if (options.type === 'teaching' && !s.isTeacher) return false;
-        if (options.type === 'support' && s.isTeacher) return false;
-        if (options.status && options.status !== 'all' && s.status !== options.status) return false;
-        return true;
-      });
-
-      if (options.search && options.search.trim()) {
-        const q = options.search.trim().toLowerCase();
-        return demoMatches.filter((s) =>
-          s.fullName.toLowerCase().includes(q) ||
-          s.employeeNumber.toLowerCase().includes(q) ||
-          s.department.toLowerCase().includes(q) ||
-          s.role.toLowerCase().includes(q) ||
-          (s.qualification && s.qualification.toLowerCase().includes(q))
-        );
-      }
-
-      return demoMatches;
+      return [];
     }
 
     const summaries: StaffMemberSummary[] = (data as any[]).map((emp) => {
@@ -498,75 +259,65 @@ export const staffService = {
         throw error;
       }
 
-      console.warn('hire_staff_member RPC not present in schema cache; falling back to direct table inserts.');
+      console.warn('hire_staff_member RPC not present in schema cache; attempting direct table inserts.');
 
-      let personId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `person-${Date.now()}`);
-      try {
-        const { data: personData } = await supabase
-          .from('people')
-          .insert({
-            first_name: payload.firstName.trim(),
-            last_name: payload.lastName.trim(),
-            email: payload.email?.trim() || null,
-            phone: payload.phone?.trim() || null,
-          })
-          .select('id')
-          .single();
-        if (personData?.id) personId = personData.id;
-      } catch (pErr) {
-        console.warn('Direct person insert fallback used synthetic ID:', pErr);
+      const { data: personData, error: personErr } = await supabase
+        .from('people')
+        .insert({
+          school_id: payload.schoolId,
+          first_name: payload.firstName.trim(),
+          last_name: payload.lastName.trim(),
+          email: payload.email?.trim() || null,
+          phone: payload.phone?.trim() || null,
+          gender: payload.gender || null,
+          date_of_birth: payload.dateOfBirth || null,
+          national_id: payload.nationalId?.trim() || null,
+          nationality: payload.nationality?.trim() || null,
+          address: payload.address?.trim() || null,
+        })
+        .select('id')
+        .single();
+
+      if (personErr || !personData) {
+        throw new Error(`hireStaffMember: Failed to create person record: ${personErr?.message || 'Unknown error'}`);
       }
 
       const empNumber =
         payload.employeeNumber?.trim() ||
         `EMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      let employeeId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `emp-${Date.now()}`);
-      try {
-        const { data: empData } = await supabase
-          .from('employees')
-          .insert({
-            person_id: personId,
-            school_id: payload.schoolId,
-            employee_number: empNumber,
-            role: payload.role.trim() || 'teacher',
-            department: payload.department.trim() || 'Academics',
-            is_teacher: payload.isTeacher ?? true,
-            status: 'active',
-          })
-          .select('id')
-          .single();
-        if (empData?.id) employeeId = empData.id;
-      } catch (eErr) {
-        console.warn('Direct employee insert fallback used synthetic ID:', eErr);
+      const { data: empData, error: empErr } = await supabase
+        .from('employees')
+        .insert({
+          person_id: personData.id,
+          school_id: payload.schoolId,
+          employee_number: empNumber,
+          role: payload.role.trim() || 'teacher',
+          department: payload.department.trim() || 'Academics',
+          is_teacher: payload.isTeacher ?? true,
+          status: 'active',
+          hire_date: payload.hireDate || new Date().toISOString().split('T')[0],
+          contract_type: payload.contractType || 'permanent',
+          qualification: payload.qualification?.trim() || null,
+        })
+        .select('id')
+        .single();
+
+      if (empErr || !empData) {
+        throw new Error(`hireStaffMember: Failed to create employee record: ${empErr?.message || 'Unknown error'}`);
       }
 
-      const newStaffSummary: StaffMemberSummary = {
-        id: employeeId,
-        personId,
-        schoolId: payload.schoolId,
-        employeeNumber: empNumber,
-        firstName: payload.firstName.trim(),
-        lastName: payload.lastName.trim(),
-        fullName: `${payload.firstName.trim()} ${payload.lastName.trim()}`,
-        email: payload.email?.trim() || null,
-        phone: payload.phone?.trim() || null,
-        role: payload.role.trim() || 'teacher',
-        department: payload.department.trim() || 'Academics',
-        isTeacher: payload.isTeacher ?? true,
-        status: 'active',
-        hireDate: payload.hireDate || new Date().toISOString().split('T')[0],
-        contractType: payload.contractType || 'permanent',
-        qualification: payload.qualification?.trim() || null,
-        officialSubjects: (payload.subjectIds || []).map((sId) => ({
-          id: `tos-${sId}`,
-          subjectId: sId,
-          subjectName: 'Official Subject',
-        })),
-      };
-      fallbackStaffList.unshift(newStaffSummary);
+      if (payload.subjectIds && payload.subjectIds.length > 0) {
+        const subjectsPayload = payload.subjectIds.map((sId) => ({
+          school_id: payload.schoolId,
+          teacher_id: empData.id,
+          subject_id: sId,
+          appointed_at: payload.hireDate || new Date().toISOString().split('T')[0],
+        }));
+        await supabase.from('teacher_official_subjects').insert(subjectsPayload);
+      }
 
-      return employeeId;
+      return empData.id;
     }
     return data as string;
   },
@@ -580,8 +331,7 @@ export const staffService = {
     callerEmployeeOrUserId?: string
   ): Promise<StaffDossier> {
     if (isMockEnv()) {
-      const demoMatch = fallbackStaffList.find((s) => s.id === employeeId) || fallbackStaffList[0];
-      return buildDemoDossier(demoMatch, employeeId);
+      throw new Error('staffService.getStaffDossier: unavailable in mock environment (no fake reads)');
     }
 
     let emp: any = null;
@@ -654,10 +404,6 @@ export const staffService = {
     }
 
     if (!emp) {
-      const demoMatch = fallbackStaffList.find((s) => s.id === employeeId) || fallbackStaffList[0];
-      if (demoMatch) {
-        return buildDemoDossier(demoMatch, employeeId);
-      }
       throw new Error(`Staff member with ID ${employeeId} not found.`);
     }
 

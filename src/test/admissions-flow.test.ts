@@ -253,6 +253,23 @@ describe('Admissions flow (Slice 1 Task 2)', () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
+  it('(b2) teacher / school staff can submit admission application', async () => {
+    tableResponses.admission_applications = { data: { id: 'app-teacher-1' }, error: null };
+    tableResponses.admission_application_guardians = { data: [], error: null };
+    tableResponses.admission_application_documents = { data: [], error: null };
+
+    const res = await admissionService.submitApplication(wizardPayload(), 'teacher');
+    expect(res.applicationId).toBe('app-teacher-1');
+  });
+
+  it('(b3) bursar, parent, and student cannot submit admission application', async () => {
+    for (const role of ['bursar', 'parent', 'student'] as const) {
+      await expect(admissionService.submitApplication(wizardPayload(), role)).rejects.toThrow(
+        'requires admin, principal, or staff intake',
+      );
+    }
+  });
+
   it('(c) approve calls the atomic RPC, not direct inserts', async () => {
     mockRpc.mockResolvedValue({ data: 'student-9', error: null });
 

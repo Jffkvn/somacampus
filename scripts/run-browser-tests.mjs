@@ -123,6 +123,9 @@ async function main() {
     const buffer = Buffer.from(screenshotRes.data, 'base64');
     const outPath = path.join(ARTIFACTS_DIR, filename);
     fs.writeFileSync(outPath, buffer);
+    const docsPath = path.join(process.cwd(), 'docs/verification/screenshots', filename);
+    fs.mkdirSync(path.dirname(docsPath), { recursive: true });
+    fs.writeFileSync(docsPath, buffer);
     console.log(`  📸 Screenshot saved: ${filename} (${buffer.length} bytes)`);
     return filename;
   }
@@ -172,6 +175,14 @@ async function main() {
     // SECTION A: PRINCIPAL / ADMIN PERSONA FLOWS
     // ==========================================
     await switchRole('principal');
+
+    // 0. School Setup & Administration Overview Cockpit
+    console.log('\n--- 0. Testing Admin Overview Cockpit (/admin/overview) ---');
+    await navigate('/admin/overview');
+    const adminText = await evalInPage('document.body.innerText');
+    const hasAdmin = adminText.includes('School Operations Cockpit') || adminText.includes('School Profile') || adminText.includes('Academic Year');
+    await takeScreenshot('00_admin_overview_cockpit.png');
+    results.push({ page: 'Admin Overview Cockpit (/admin/overview)', role: 'Principal', status: hasAdmin ? 'PASS' : 'WARN', detail: 'Live school registration, academic session, KPI cards, and operational workflows' });
 
     // 1. Student Admission Wizard
     console.log('\n--- 1. Testing Admissions Wizard (/students/new) ---');
@@ -322,9 +333,12 @@ async function main() {
     console.log('\n🎉 Zero fatal console errors captured during browser traversal!');
   }
 
+  const reportPayload = JSON.stringify({ results, errors: collectedErrors, timestamp: new Date().toISOString() }, null, 2);
   const reportPath = path.join(ARTIFACTS_DIR, 'browser_test_report.json');
-  fs.writeFileSync(reportPath, JSON.stringify({ results, errors: collectedErrors, timestamp: new Date().toISOString() }, null, 2));
-  console.log(`Detailed report written to: ${reportPath}`);
+  fs.writeFileSync(reportPath, reportPayload);
+  const docsReportPath = path.join(process.cwd(), 'docs/verification/browser_test_report.json');
+  fs.writeFileSync(docsReportPath, reportPayload);
+  console.log(`Detailed report written to: ${reportPath} and ${docsReportPath}`);
 }
 
 main().catch((err) => {

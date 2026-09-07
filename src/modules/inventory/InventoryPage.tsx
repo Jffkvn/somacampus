@@ -327,7 +327,7 @@ export const InventoryPage: React.FC = () => {
       const callerId = user?.id || 'admin-person-id';
       const lines = selectedRequestToIssue.lines.map((l) => ({
         consumableId: l.consumableId,
-        quantity: l.requestedQty,
+        quantity: l.approvedQty !== null && l.approvedQty !== undefined ? l.approvedQty : l.requestedQty,
       }));
       await inventoryService.issueStockForRequest({
         schoolId: effectiveSchoolId,
@@ -1288,7 +1288,7 @@ export const InventoryPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <p className="text-xs text-slate-500">Current Stock</p>
-                  <p className="text-xl font-bold text-slate-800">{selectedAdjustItem.currentQuantity}</p>
+                  <p className="text-xl font-bold text-slate-800">{selectedAdjustItem.currentQuantity} {selectedAdjustItem.unit}</p>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">New Physical Count</label>
@@ -1302,6 +1302,31 @@ export const InventoryPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {(() => {
+                const delta = adjustQty - selectedAdjustItem.currentQuantity;
+                return (
+                  <div className="p-3 bg-slate-50 rounded-lg flex items-center justify-between border border-slate-200">
+                    <div>
+                      <p className="text-xs text-slate-600 font-semibold uppercase">Ledger Movement Delta</p>
+                      <p className="text-xs text-slate-400">Recorded to immutable audit ledger</p>
+                    </div>
+                    <div>
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                          delta > 0
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : delta < 0
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-slate-100 text-slate-700 border border-slate-300'
+                        }`}
+                      >
+                        {delta > 0 ? `+${delta}` : `${delta}`} {selectedAdjustItem.unit}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -1431,14 +1456,25 @@ export const InventoryPage: React.FC = () => {
 
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
                 <p className="text-xs font-semibold text-slate-700 uppercase">Items to be issued:</p>
-                {selectedRequestToIssue.lines.map((l) => (
-                  <div key={l.id || l.consumableId} className="flex justify-between items-center text-sm">
-                    <span className="font-medium text-slate-800">{l.consumableName}</span>
-                    <span className="font-bold text-emerald-700">
-                      {l.requestedQty} {l.unit}
-                    </span>
-                  </div>
-                ))}
+                {selectedRequestToIssue.lines.map((l) => {
+                  const issueQty = l.approvedQty !== null && l.approvedQty !== undefined ? l.approvedQty : l.requestedQty;
+                  const isPartial = l.approvedQty !== null && l.approvedQty !== undefined && l.approvedQty < l.requestedQty;
+                  return (
+                    <div key={l.id || l.consumableId} className="flex justify-between items-center text-sm">
+                      <div>
+                        <span className="font-medium text-slate-800">{l.consumableName}</span>
+                        {isPartial && (
+                          <span className="ml-2 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            Partial (Req: {l.requestedQty})
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-bold text-emerald-700">
+                        {issueQty} {l.unit}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
 
               <p className="text-xs text-slate-500">

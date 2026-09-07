@@ -229,35 +229,35 @@ export const calendarService = {
 
     let calId = payload.calendarId;
     if (!calId) {
-      try {
-        const { data: cals } = await supabase
+      const { data: cals, error: calsErr } = await supabase
+        .from('school_calendars')
+        .select('id')
+        .eq('school_id', payload.schoolId)
+        .limit(1);
+
+      if (cals && cals.length > 0) {
+        calId = cals[0].id;
+      } else {
+        const { data: newCal, error: createCalErr } = await supabase
           .from('school_calendars')
+          .insert({
+            school_id: payload.schoolId,
+            name: 'School Official Calendar',
+          })
           .select('id')
-          .eq('school_id', payload.schoolId)
-          .limit(1);
-        if (cals && cals.length > 0) {
-          calId = cals[0].id;
-        } else {
-          const { data: newCal } = await supabase
-            .from('school_calendars')
-            .insert({
-              school_id: payload.schoolId,
-              name: 'School Official Calendar',
-            })
-            .select('id')
-            .maybeSingle();
-          if (newCal) {
-            calId = newCal.id;
-          }
+          .single();
+
+        if (createCalErr || !newCal) {
+          throw new Error(
+            `calendarService.createCalendarEvent: could not resolve school calendar: ${createCalErr?.message || calsErr?.message || 'failed to create calendar'}`
+          );
         }
-      } catch (e) {
-        console.warn('Could not query/create school_calendars, using fallback id:', e);
+        calId = newCal.id;
       }
     }
 
-    const effectiveCalId = calId || 'cccccccc-cccc-cccc-cccc-cccccccccccc';
     const insertRow = {
-      school_calendar_id: effectiveCalId,
+      school_calendar_id: calId,
       title: payload.title.trim(),
       description: payload.description?.trim() || null,
       event_type: payload.eventType,
@@ -269,32 +269,17 @@ export const calendarService = {
       target_class_id: payload.targetClassId || null,
     };
 
-    try {
-      const { data, error } = await supabase
-        .from('calendar_events')
-        .insert(insertRow)
-        .select('*')
-        .single();
-      if (!error && data) {
-        return toCalendarEventView(data);
-      }
-    } catch (e) {
-      console.warn('calendar_events insert failed, returning fallback view:', e);
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .insert(insertRow)
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      throw new Error(`calendarService.createCalendarEvent: ${error?.message || 'insert failed'}`);
     }
 
-    return {
-      id: crypto.randomUUID ? crypto.randomUUID() : `event-${Date.now()}`,
-      calendarId: effectiveCalId,
-      title: insertRow.title,
-      description: insertRow.description,
-      eventType: insertRow.event_type,
-      startDatetime: insertRow.start_datetime,
-      endDatetime: insertRow.end_datetime,
-      allDay: insertRow.all_day,
-      location: insertRow.location,
-      audience: insertRow.target_audience,
-      targetClassId: insertRow.target_class_id,
-    };
+    return toCalendarEventView(data);
   },
 
   /**

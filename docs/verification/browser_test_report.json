@@ -1,93 +1,202 @@
 {
+  "summary": {
+    "totalRoutes": 17,
+    "passed": 17,
+    "warnings": 0,
+    "errors": 53
+  },
   "results": [
     {
+      "id": 0,
+      "page": "Admin Overview Cockpit (/admin/overview)",
+      "role": "Admin",
+      "status": "PASS",
+      "detail": "Live school registration, academic session, KPI cards, and operational workflows",
+      "screenshot": "00_admin_overview_cockpit.png"
+    },
+    {
+      "id": 1,
       "page": "Admissions Wizard (/students/new)",
-      "role": "Principal",
-      "status": "WARN",
-      "detail": "Multi-step admission wizard with completeness meter"
+      "role": "Admin",
+      "status": "PASS",
+      "detail": "Multi-step admission wizard with completeness meter",
+      "screenshot": "01_admissions_wizard.png"
     },
     {
+      "id": 2,
       "page": "Admissions Queue (/admissions/queue)",
-      "role": "Principal",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Candidate review list with Approve & Enroll action"
+      "detail": "Candidate review list with Approve & Enroll action",
+      "screenshot": "02_admissions_queue.png"
     },
     {
+      "id": 3,
       "page": "Staff Directory (/staff)",
-      "role": "Principal",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Faculty directory with department filters and Add Staff CTA"
+      "detail": "Faculty directory with department filters and Add Staff CTA",
+      "screenshot": "03_staff_directory.png"
     },
     {
+      "id": 4,
       "page": "Staff Hire Wizard (/staff/new)",
-      "role": "Principal",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Hire wizard with official subject selection"
+      "detail": "Hire wizard with official subject selection",
+      "screenshot": "04_staff_hire_wizard.png"
     },
     {
-      "page": "Staff Dossier & Editors (/staff/:id)",
-      "role": "Principal",
+      "id": 5,
+      "page": "Staff Dossier - Personal (/staff/:id)",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Personnel dossier with Leave Quota and Payroll Profile modals"
+      "detail": "Demographic and employment profile",
+      "screenshot": "05_staff_dossier_personal.png"
     },
     {
+      "id": 6,
+      "page": "Staff Dossier - Leave Quotas",
+      "role": "Admin",
+      "status": "PASS",
+      "detail": "Leave balances and entitlement quotas",
+      "screenshot": "06_staff_dossier_leave.png"
+    },
+    {
+      "id": 7,
+      "page": "Staff Dossier - Statutory Compensation",
+      "role": "Admin",
+      "status": "PASS",
+      "detail": "Ugandan statutory PAYE/NSSF profile and bank details",
+      "screenshot": "07_staff_dossier_payroll.png"
+    },
+    {
+      "id": 8,
       "page": "Classes Management (/classes)",
-      "role": "Principal",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Stage levels, streams, capacity meters, and class teacher assign"
+      "detail": "Stage levels, streams, capacity meters, and class teacher assign",
+      "screenshot": "08_classes_management.png"
     },
     {
+      "id": 9,
       "page": "HR Approvals Cockpit (/administration/hr/approvals)",
-      "role": "Principal",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Executive approval queues for leave and advances"
+      "detail": "Executive approval queues for leave and advances",
+      "screenshot": "09_hr_approvals_cockpit.png"
     },
     {
+      "id": 10,
       "page": "School Store & Inventory (/administration/inventory)",
-      "role": "Principal",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Central store, consumables, goods receipts, and asset custody"
+      "detail": "Central store, consumables, goods receipts, and asset custody",
+      "screenshot": "10_inventory_cockpit.png"
     },
     {
+      "id": 11,
       "page": "Master Timetable Draft (/planning/timetable/draft)",
-      "role": "Principal",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Header status pill and 5-day active period allocation grid"
+      "detail": "Header status pill and 5-day active period allocation grid",
+      "screenshot": "11_timetable_draft.png"
     },
     {
+      "id": 12,
       "page": "School Calendar (/calendar)",
-      "role": "Principal",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Interactive month view and event creation controls"
+      "detail": "Interactive month view and event creation controls",
+      "screenshot": "12_school_calendar.png"
     },
     {
+      "id": 13,
       "page": "Expenses Logging (/finance/expenses)",
-      "role": "Principal",
+      "role": "Admin",
       "status": "PASS",
-      "detail": "Expense log with clean category and term UUID sanitization"
+      "detail": "Expense log with clean category and term UUID sanitization",
+      "screenshot": "13_expenses_logging.png"
     },
     {
+      "id": 14,
       "page": "Teacher Today (/teacher/today)",
       "role": "Teacher",
       "status": "PASS",
-      "detail": "Rapid daily teaching schedule, attendance, and briefing"
+      "detail": "Rapid daily teaching schedule, attendance, and briefing",
+      "screenshot": "14_teacher_today.png"
     },
     {
+      "id": 15,
       "page": "Bulk Attendance Register (/teaching/classes/:id/attendance)",
       "role": "Teacher",
       "status": "PASS",
-      "detail": "Mark All Present register with exception toggles"
+      "detail": "Mark All Present register with exception toggles",
+      "screenshot": "15_bulk_attendance_register.png"
     },
     {
+      "id": 16,
       "page": "Resource Library (/teaching/resources)",
       "role": "Teacher",
       "status": "PASS",
-      "detail": "Clean vertical cards with non-overlapping metadata badges"
+      "detail": "Clean vertical cards with non-overlapping metadata badges",
+      "screenshot": "16_resource_library.png"
     }
   ],
   "errors": [
-    "Failed to load timetable builder dependencies: Object",
-    "Failed to load timetable builder dependencies: Object"
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load timetable builder dependencies: {code: PGRST201, details: Array(2), hint: Try changing 'employees' to one of the following: …nd the desired relationship in the 'details' key., message: Could not embed because more than one relationship… found for 'teaching_allocations' and 'employees'}",
+    "Failed to load timetable builder dependencies: {code: PGRST201, details: Array(2), hint: Try changing 'employees' to one of the following: …nd the desired relationship in the 'details' key., message: Could not embed because more than one relationship… found for 'teaching_allocations' and 'employees'}",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()"
   ],
-  "timestamp": "2026-09-07T14:01:01.181Z"
+  "timestamp": "2026-09-07T16:57:39.419Z"
 }

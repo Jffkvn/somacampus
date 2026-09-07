@@ -41,6 +41,7 @@ import { BulkAttendanceRegisterPage } from './modules/attendance/BulkAttendanceR
 import { ResourceLibraryPage } from './modules/teaching/ResourceLibraryPage';
 import { HRApprovalsPage } from './modules/hr/HRApprovalsPage';
 import { InventoryPage } from './modules/inventory/InventoryPage';
+import { AdminOverviewPage } from './modules/admin/AdminOverviewPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
 import { canAccessPath } from './lib/teacherPrivacy';
@@ -285,12 +286,7 @@ export const App: React.FC = () => {
             path="admin/overview"
             element={
               <RequireAccess path="/admin/overview">
-              <ModulePlaceholder
-                title="School Administration & Setup"
-                moduleName="Administration"
-                description="School settings, curriculum framework configuration, academic terms, and grading rules."
-                scheduledPhase="Phase 7 (Operational Systems)"
-              />
+                <AdminOverviewPage />
               </RequireAccess>
             }
           />

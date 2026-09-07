@@ -91,14 +91,23 @@ export interface AdmissionApplicationRow {
 
 const STUDENT_DOCS_BUCKET = 'student_docs';
 
-type AdmissionsRole = Extract<UserRole, 'admin' | 'principal'>;
+type AdmissionsDecisionRole = Extract<UserRole, 'admin' | 'principal'>;
+type AdmissionsSubmitRole = Extract<UserRole, 'admin' | 'principal' | 'teacher'>;
 
 const isMockEnv = (): boolean =>
   !import.meta.env.VITE_SUPABASE_URL ||
   import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
   import.meta.env.VITE_SUPABASE_URL.includes('mock');
 
-function assertAdmissionsRole(role: UserRole, action: string): asserts role is AdmissionsRole {
+function assertCanSubmitAdmission(role: UserRole): asserts role is AdmissionsSubmitRole {
+  if (role !== 'admin' && role !== 'principal' && role !== 'teacher') {
+    throw new Error(
+      `admissionService: role '${role}' may not submit admission applications (requires admin, principal, or staff intake)`,
+    );
+  }
+}
+
+function assertCanDecideAdmission(role: UserRole, action: string): asserts role is AdmissionsDecisionRole {
   if (role !== 'admin' && role !== 'principal') {
     throw new Error(
       `admissionService: role '${role}' may not ${action} (requires admin or principal)`,
@@ -110,104 +119,6 @@ const errMessage = (err: unknown): string =>
   typeof err === 'object' && err !== null && 'message' in err
     ? String((err as { message: unknown }).message)
     : 'unknown error';
-
-export const DEMO_ADMISSION_APPLICATIONS: AdmissionApplicationRow[] = [
-  {
-    id: 'app-demo-001',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    firstName: 'Joshua',
-    lastName: 'Kato',
-    pupilName: 'Joshua Kato',
-    dob: '2019-04-12',
-    gender: 'male',
-    classId: null,
-    streamId: null,
-    status: 'pending',
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-    guardians: [
-      {
-        id: 'g-demo-1',
-        name: 'Sarah Kato',
-        relationship: 'Mother',
-        phone: '+256 772 123456',
-        email: 'sarah.kato@gmail.com',
-        isEmergency: true,
-        isPrimary: true,
-      },
-      {
-        id: 'g-demo-2',
-        name: 'David Kato',
-        relationship: 'Father',
-        phone: '+256 701 987654',
-        email: 'david.kato@gmail.com',
-        isEmergency: true,
-        isPrimary: false,
-      },
-    ],
-    documents: [
-      { id: 'd-demo-1', docType: 'birth_certificate', storagePath: 'demo/birth_cert.pdf' },
-      { id: 'd-demo-2', docType: 'report_card', storagePath: 'demo/report_term2.pdf' },
-    ],
-  },
-  {
-    id: 'app-demo-002',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    firstName: 'Mariam',
-    lastName: 'Namubiru',
-    pupilName: 'Mariam Namubiru',
-    dob: '2018-09-20',
-    gender: 'female',
-    classId: null,
-    streamId: null,
-    status: 'pending',
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-    guardians: [
-      {
-        id: 'g-demo-3',
-        name: 'Fatuma Namubiru',
-        relationship: 'Aunt / Guardian',
-        phone: '+256 782 555888',
-        email: 'fatuma.n@yahoo.com',
-        isEmergency: true,
-        isPrimary: true,
-      },
-    ],
-    documents: [
-      { id: 'd-demo-3', docType: 'transfer_letter', storagePath: 'demo/transfer.pdf' },
-      { id: 'd-demo-4', docType: 'photo', storagePath: 'demo/passport_photo.jpg' },
-    ],
-  },
-  {
-    id: 'app-demo-003',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    firstName: 'Daniel',
-    lastName: 'Ochieng',
-    pupilName: 'Daniel Ochieng',
-    dob: '2017-11-03',
-    gender: 'male',
-    classId: null,
-    streamId: null,
-    status: 'approved',
-    approvedStudentId: 'student-demo-001',
-    createdAt: new Date(Date.now() - 14 * 86400000).toISOString(),
-    guardians: [
-      {
-        id: 'g-demo-4',
-        name: 'George Ochieng',
-        relationship: 'Father',
-        phone: '+256 752 444333',
-        email: 'george.o@gmail.com',
-        isEmergency: true,
-        isPrimary: true,
-      },
-    ],
-    documents: [
-      { id: 'd-demo-5', docType: 'birth_certificate', storagePath: 'demo/birth_cert.pdf' },
-    ],
-  },
-];
-
-let fallbackApplications: AdmissionApplicationRow[] = [...DEMO_ADMISSION_APPLICATIONS];
 
 export const admissionService = {
   /**
@@ -228,14 +139,7 @@ export const admissionService = {
       .order('created_at', { ascending: false });
 
     if (error) {
-      const msg = errMessage(error);
-      if (msg.includes('schema cache') || msg.includes('Could not find the table') || (error as any)?.code === 'PGRST205') {
-        console.warn('admission_applications table missing from schema cache, returning demo admissions applications:', msg);
-        return fallbackApplications.filter(
-          (a) => a.schoolId === schoolId || a.schoolId === '22222222-2222-2222-2222-222222222222'
-        );
-      }
-      throw new Error(`admissionService.listApplications: ${msg}`);
+      throw new Error(`admissionService.listApplications: ${errMessage(error)}`);
     }
     const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
 
@@ -297,7 +201,7 @@ export const admissionService = {
     input: SubmitApplicationInput,
     actorRole: UserRole,
   ): Promise<{ applicationId: string }> {
-    assertAdmissionsRole(actorRole, 'submit admission applications');
+    assertCanSubmitAdmission(actorRole);
 
     const firstName = input.studentFirstName.trim();
     const lastName = input.studentLastName.trim();
@@ -397,7 +301,7 @@ export const admissionService = {
     streamId?: string | null,
     actorRole?: UserRole,
   ): Promise<void> {
-    if (actorRole) assertAdmissionsRole(actorRole, 'assign class to admission application');
+    if (actorRole) assertCanDecideAdmission(actorRole, 'assign class to admission application');
     if (isMockEnv()) {
       throw new Error('admissionService.assignClass: unavailable in mock environment');
     }
@@ -421,20 +325,9 @@ export const admissionService = {
     actorRole: UserRole,
     overrideClass?: { classId: string; streamId?: string | null },
   ): Promise<{ studentId: string }> {
-    assertAdmissionsRole(actorRole, 'approve admission applications');
+    assertCanDecideAdmission(actorRole, 'approve admission applications');
     if (isMockEnv()) {
       throw new Error('admissionService.approveApplication: unavailable in mock environment (no fake writes)');
-    }
-    if (applicationId.startsWith('app-demo-')) {
-      const idx = fallbackApplications.findIndex((a) => a.id === applicationId);
-      if (idx !== -1) {
-        fallbackApplications[idx] = {
-          ...fallbackApplications[idx],
-          status: 'approved',
-          approvedStudentId: 'student-demo-' + Date.now(),
-        };
-      }
-      return { studentId: 'student-demo-' + Date.now() };
     }
 
     if (overrideClass?.classId) {
@@ -450,20 +343,7 @@ export const admissionService = {
       p_application_id: applicationId,
     });
     if (error) {
-      const msg = errMessage(error);
-      if (msg.includes('schema cache') || msg.includes('Could not find') || (error as any)?.code === 'PGRST202') {
-        console.warn('approve_admission_application RPC missing from schema cache, falling back to local update:', msg);
-        const idx = fallbackApplications.findIndex((a) => a.id === applicationId);
-        if (idx !== -1) {
-          fallbackApplications[idx] = {
-            ...fallbackApplications[idx],
-            status: 'approved',
-            approvedStudentId: 'student-demo-' + Date.now(),
-          };
-        }
-        return { studentId: 'student-demo-' + Date.now() };
-      }
-      throw new Error(`admissionService.approveApplication: ${msg}`);
+      throw new Error(`admissionService.approveApplication: ${errMessage(error)}`);
     }
     return { studentId: String(data) };
   },
@@ -478,7 +358,7 @@ export const admissionService = {
     actorRole: UserRole,
     reason: string,
   ): Promise<{ applicationId: string }> {
-    assertAdmissionsRole(actorRole, 'reject admission applications');
+    assertCanDecideAdmission(actorRole, 'reject admission applications');
     if (!reason.trim()) {
       throw new Error('admissionService.rejectApplication: a rejection reason is required');
     }
@@ -486,34 +366,12 @@ export const admissionService = {
       throw new Error('admissionService.rejectApplication: unavailable in mock environment (no fake writes)');
     }
 
-    if (applicationId.startsWith('app-demo-')) {
-      const idx = fallbackApplications.findIndex((a) => a.id === applicationId);
-      if (idx !== -1) {
-        fallbackApplications[idx] = {
-          ...fallbackApplications[idx],
-          status: 'rejected',
-        };
-      }
-      return { applicationId };
-    }
-
     const { error } = await supabase
       .from('admission_applications')
       .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
       .eq('id', applicationId);
     if (error) {
-      const msg = errMessage(error);
-      if (msg.includes('schema cache') || msg.includes('Could not find the table') || (error as any)?.code === 'PGRST205') {
-        const idx = fallbackApplications.findIndex((a) => a.id === applicationId);
-        if (idx !== -1) {
-          fallbackApplications[idx] = {
-            ...fallbackApplications[idx],
-            status: 'rejected',
-          };
-        }
-        return { applicationId };
-      }
-      throw new Error(`admissionService.rejectApplication: ${msg}`);
+      throw new Error(`admissionService.rejectApplication: ${errMessage(error)}`);
     }
     return { applicationId };
   },
