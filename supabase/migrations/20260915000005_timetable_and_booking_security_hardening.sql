@@ -149,8 +149,9 @@ BEGIN
       public.is_staff_in_school(v_booking.school_id)
       AND EXISTS (
         SELECT 1 FROM public.employees e
+        JOIN public.people p ON p.id = e.person_id
         WHERE e.id = p_teacher_id
-          AND e.user_id = auth.uid()
+          AND p.auth_user_id = auth.uid()
       )
     )
   ) THEN

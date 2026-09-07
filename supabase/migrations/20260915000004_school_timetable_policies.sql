@@ -184,11 +184,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.employees e
-    WHERE e.school_id = p_school_id
-      AND e.user_id = auth.uid()
-  );
+  SELECT public.current_employee_id_for_school(p_school_id) IS NOT NULL;
 $$;
 
 -- Helper to check if caller has leadership/admin role
