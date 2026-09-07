@@ -39,6 +39,7 @@ import { StaffDetailPage } from './modules/staff/StaffDetailPage';
 import { ClassesPage } from './modules/classes/ClassesPage';
 import { BulkAttendanceRegisterPage } from './modules/attendance/BulkAttendanceRegisterPage';
 import { HRApprovalsPage } from './modules/hr/HRApprovalsPage';
+import { InventoryPage } from './modules/inventory/InventoryPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
 import { canAccessPath } from './lib/teacherPrivacy';
@@ -322,12 +323,7 @@ export const App: React.FC = () => {
             path="administration/inventory"
             element={
               <RequireAccess path="/administration/inventory">
-              <ModulePlaceholder
-                title="Warehouse, Inventory & Assets"
-                moduleName="Operational Systems"
-                description="Textbooks, lab equipment, stationery consumables, and asset custody tracking."
-                scheduledPhase="Phase 7 (Operational Systems)"
-              />
+                <InventoryPage />
               </RequireAccess>
             }
           />
