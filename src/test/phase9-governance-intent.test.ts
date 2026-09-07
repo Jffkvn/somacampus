@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
 
 /**
- * Phase 9 Final Hardening: PostgreSQL RLS Security, Governance & Isolation Suite.
+ * Phase 9 Governance INTENT MODEL Suite (NOT live-DB proof).
  *
- * Verifies:
+ * These tests assert governance INTENT using local JS helper models only —
+ * they never touch Postgres and therefore do NOT verify live RLS policies,
+ * triggers, or RPC security. Real RLS verification lives in the live probes
+ * (scripts/inspect-*-live.ts and *-live.test.ts suites against a live database).
+ *
+ * Intent models covered:
  * 1. Multi-tenant isolation for official teaching subjects and allocations.
  * 2. Teacher financial firewall: Teachers cannot query student financial balances or peer compensation rules.
  * 3. Teaching allocation approval authorization (leadership only; teachers rejected).
@@ -13,7 +18,7 @@ import { describe, it, expect } from 'vitest';
  * 7. Sessional compensation resolution: Queries historical effective date, not CURRENT_DATE.
  */
 
-describe('Phase 9 RLS Security & Governance Architecture', () => {
+describe('Phase 9 Governance INTENT (not live-DB proof)', () => {
   const schoolA = 'sch-uganda-001';
   const schoolB = 'sch-kenya-002';
 

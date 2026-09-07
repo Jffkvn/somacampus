@@ -3,12 +3,19 @@
  *
  * Verifies the master non-negotiable contract:
  *  1. Cross-tenant relationship integrity (School A cannot reference School B).
+ *     INTENT MODEL ONLY: local JS helper, never touches Postgres. NOT live-DB proof.
  *  2. RLS Authority: Teachers receive 0 pricing rows & 0 peer compensation rows;
  *     Teachers only see sessions/participants where assigned.
+ *     INTENT MODEL ONLY: local JS helper, never touches Postgres. NOT live-DB proof.
  *  3. Phase 4 shared table invariant: Physical assignment requires class_id;
  *     Online assignment requires online_session_id (class_id optional).
  *  4. Classroom presence duration sums disjoint intervals on reconnects.
  *  5. Payroll bridge idempotency (source_type = 'ONLINE_SESSION', source_id = session.id).
+ *     INTENT MODEL ONLY (local JS helpers, never touches Postgres). NOT live-DB proof.
+ *
+ * NOTE: Invariants 1, 2, and 5 in this file assert intent models in local JS.
+ * Real RLS/governance verification lives in the live probes
+ * (scripts/inspect-*-live.ts and *-live.test.ts suites against a live database).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { validateAssignmentPayload } from '../modules/teaching/assignmentDomain';
@@ -38,7 +45,7 @@ afterEach(() => {
   (import.meta.env as any).VITE_SUPABASE_URL = origViteUrl;
 });
 
-describe('Phase 9 Hardening: Invariant 1 — Cross-Tenant Integrity', () => {
+describe('Phase 9 Hardening: Invariant 1 — Cross-Tenant Integrity INTENT (not live-DB proof)', () => {
   it('enforces that School A entities cannot link to School B entities across foreign keys', () => {
     // Simulated DB trigger verification
     function checkCrossTenant(
@@ -95,7 +102,7 @@ describe('Phase 9 Hardening: Invariant 1 — Cross-Tenant Integrity', () => {
   });
 });
 
-describe('Phase 9 Hardening: Invariant 2 — RLS Authority & Financial Privacy', () => {
+describe('Phase 9 Hardening: Invariant 2 — RLS Authority & Financial Privacy INTENT (not live-DB proof)', () => {
   it('guarantees teachers receive 0 pricing rows while leadership receives all and learners receive PUBLIC only', () => {
     type Role = 'admin' | 'principal' | 'bursar' | 'teacher' | 'student' | 'guardian';
     interface PricingRow {
@@ -262,7 +269,7 @@ describe('Phase 9 Hardening: Invariant 4 — Presence Duration Disjoint Interval
   });
 });
 
-describe('Phase 9 Hardening: Invariant 5 — Sessional Payroll Bridge & Idempotency', () => {
+describe('Phase 9 Hardening: Invariant 5 — Sessional Payroll Bridge & Idempotency INTENT (not live-DB proof)', () => {
   it('guarantees claim uniqueness using source_type and source_id', () => {
     interface ClaimRecord {
       source_type: string;

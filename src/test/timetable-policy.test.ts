@@ -71,7 +71,7 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
     for (const a of result.assignments) {
       const key = `${a.slot.dayOfWeek}-${a.slot.periodNumber}-${a.classId}`;
       expect(classSlots.has(key)).toBe(false);
-      teacherSlots.add(key);
+      classSlots.add(key);
     }
 
     // Verify quotas satisfied
