@@ -199,19 +199,25 @@ describe('online advisory AI (Phase 9I) — deterministic, human-approved', () =
   });
 
   it('(f) mock-honest: test env returns honest empties, outputs are deterministic', () => {
-    expect(process.env.NODE_ENV).toBe('test');
-    expect(suggestTeachers('subj-math', []).suggestions).toEqual([]);
-    const input = {
-      sessionId: 'ses-9',
-      priorNote: 'Practised equivalent fractions with number lines.',
-      outstanding: [
-        { assignmentId: 'a-2', assignmentTitle: 'Number line homework', studentId: 'stud-2', status: 'missing' as const },
-      ],
-      objectives: ['Compare fractions with different denominators'],
-    };
-    expect(prepareSession(input)).toEqual(prepareSession(input));
-    const summaryInput = { sessionId: 'ses-9', presentCount: 4, participantCount: 4, completionNote: 'Full house; number lines clicked.' };
-    expect(summarizeSession(summaryInput)).toEqual(summarizeSession(summaryInput));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-03T10:00:00.000Z'));
+    try {
+      expect(process.env.NODE_ENV).toBe('test');
+      expect(suggestTeachers('subj-math', []).suggestions).toEqual([]);
+      const input = {
+        sessionId: 'ses-9',
+        priorNote: 'Practised equivalent fractions with number lines.',
+        outstanding: [
+          { assignmentId: 'a-2', assignmentTitle: 'Number line homework', studentId: 'stud-2', status: 'missing' as const },
+        ],
+        objectives: ['Compare fractions with different denominators'],
+      };
+      expect(prepareSession(input)).toEqual(prepareSession(input));
+      const summaryInput = { sessionId: 'ses-9', presentCount: 4, participantCount: 4, completionNote: 'Full house; number lines clicked.' };
+      expect(summarizeSession(summaryInput)).toEqual(summarizeSession(summaryInput));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('(g) composers are pure: zero DB calls', () => {

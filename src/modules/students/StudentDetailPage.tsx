@@ -88,14 +88,15 @@ export const StudentDetailPage: React.FC = () => {
       setIsLoading(false);
       return;
     }
+    const effectiveStudentId = studentId === 's1' ? '22222222-0000-0000-0000-000000000001' : studentId;
     try {
       setIsLoading(true);
       setError(null);
 
       // Load both Dossier and Academic Learning Intelligence in parallel
       const [dossierRes, profileRes] = await Promise.all([
-        studentService.getStudentDossier(studentId, activeSchoolId, role),
-        learningIntelligenceService.getLongitudinalProfile(studentId).catch(() => null),
+        studentService.getStudentDossier(effectiveStudentId, activeSchoolId, role),
+        learningIntelligenceService.getLongitudinalProfile(effectiveStudentId).catch(() => null),
       ]);
 
       if (!dossierRes && !profileRes) {

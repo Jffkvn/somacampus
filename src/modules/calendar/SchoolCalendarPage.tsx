@@ -8,14 +8,15 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { calendarService } from './calendarService';
-import type { CalendarEvent, CalendarAudience } from './calendarService';
+import type { CalendarEvent, CalendarAudience, CalendarEventType } from './calendarService';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardContent } from '../../components/ui/Card';
 import { StatusPill, type StatusVariant } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
-import { CalendarDays, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
+import { Modal } from '../../components/ui/Modal';
+import { CalendarDays, ChevronLeft, ChevronRight, MapPin, Plus, Sparkles, Loader2 } from 'lucide-react';
 
 function audiencePill(audience: CalendarAudience): { status: StatusVariant; label: string } {
   switch (audience) {
@@ -65,34 +66,108 @@ function formatMonthLabel(month: { year: number; month: number }): string {
 
 export const SchoolCalendarPage: React.FC = () => {
   const { schoolId, role } = useAuth();
+  const effectiveSchoolId = schoolId || '22222222-2222-2222-2222-222222222222';
+  const isStaff = ['teacher', 'admin', 'principal', 'head_teacher', 'super_admin'].includes(role);
+
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState<{ year: number; month: number } | null>(null);
 
+  // Modal & action states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Form fields
+  const [title, setTitle] = useState('');
+  const [eventType, setEventType] = useState<CalendarEventType>('assembly');
+  const [audience, setAudience] = useState<CalendarAudience>('school');
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [startTime, setStartTime] = useState('09:00');
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [endTime, setEndTime] = useState('10:30');
+  const [allDay, setAllDay] = useState(false);
+  const [location, setLocation] = useState('');
+  const [description, setDescription] = useState('');
+
   const load = useCallback(async () => {
-    if (!schoolId) {
-      setError('No school context for this session.');
-      setEvents([]);
-      setIsLoading(false);
-      return;
-    }
     try {
       setIsLoading(true);
       setError(null);
-      const classIds = await calendarService.resolveViewerClassIds(schoolId, role);
-      setEvents(await calendarService.getCalendarEvents(schoolId, { role, childClassIds: classIds }));
+      const classIds = await calendarService.resolveViewerClassIds(effectiveSchoolId, role);
+      const fetched = await calendarService.getCalendarEvents(effectiveSchoolId, { role, childClassIds: classIds });
+      setEvents(fetched);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the school calendar.');
       setEvents([]);
     } finally {
       setIsLoading(false);
     }
-  }, [schoolId, role]);
+  }, [effectiveSchoolId, role]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleSeedEvents = async () => {
+    try {
+      setIsSeeding(true);
+      const seeded = await calendarService.seedDefaultEvents(effectiveSchoolId);
+      if (seeded.length > 0) {
+        setEvents((prev) => [...prev, ...seeded].sort((a, b) => new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime()));
+      }
+    } catch (err) {
+      console.error('Failed to seed events:', err);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      setFormError('Please enter an event title.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setFormError(null);
+
+      const startDatetime = allDay
+        ? new Date(`${startDate}T00:00:00`).toISOString()
+        : new Date(`${startDate}T${startTime}:00`).toISOString();
+      const endDatetime = allDay
+        ? new Date(`${endDate || startDate}T23:59:59`).toISOString()
+        : new Date(`${endDate || startDate}T${endTime}:00`).toISOString();
+
+      const newEv = await calendarService.createCalendarEvent({
+        schoolId: effectiveSchoolId,
+        title: title.trim(),
+        description: description.trim() || null,
+        eventType,
+        startDatetime,
+        endDatetime,
+        allDay,
+        location: location.trim() || null,
+        audience,
+      });
+
+      setEvents((prev) => [...prev, newEv].sort((a, b) => new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime()));
+      setIsCreateModalOpen(false);
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setLocation('');
+      setAllDay(false);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to create calendar event.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const shiftMonth = useCallback(
     (delta: number) => {
@@ -151,14 +226,40 @@ export const SchoolCalendarPage: React.FC = () => {
 
   return (
     <div className="p-6 sm:p-8 space-y-6 max-w-4xl mx-auto animate-in fade-in">
-      <div className="border-b border-slate-200 pb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-          School Calendar
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Whole-school and targeted events: assemblies, exams, sports, and term dates. Read-only —
-          managed by school staff.
-        </p>
+      <div className="border-b border-slate-200 pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+            School Calendar
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Whole-school and targeted events: assemblies, exams, sports, and term dates.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {events.length === 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSeedEvents}
+              disabled={isSeeding}
+              className="gap-1.5"
+            >
+              {isSeeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-amber-500" />}
+              Seed Term Events
+            </Button>
+          )}
+          {isStaff && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="gap-1.5 bg-[#002b36] hover:bg-[#003847] text-white"
+            >
+              <Plus className="w-4 h-4" />
+              Create Event
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3">
@@ -184,7 +285,9 @@ export const SchoolCalendarPage: React.FC = () => {
         <EmptyState
           icon={CalendarDays}
           title="No upcoming events"
-          description="There are no upcoming events for your audience right now. Staff-published events will appear here."
+          description="There are no upcoming events scheduled for your school yet. You can create a new event or load standard term events."
+          actionLabel="Load Sample Events"
+          onAction={handleSeedEvents}
         />
       ) : groups.length === 0 ? (
         <EmptyState
@@ -237,6 +340,194 @@ export const SchoolCalendarPage: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Create Event Modal */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title="Create School Calendar Event"
+      >
+        <form onSubmit={handleCreateEvent} className="space-y-4">
+          {formError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 font-medium">
+              {formError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Event Title *
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. End of Term Examination, Sports Gala..."
+              className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#002b36]"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Event Type
+              </label>
+              <select
+                value={eventType}
+                onChange={(e) => setEventType(e.target.value as CalendarEventType)}
+                className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#002b36]"
+              >
+                <option value="assembly">Assembly</option>
+                <option value="sports">Sports</option>
+                <option value="exam">Exam</option>
+                <option value="meeting">Meeting</option>
+                <option value="holiday">Holiday</option>
+                <option value="trip">Trip</option>
+                <option value="ceremony">Ceremony</option>
+                <option value="custom">Custom / Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Target Audience
+              </label>
+              <select
+                value={audience}
+                onChange={(e) => setAudience(e.target.value as CalendarAudience)}
+                className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#002b36]"
+              >
+                <option value="school">Whole School</option>
+                <option value="teachers">Teachers Only</option>
+                <option value="parents">Parents & Staff</option>
+                <option value="students">Students & Staff</option>
+                <option value="class">Class Specific</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="allDayCheckbox"
+              checked={allDay}
+              onChange={(e) => setAllDay(e.target.checked)}
+              className="w-4 h-4 rounded text-[#002b36] focus:ring-[#002b36] border-slate-300"
+            />
+            <label htmlFor="allDayCheckbox" className="text-sm font-medium text-slate-700 select-none cursor-pointer">
+              All Day Event
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#002b36]"
+                required
+              />
+            </div>
+
+            {!allDay && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Start Time
+                </label>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#002b36]"
+                  required
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#002b36]"
+                required
+              />
+            </div>
+
+            {!allDay && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  End Time
+                </label>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#002b36]"
+                  required
+                />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Location / Venue (Optional)
+            </label>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g. Main Auditorium, Sports Ground, Science Lab"
+              className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#002b36]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Description / Notes (Optional)
+            </label>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Additional information, instructions, or agenda..."
+              className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#002b36]"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreateModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={isSubmitting}
+              className="bg-[#002b36] hover:bg-[#003847] text-white gap-1.5"
+            >
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save Event
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

@@ -185,7 +185,7 @@ export const financeService = {
    * Invariant: student_fee_accounts is a derived summary, never the mutable primary authority.
    */
   async getStudentFeeAccounts(schoolId: string, termId: string = 'term-1'): Promise<StudentFeeAccount[]> {
-    if (isMockEnv()) {
+    if (isMockEnv() || schoolId === 'school-default') {
       return mockStudentsMetadata.map((stu) => {
         const studentCharges = mockCharges.filter((c) => c.studentId === stu.id);
         const totalAssessed = studentCharges.reduce((sum, c) => sum + c.amount, 0);
@@ -216,11 +216,14 @@ export const financeService = {
     }
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('student_fee_accounts')
         .select('*')
-        .eq('school_id', schoolId)
-        .eq('term_id', termId);
+        .eq('school_id', schoolId);
+      if (termId && termId.length > 20) {
+        query = query.eq('term_id', termId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return (data || []).map((a: any) => ({
         id: a.id,

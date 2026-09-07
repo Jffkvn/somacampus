@@ -38,6 +38,7 @@ import { HireStaffWizardPage } from './modules/staff/HireStaffWizardPage';
 import { StaffDetailPage } from './modules/staff/StaffDetailPage';
 import { ClassesPage } from './modules/classes/ClassesPage';
 import { BulkAttendanceRegisterPage } from './modules/attendance/BulkAttendanceRegisterPage';
+import { ResourceLibraryPage } from './modules/teaching/ResourceLibraryPage';
 import { HRApprovalsPage } from './modules/hr/HRApprovalsPage';
 import { InventoryPage } from './modules/inventory/InventoryPage';
 import { AuthProvider, useAuth } from './lib/authContext';
@@ -103,28 +104,8 @@ export const App: React.FC = () => {
             <Route path="fees" element={<RequireAccess path="/fees"><FeesPage /></RequireAccess>} />
 
           {/* Teacher Secondary Routes */}
-          <Route
-            path="teacher/classes"
-            element={
-              <ModulePlaceholder
-                title="Assigned Classes"
-                moduleName="Teacher Workspace"
-                description="View assigned class rosters, curriculum progress, and subject allocations."
-                scheduledPhase="Backlog (deferred past Phase 2)"
-              />
-            }
-          />
-          <Route
-            path="teacher/timetable"
-            element={
-              <ModulePlaceholder
-                title="Teacher Weekly Timetable"
-                moduleName="Schedule & Context"
-                description="Full weekly recurring timetable schedule and classroom allocations."
-                scheduledPhase="Backlog (deferred past Phase 2)"
-              />
-            }
-          />
+          <Route path="teacher/classes" element={<ClassesPage />} />
+          <Route path="teacher/timetable" element={<TimetableDraftPage initialView="schedule" />} />
 
           {/* Teaching Slice Routes */}
           <Route path="teaching/lessons" element={<LiveLessonsMonitorPage />} />
@@ -134,6 +115,10 @@ export const App: React.FC = () => {
           />
           <Route
             path="teaching/classes/:classId/attendance"
+            element={<BulkAttendanceRegisterPage />}
+          />
+          <Route
+            path="attendance/morning"
             element={<BulkAttendanceRegisterPage />}
           />
           <Route path="teaching/assignments" element={<AssignmentsListPage />} />
@@ -172,17 +157,7 @@ export const App: React.FC = () => {
               />
             }
           />
-          <Route
-            path="teaching/resources"
-            element={
-              <ModulePlaceholder
-                title="Approved Resource Library"
-                moduleName="Resources Engine"
-                description="Search, reuse, and adapt approved curriculum and school materials."
-                scheduledPhase="Phase 5 (Teaching Acceleration)"
-              />
-            }
-          />
+          <Route path="teaching/resources" element={<ResourceLibraryPage />} />
 
           {/* Students & Learning Routes */}
           <Route path="students" element={<StudentDirectoryPage />} />
@@ -199,17 +174,7 @@ export const App: React.FC = () => {
           <Route path="staff/new" element={<RequireAccess path="/staff/new"><HireStaffWizardPage /></RequireAccess>} />
           <Route path="staff/:id" element={<RequireAccess path="/staff"><StaffDetailPage /></RequireAccess>} />
 
-          <Route
-            path="students/attendance"
-            element={
-              <ModulePlaceholder
-                title="School-wide Attendance History"
-                moduleName="Attendance Engine"
-                description="Longitudinal student attendance records, trends, and audited corrections."
-                scheduledPhase="Phase 4 (Student Profile & Evidence)"
-              />
-            }
-          />
+          <Route path="students/attendance" element={<BulkAttendanceRegisterPage />} />
 
           {/* Academics & Schedule Routes */}
           {/* Phase 6 Curriculum Engine & Academic Planning */}
@@ -218,14 +183,14 @@ export const App: React.FC = () => {
           <Route path="planning/schemes" element={<SchemesOfWorkPage />} />
           <Route path="planning/schemes/:schemeId" element={<SchemeDetailPage />} />
           <Route path="planning/policies" element={<RequireAccess path="/planning/policies"><TimetablePolicyPage /></RequireAccess>} />
-          <Route path="planning/timetable/builder" element={<RequireAccess path="/planning/timetable/builder"><TimetableDraftPage /></RequireAccess>} />
+          <Route path="planning/timetable/builder" element={<RequireAccess path="/planning/timetable/builder"><TimetableDraftPage initialView="allocation" /></RequireAccess>} />
           <Route path="activities" element={<ActivitiesPage />} />
 
           {/* Phase 9I Timetable Intelligence & Master Schedule */}
           {/* F3: canonical mount gated to teacher/admin/principal (same page
-              component as the leadership-only builder; RLS + service scope
-              the rows). Parent/student/bursar fall back to landing. */}
-          <Route path="timetable" element={<RequireAccess path="/timetable"><TimetableDraftPage /></RequireAccess>} />
+              component as the leadership-only builder; builder stays leadership-only). Teachers keep
+              their operational schedule; parent/student/bursar fall back to landing. */}
+          <Route path="timetable" element={<RequireAccess path="/timetable"><TimetableDraftPage initialView="schedule" /></RequireAccess>} />
           {/* Phase 8E Task 1: read-only audience-filtered view (RequireAccess
               keeps the route-gate pattern; teacherPrivacy default-allows this
               path and the service + RLS arbitrate the rows). */}
@@ -238,10 +203,19 @@ export const App: React.FC = () => {
               </RequireAccess>
             }
           />
+          <Route
+            path="academics/classes"
+            element={
+              <RequireAccess path="/classes">
+                <ClassesPage />
+              </RequireAccess>
+            }
+          />
 
           {/* Finance Routes */}
           <Route path="expenses" element={<RequireAccess path="/expenses"><ExpensesPage /></RequireAccess>} />
           <Route path="payroll" element={<RequireAccess path="/payroll"><PayrollDashboardPage /></RequireAccess>} />
+          <Route path="payroll/runs" element={<RequireAccess path="/payroll"><PayrollDashboardPage /></RequireAccess>} />
           <Route
             path="fees/import"
             element={
@@ -261,6 +235,14 @@ export const App: React.FC = () => {
           <Route path="people/hr/leave" element={<MyHRPage section="leave" />} />
           <Route path="people/hr/advances" element={<MyHRPage section="advances" />} />
           <Route path="people/hr/payslips" element={<MyHRPage section="payslips" />} />
+          <Route
+            path="people/hr/approvals"
+            element={
+              <RequireAccess path="/administration/hr/approvals">
+                <HRApprovalsPage />
+              </RequireAccess>
+            }
+          />
 
           {/* Parent & Student Portal Routes */}
           <Route

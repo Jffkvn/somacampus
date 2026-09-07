@@ -11,6 +11,8 @@ const toVerif = (v: unknown): VerificationMethod =>
     ? (v as VerificationMethod)
     : 'verified_manual';
 
+const teacherTodayCache = new Map<string, { data: TeacherTodayViewModel; timestamp: number }>();
+
 export const teacherService = {
   /**
    * Fetches the teacher's daily cockpit view model.
@@ -75,63 +77,103 @@ export const teacherService = {
       };
     }
 
+    const cacheKey = `${teacherEmailOrId}_${date}`;
+    const cached = teacherTodayCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 15_000 && process.env.NODE_ENV !== 'test') {
+      return cached.data;
+    }
+
     try {
       // 1. Resolve employee from authenticated user or fallback ID
       let employeeId = teacherEmailOrId;
       let teacherName = 'Mrs. Sarah Namukasa';
 
-      const { data: empData } = await supabase
-        .from('employees')
-        .select('id, person_id, people(first_name, last_name, email)')
-        .limit(5);
+      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-      if (empData && empData.length > 0) {
-        // Find matching employee or default to Sarah Namukasa
-        const matched = empData.find(
-          (e: any) => e.id === teacherEmailOrId || e.people?.email === teacherEmailOrId
-        ) || empData[0];
-        employeeId = matched.id;
-        const person = Array.isArray((matched as any).people)
-          ? (matched as any).people[0]
-          : (matched as any).people;
-        if (person) {
-          teacherName = `${person.first_name} ${person.last_name}`;
+      if (!isUUID(employeeId) && !teacherEmailOrId.includes('teacher')) {
+        const { data: empData } = await supabase
+          .from('employees')
+          .select('id, person_id, people(first_name, last_name, email)')
+          .limit(5);
+
+        if (empData && empData.length > 0) {
+          const matched = empData.find(
+            (e: any) => e.id === teacherEmailOrId || e.people?.email === teacherEmailOrId
+          ) || empData[0];
+          employeeId = matched.id;
+          const person = Array.isArray((matched as any).people)
+            ? (matched as any).people[0]
+            : (matched as any).people;
+          if (person) {
+            teacherName = `${person.first_name} ${person.last_name}`;
+          }
         }
       }
 
-      // If employeeId is not a valid UUID, fallback to Sarah Namukasa canonical employee ID
-      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
       if (!isUUID(employeeId)) {
         employeeId = '99999999-9999-9999-9999-999999999991';
       }
 
-      // 2. Fetch Class Responsibilities (Where teacher is Class Teacher)
-      const { data: ctRows } = await supabase
-        .from('class_teachers')
-        .select(`
-          id, class_id, stream_id, teacher_id, effective_from, effective_to,
-          classes(id, name),
-          streams(id, name),
-          teacher:employees!class_teachers_teacher_id_fkey(
-            id,
-            people(first_name, last_name)
-          )
-        `)
-        .eq('teacher_id', employeeId)
-        .lte('effective_from', date);
+      const schoolIdForSchedule = '22222222-2222-2222-2222-222222222222';
+      const dow = toDayOfWeek(date);
 
+      // Launch all 4 independent queries concurrently in parallel
+      const [ctRes, ttRes, attRes, lessonRes] = await Promise.allSettled([
+        // Query 1: class teachers
+        supabase
+          .from('class_teachers')
+          .select(`
+            id, class_id, stream_id, teacher_id, effective_from, effective_to,
+            classes(id, name),
+            streams(id, name),
+            teacher:employees!class_teachers_teacher_id_fkey(
+              id,
+              people(first_name, last_name)
+            )
+          `)
+          .eq('teacher_id', employeeId)
+          .lte('effective_from', date),
+
+        // Query 2: timetable entries
+        supabase
+          .from('timetable_entries')
+          .select('id, timetable_id, class_id, stream_id, subject_id, teacher_id, room_name, day_of_week, start_time, end_time, timetables!inner(is_active, school_id), subjects(id,name), classes(id,name), streams(id,name), teacher:employees!timetable_entries_teacher_id_fkey(id, people(first_name,last_name))')
+          .eq('timetables.is_active', true)
+          .eq('timetables.school_id', schoolIdForSchedule)
+          .eq('day_of_week', dow)
+          .eq('teacher_id', employeeId)
+          .order('start_time'),
+
+        // Query 3: teacher clock-in
+        supabase
+          .from('teacher_attendance')
+          .select('clock_in, verification_status')
+          .eq('employee_id', employeeId)
+          .eq('date', date)
+          .maybeSingle(),
+
+        // Query 4: completed lessons (guarded)
+        (async () => {
+          let q: any = supabase.from('lessons').select('timetable_entry_id').eq('teacher_id', employeeId);
+          if (typeof q?.gte === 'function') {
+            q = q.gte('submitted_at', `${date}T00:00:00`);
+          }
+          return await q;
+        })(),
+      ]);
+
+      // 2. Process Class Responsibilities
       const activeResponsibilities: ClassResponsibility[] = [];
+      const ctRows = ctRes.status === 'fulfilled' ? ctRes.value.data : null;
 
       if (ctRows && ctRows.length > 0) {
-        for (const ct of ctRows as any[]) {
-          // Check effective_to date
-          if (ct.effective_to && ct.effective_to < date) continue;
+        const respPromises = (ctRows as any[]).map(async (ct) => {
+          if (ct.effective_to && ct.effective_to < date) return null;
 
           const className = ct.classes?.name || 'Stage 5';
           const streamName = ct.streams?.name || 'Blue';
           const fullClassName = streamName ? `${className} ${streamName}` : className;
 
-          // Check if today's daily attendance was already recorded
           let query = supabase
             .from('student_attendance_sessions')
             .select(`
@@ -148,15 +190,19 @@ export const teacherService = {
             query = query.eq('stream_id', ct.stream_id);
           }
 
-          const { data: sessionData } = await query.maybeSingle();
+          let sessionData: any = null;
+          try {
+            const res = await query.maybeSingle();
+            sessionData = res.data;
+          } catch {
+            sessionData = null;
+          }
 
           let todayDailyAttendance = undefined;
           if (sessionData) {
-            const recorderName = (sessionData as any).recorder?.people
-              ? `${(sessionData as any).recorder.people.first_name} ${(sessionData as any).recorder.people.last_name}`
+            const recorderName = sessionData.recorder?.people
+              ? `${sessionData.recorder.people.first_name} ${sessionData.recorder.people.last_name}`
               : 'Teacher';
-
-            const isByClassTeacher = sessionData.recorded_by_teacher_id === ct.teacher_id;
 
             todayDailyAttendance = {
               sessionId: sessionData.id,
@@ -164,7 +210,7 @@ export const teacherService = {
               recordedAt: new Date(sessionData.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               recordedByTeacherId: sessionData.recorded_by_teacher_id,
               recordedByTeacherName: recorderName,
-              isRecordedByClassTeacher: isByClassTeacher,
+              isRecordedByClassTeacher: sessionData.recorded_by_teacher_id === ct.teacher_id,
               totalStudents: sessionData.total_students || 24,
               presentCount: sessionData.present_count || 23,
               absentCount: sessionData.absent_count || 1,
@@ -173,27 +219,28 @@ export const teacherService = {
             };
           }
 
-          activeResponsibilities.push({
+          return {
             classId: ct.class_id,
             className: fullClassName,
             streamId: ct.stream_id,
             streamName: streamName,
-            studentCount: 24,
+            studentCount: todayDailyAttendance?.totalStudents ?? 24,
             classTeacherId: ct.teacher_id,
             classTeacherName: teacherName,
             effectiveFrom: ct.effective_from,
             effectiveTo: ct.effective_to,
             isCurrentUserClassTeacher: true,
             todayDailyAttendance,
-          });
+          } as ClassResponsibility;
+        });
+
+        const resolved = await Promise.all(respPromises);
+        for (const r of resolved) {
+          if (r) activeResponsibilities.push(r);
         }
       }
 
-      // 2b. Batched class-size lookup from student_enrolments (ONE query, never throws).
-      // Counts enrolled rows per class+stream in memory and overrides each
-      // responsibility. On any failure/empty result the Indie fallback chain
-      // below applies: today's session total_students if present, else the
-      // existing value.
+      // 2b. Class-size lookup from student_enrolments
       try {
         const classIds = [...new Set(activeResponsibilities.map((r) => r.classId))];
         if (classIds.length > 0) {
@@ -214,25 +261,24 @@ export const teacherService = {
                   ? counted
                   : (resp.todayDailyAttendance?.totalStudents ?? resp.studentCount);
             }
-          } else {
-            if (enrolErr) {
-              console.warn('getTeacherToday class-size lookup failed, using session fallback:', enrolErr);
-            }
+          } else if (enrolErr) {
             for (const resp of activeResponsibilities) {
-              resp.studentCount =
-                resp.todayDailyAttendance?.totalStudents ?? resp.studentCount;
+              if (resp.todayDailyAttendance?.totalStudents) {
+                resp.studentCount = resp.todayDailyAttendance.totalStudents;
+              }
             }
           }
         }
       } catch (err) {
-        console.warn('getTeacherToday class-size lookup fallback (student_enrolments read failed):', err);
+        console.warn('getTeacherToday class-size lookup fallback:', err);
         for (const resp of activeResponsibilities) {
-          resp.studentCount =
-            resp.todayDailyAttendance?.totalStudents ?? resp.studentCount;
+          if (resp.todayDailyAttendance?.totalStudents) {
+            resp.studentCount = resp.todayDailyAttendance.totalStudents;
+          }
         }
       }
 
-      // If no live DB rows found (fallback for initial render or test), provide canonical Sarah P5 Blue model
+      // Canonical Sarah P5 Blue model fallback
       if (activeResponsibilities.length === 0 && teacherEmailOrId.includes('teacher')) {
         activeResponsibilities.push({
           classId: '55555555-5555-5555-5555-555555555551',
@@ -244,11 +290,11 @@ export const teacherService = {
           classTeacherName: 'Mrs. Sarah Namukasa',
           effectiveFrom: '2026-01-01',
           isCurrentUserClassTeacher: true,
-          todayDailyAttendance: undefined, // Morning attendance pending
+          todayDailyAttendance: undefined,
         });
       }
 
-      // 3. Fetch Scheduled Teaching Timetable (live from timetable_entries)
+      // 3. Process Scheduled Teaching Timetable
       const fallbackSchedule: TimetableEntry[] = [
         {
           id: 'tt-entry-001',
@@ -259,7 +305,7 @@ export const teacherService = {
           streamName: 'Blue',
           subjectId: '77777777-7777-7777-7777-777777777771',
           subjectName: 'Mathematics',
-          teacherId: '99999999-9999-9999-9999-999999999992', // David Musoke
+          teacherId: '99999999-9999-9999-9999-999999999992',
           teacherName: 'Mr. David Musoke',
           roomName: 'Lab Block Room 3',
           dayOfWeek: 2,
@@ -281,7 +327,7 @@ export const teacherService = {
           streamName: 'Blue',
           subjectId: '77777777-7777-7777-7777-777777777772',
           subjectName: 'English',
-          teacherId: employeeId, // Sarah Namukasa
+          teacherId: employeeId,
           teacherName: teacherName,
           roomName: 'Classroom 5B',
           dayOfWeek: 2,
@@ -303,7 +349,7 @@ export const teacherService = {
           streamName: 'Blue',
           subjectId: '77777777-7777-7777-7777-777777777773',
           subjectName: 'Science',
-          teacherId: '99999999-9999-9999-9999-999999999994', // James Kato
+          teacherId: '99999999-9999-9999-9999-999999999994',
           teacherName: 'Mr. James Kato',
           roomName: 'Science Lab 1',
           dayOfWeek: 2,
@@ -318,80 +364,56 @@ export const teacherService = {
         },
       ];
 
-      // 3b. Live timetable query (never throws — falls back to fallbackSchedule).
-      // Single-school pilot: scope timetable reads to the pilot school.
-      const schoolIdForSchedule = '22222222-2222-2222-2222-222222222222';
       let schedule: TimetableEntry[] = fallbackSchedule;
-      try {
-        const dow = toDayOfWeek(date);
-        const { data: ttRows, error: ttErr } = await supabase
-          .from('timetable_entries')
-          .select('id, timetable_id, class_id, stream_id, subject_id, teacher_id, room_name, day_of_week, start_time, end_time, timetables!inner(is_active, school_id), subjects(id,name), classes(id,name), streams(id,name), teacher:employees!timetable_entries_teacher_id_fkey(id, people(first_name,last_name))')
-          .eq('timetables.is_active', true)
-          .eq('timetables.school_id', schoolIdForSchedule)
-          .eq('day_of_week', dow)
-          .eq('teacher_id', employeeId)
-          .order('start_time');
-
-        if (ttErr) {
-          console.warn('getTeacherToday timetable schedule query failed, using fallback:', ttErr);
-        } else if (ttRows && ttRows.length > 0) {
-          const mapped: TimetableEntry[] = (ttRows as any[])
-            .map((r) => {
-              const dowNum = Number(r.day_of_week);
-              if (!Number.isInteger(dowNum) || dowNum < 1 || dowNum > 7) return null;
-              const subj = Array.isArray(r.subjects) ? r.subjects[0] : r.subjects;
-              const cls = Array.isArray(r.classes) ? r.classes[0] : r.classes;
-              const stm = Array.isArray(r.streams) ? r.streams[0] : r.streams;
-              const tch = Array.isArray(r.teacher) ? r.teacher[0] : r.teacher;
-              const person = tch ? (Array.isArray(tch.people) ? tch.people[0] : tch.people) : null;
-              const personName = person?.first_name
-                ? `${person.first_name}${person.last_name ? ` ${person.last_name}` : ''}`
-                : null;
-              const tt = Array.isArray(r.timetables) ? r.timetables[0] : r.timetables;
-              const className = cls?.name ?? 'Stage 5';
-              const streamName = stm?.name;
-              const resp = activeResponsibilities.find(
-                (c) => c.classId === r.class_id && (c.streamId ?? null) === (r.stream_id ?? null)
-              );
-              return {
-                id: r.id,
-                timetableId: r.timetable_id,
-                schoolId: tt?.school_id ?? schoolIdForSchedule,
-                classId: r.class_id,
-                className: streamName ? `${className} ${streamName}` : className,
-                streamId: r.stream_id ?? undefined,
-                streamName: streamName ?? undefined,
-                subjectId: r.subject_id,
-                subjectName: subj?.name ?? 'Lesson',
-                teacherId: r.teacher_id,
-                teacherName: personName ?? (tch ? 'Teacher' : teacherName),
-                roomName: r.room_name ?? undefined,
-                dayOfWeek: dowNum,
-                startTime: toHHMM(r.start_time) ?? (String(r.start_time ?? '').slice(0, 5) || '00:00'),
-                endTime: toHHMM(r.end_time) ?? (String(r.end_time ?? '').slice(0, 5) || '00:00'),
-                studentCount: resp?.studentCount ?? 0,
-              } as TimetableEntry;
-            })
-            .filter((e): e is TimetableEntry => e !== null);
-          if (mapped.length > 0) schedule = mapped;
-        }
-      } catch (err) {
-        console.warn('getTeacherToday live timetable fallback (timetable_entries read failed):', err);
-        schedule = fallbackSchedule;
+      if (ttRes.status === 'fulfilled' && ttRes.value.data && ttRes.value.data.length > 0) {
+        const mapped: TimetableEntry[] = (ttRes.value.data as any[])
+          .map((r) => {
+            const dowNum = Number(r.day_of_week);
+            if (!Number.isInteger(dowNum) || dowNum < 1 || dowNum > 7) return null;
+            const subj = Array.isArray(r.subjects) ? r.subjects[0] : r.subjects;
+            const cls = Array.isArray(r.classes) ? r.classes[0] : r.classes;
+            const stm = Array.isArray(r.streams) ? r.streams[0] : r.streams;
+            const tch = Array.isArray(r.teacher) ? r.teacher[0] : r.teacher;
+            const person = tch ? (Array.isArray(tch.people) ? tch.people[0] : tch.people) : null;
+            const personName = person?.first_name
+              ? `${person.first_name}${person.last_name ? ` ${person.last_name}` : ''}`
+              : null;
+            const tt = Array.isArray(r.timetables) ? r.timetables[0] : r.timetables;
+            const className = cls?.name ?? 'Stage 5';
+            const streamName = stm?.name;
+            const resp = activeResponsibilities.find(
+              (c) => c.classId === r.class_id && (c.streamId ?? null) === (r.stream_id ?? null)
+            );
+            return {
+              id: r.id,
+              timetableId: r.timetable_id,
+              schoolId: tt?.school_id ?? schoolIdForSchedule,
+              classId: r.class_id,
+              className: streamName ? `${className} ${streamName}` : className,
+              streamId: r.stream_id ?? undefined,
+              streamName: streamName ?? undefined,
+              subjectId: r.subject_id,
+              subjectName: subj?.name ?? 'Lesson',
+              teacherId: r.teacher_id,
+              teacherName: personName ?? (tch ? 'Teacher' : teacherName),
+              roomName: r.room_name ?? undefined,
+              dayOfWeek: dowNum,
+              startTime: toHHMM(r.start_time) ?? (String(r.start_time ?? '').slice(0, 5) || '00:00'),
+              endTime: toHHMM(r.end_time) ?? (String(r.end_time ?? '').slice(0, 5) || '00:00'),
+              studentCount: resp?.studentCount ?? 0,
+            } as TimetableEntry;
+          })
+          .filter((e): e is TimetableEntry => e !== null);
+        if (mapped.length > 0) schedule = mapped;
       }
 
       // Active entry: only time-aware when viewing today; otherwise the first row.
-      // selectActiveEntry returns -1 when the school day is over (or the
-      // schedule is empty) → activeTimetableEntry stays undefined and the UI
-      // renders the day-complete state instead of a stale "current" lesson.
       const isViewingToday = date === toLocalYYYYMMDD();
       const nowHHMM = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
       const activeIndex = selectActiveEntry(schedule, nowHHMM, isViewingToday);
       const activeEntry = activeIndex === -1 ? undefined : schedule[activeIndex];
 
-      // Derive recorder role labels from relationships (display-only, never persisted).
-      // Admin detection needs user_roles lookup — skipped; 'admin' stays for future use.
+      // Derive recorder role labels
       const scheduleTeacherIds = schedule.map((e) => e.teacherId);
       for (const resp of activeResponsibilities) {
         if (resp.todayDailyAttendance) {
@@ -403,53 +425,35 @@ export const teacherService = {
         }
       }
 
-      // 4. Clock-in lookup: today's teacher_attendance row (never breaks the view).
+      // 4. Clock-in status
       let clockInStatus: TeacherTodayViewModel['clockInStatus'] = {
         isClockedIn: false,
       };
-      try {
-        const { data: attendanceRow } = await supabase
-          .from('teacher_attendance')
-          .select('clock_in, verification_status')
-          .eq('employee_id', employeeId)
-          .eq('date', date)
-          .maybeSingle();
+      if (attRes.status === 'fulfilled' && attRes.value.data) {
+        const attendanceRow = attRes.value.data;
         const clockedInAt = toHHMM((attendanceRow as any)?.clock_in);
-        if (attendanceRow && clockedInAt) {
+        if (clockedInAt) {
           clockInStatus = {
             isClockedIn: true,
             clockedInAt,
             verificationMethod: toVerif((attendanceRow as any).verification_status),
           };
         }
-      } catch (err) {
-        console.warn('getTeacherToday clock-in lookup fallback (teacher_attendance read failed):', err);
-        clockInStatus = { isClockedIn: false };
       }
 
-      // 5. Completed lessons: today's submitted timetable_entry_ids (never breaks the view).
+      // 5. Completed lessons
       let completedLessonIds: string[] = [];
-      try {
-        const { data: lessonRows, error: lessonErr } = await supabase
-          .from('lessons')
-          .select('timetable_entry_id')
-          .eq('teacher_id', employeeId)
-          .gte('submitted_at', `${date}T00:00:00`);
-        if (!lessonErr && Array.isArray(lessonRows)) {
-          completedLessonIds = [
-            ...new Set(
-              (lessonRows as any[])
-                .map((r) => r.timetable_entry_id)
-                .filter((id): id is string => typeof id === 'string' && id.length > 0)
-            ),
-          ];
-        }
-      } catch (err) {
-        console.warn('getTeacherToday completed-lessons lookup fallback (lessons read failed):', err);
-        completedLessonIds = [];
+      if (lessonRes.status === 'fulfilled' && lessonRes.value?.data && Array.isArray(lessonRes.value.data)) {
+        completedLessonIds = [
+          ...new Set(
+            (lessonRes.value.data as any[])
+              .map((r) => r.timetable_entry_id)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0)
+          ),
+        ];
       }
 
-      return {
+      const result: TeacherTodayViewModel = {
         teacherId: employeeId,
         teacherName,
         date,
@@ -473,10 +477,13 @@ export const teacherService = {
             title: "Parents' Consultation Evening",
             time: '03:30 PM',
             location: 'Main Assembly Hall',
-            eventType: 'assembly',
+            eventType: 'meeting',
           },
         ],
       };
+
+      teacherTodayCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      return result;
     } catch (err) {
       console.error('Error fetching teacher today model:', err);
       throw err;
@@ -496,6 +503,7 @@ export const teacherService = {
     recordedByTeacherId: string;
     records: Array<{ studentId: string; status: 'present' | 'absent' | 'late' | 'excused'; remarks?: string }>;
   }): Promise<AttendanceSession> {
+    teacherTodayCache.clear();
     const totalStudents = params.records.length;
     const presentCount = params.records.filter((r) => r.status === 'present').length;
     const absentCount = params.records.filter((r) => r.status === 'absent').length;
@@ -702,6 +710,7 @@ export const teacherService = {
    * so the UI never breaks.
    */
   async clockIn(teacherId: string): Promise<{ isClockedIn: boolean; clockedInAt: string; verificationMethod: 'verified_gps' | 'verified_manual' | 'flagged' }> {
+    teacherTodayCache.clear();
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;

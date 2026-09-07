@@ -13,8 +13,15 @@ import { InstitutionalMoneyPicture } from '../../types/domain';
 import { formatUGX } from '../payroll/calculations';
 import { DollarSign, TrendingUp, TrendingDown, ArrowUpRight } from 'lucide-react';
 
+import { useAuth } from '../../lib/authContext';
+
+const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
+
 export const SchoolDashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const { schoolId } = useAuth();
+  const effectiveSchoolId = schoolId ?? PILOT_SCHOOL_ID;
+
   const [data, setData] = useState<LeadershipDashboardViewModel | null>(null);
   const [moneyPicture, setMoneyPicture] = useState<InstitutionalMoneyPicture | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,10 +30,19 @@ export const SchoolDashboardPage: React.FC = () => {
     async function load() {
       try {
         setIsLoading(true);
+        const todayStr = toLocalYYYYMMDD(new Date());
+
         const [res, money] = await Promise.all([
-          leadershipService.getSchoolLeadershipDashboard('22222222-2222-2222-2222-222222222222', toLocalYYYYMMDD(new Date())),
-          moneyMovementService.getInstitutionalMoneyPicture('school-default', 'term-1'),
+          leadershipService.getSchoolLeadershipDashboard(effectiveSchoolId, todayStr).catch((err) => {
+            console.error('Leadership dashboard query failed, using fallback:', err);
+            return leadershipService.getSchoolLeadershipDashboard('school-fallback', todayStr);
+          }),
+          moneyMovementService.getInstitutionalMoneyPicture(effectiveSchoolId).catch((err) => {
+            console.warn('Money picture load failed, continuing without it:', err);
+            return null;
+          }),
         ]);
+
         setData(res);
         setMoneyPicture(money);
       } catch (err) {
@@ -36,10 +52,26 @@ export const SchoolDashboardPage: React.FC = () => {
       }
     }
     load();
-  }, []);
+  }, [effectiveSchoolId]);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return <LoadingState label="Loading school leadership cockpit..." />;
+  }
+
+  if (!data) {
+    return (
+      <div className="p-8 text-center space-y-4">
+        <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
+        <h2 className="text-lg font-bold text-slate-900">Leadership Cockpit Temporarily Unavailable</h2>
+        <p className="text-sm text-slate-500">Could not retrieve school operations data. Please try refreshing.</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-brand-teal text-white rounded-lg font-semibold text-sm hover:bg-brand-tealDark"
+        >
+          Refresh Cockpit
+        </button>
+      </div>
+    );
   }
 
   const latestTrend = data.attendanceTrend[data.attendanceTrend.length - 1];

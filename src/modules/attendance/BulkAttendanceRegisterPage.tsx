@@ -9,7 +9,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuth } from '../../lib/authContext';
-import { classesService, type ClassDetailData, type EnrolledStudentRosterItem } from '../classes/classesService';
+import { classesService, type ClassDetailData, type ClassSummary, type EnrolledStudentRosterItem } from '../classes/classesService';
 import { teacherService } from '../teacher/teacherService';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -28,10 +28,12 @@ interface AttendanceDraftEntry {
 }
 
 export const BulkAttendanceRegisterPage: React.FC = () => {
-  const { classId } = useParams<{ classId: string }>();
+  const { classId: paramClassId } = useParams<{ classId: string }>();
   const { schoolId, user } = useAuth();
   const effectiveSchoolId = schoolId ?? PILOT_SCHOOL_ID;
 
+  const [availableClasses, setAvailableClasses] = useState<ClassSummary[]>([]);
+  const [activeClassId, setActiveClassId] = useState<string>(paramClassId || '');
   const [classDetail, setClassDetail] = useState<ClassDetailData | null>(null);
   const [selectedStreamId, setSelectedStreamId] = useState<string>('all');
   const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -41,12 +43,28 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
+  useEffect(() => {
+    async function loadClasses() {
+      try {
+        const clsList = await classesService.listClasses(effectiveSchoolId);
+        setAvailableClasses(clsList);
+        if (!paramClassId && clsList.length > 0) {
+          setActiveClassId(clsList[0].id);
+        }
+      } catch (err) {
+        console.error('Failed to load class list for attendance', err);
+      }
+    }
+    loadClasses();
+  }, [effectiveSchoolId, paramClassId]);
+
   const loadData = useCallback(async () => {
-    if (!classId) return;
+    const targetClassId = activeClassId || paramClassId;
+    if (!targetClassId) return;
     try {
       setIsLoading(true);
       setLoadError(null);
-      const detail = await classesService.getClassDetails(classId, effectiveSchoolId);
+      const detail = await classesService.getClassDetails(targetClassId, effectiveSchoolId);
       setClassDetail(detail);
 
       // Initialize draft entries from roster
@@ -65,11 +83,13 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [classId, effectiveSchoolId]);
+  }, [activeClassId, paramClassId, effectiveSchoolId]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (activeClassId || paramClassId) {
+      loadData();
+    }
+  }, [activeClassId, paramClassId, loadData]);
 
   const activeRoster = useMemo(() => {
     if (selectedStreamId === 'all') return draftEntries;
@@ -108,7 +128,8 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!classId || !classDetail) return;
+    const targetClassId = activeClassId || paramClassId;
+    if (!targetClassId || !classDetail) return;
     setIsSubmitting(true);
     setSaveSuccess(null);
     try {
@@ -122,7 +143,7 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
 
       await teacherService.recordDailyAttendance({
         schoolId: effectiveSchoolId,
-        classId,
+        classId: targetClassId,
         streamId: selectedStreamId !== 'all' ? selectedStreamId : undefined,
         date: attendanceDate,
         classTeacherId: teacherId,
@@ -212,35 +233,57 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Stream Selector (if streamed) */}
-          {classDetail.streams.length > 0 && (
-            <div className="flex items-center gap-2 pt-2 border-t border-slate-100 overflow-x-auto pb-1">
-              <span className="text-xs font-semibold text-slate-400 shrink-0">Stream:</span>
-              <button
-                onClick={() => setSelectedStreamId('all')}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors shrink-0 ${
-                  selectedStreamId === 'all'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                All Streams ({draftEntries.length})
-              </button>
-              {classDetail.streams.map((s) => (
+          {/* Class & Stream Selector */}
+          <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-100">
+            {availableClasses.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500">Class:</span>
+                <select
+                  value={activeClassId}
+                  onChange={(e) => {
+                    setActiveClassId(e.target.value);
+                    setSelectedStreamId('all');
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-white text-slate-800 shadow-xs focus:ring-2 focus:ring-brand-teal focus:outline-none"
+                >
+                  {availableClasses.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {classDetail.streams.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <span className="text-xs font-semibold text-slate-400 shrink-0">Stream:</span>
                 <button
-                  key={s.id}
-                  onClick={() => setSelectedStreamId(s.id)}
+                  onClick={() => setSelectedStreamId('all')}
                   className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors shrink-0 ${
-                    selectedStreamId === s.id
-                      ? 'bg-brand-teal text-white'
+                    selectedStreamId === 'all'
+                      ? 'bg-slate-900 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  {s.name} ({draftEntries.filter((e) => e.streamId === s.id).length})
+                  All Streams ({draftEntries.length})
                 </button>
-              ))}
-            </div>
-          )}
+                {classDetail.streams.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedStreamId(s.id)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors shrink-0 ${
+                      selectedStreamId === s.id
+                        ? 'bg-brand-teal text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {s.name} ({draftEntries.filter((e) => e.streamId === s.id).length})
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Live Attendance Stats Counter */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-100 text-center">

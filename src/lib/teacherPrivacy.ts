@@ -134,8 +134,10 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   { prefix: '/staff', roles: ['admin', 'principal'] },
   // Slice 2 Task 2A classes & streams management: admin/principal only.
   { prefix: '/classes', roles: ['admin', 'principal'] },
+  { prefix: '/academics/classes', roles: ['admin', 'principal'] },
   // Slice 2 Task 2C HR approvals & operator console: admin/principal only.
   { prefix: '/administration/hr/approvals', roles: ['admin', 'principal'] },
+  { prefix: '/people/hr/approvals', roles: ['admin', 'principal'] },
 ];
 
 /** Longest-prefix match so /fees/import wins over /fees. */

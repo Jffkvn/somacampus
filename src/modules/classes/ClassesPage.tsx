@@ -55,8 +55,8 @@ export const ClassesPage: React.FC = () => {
       if (data.length > 0 && !selectedClassId) {
         setSelectedClassId(data[0].id);
       }
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Failed to load classes.');
+    } catch (err: any) {
+      setLoadError(err instanceof Error ? err.message : typeof err === 'object' && err?.message ? err.message : 'Failed to load classes.');
     } finally {
       setIsLoading(false);
     }

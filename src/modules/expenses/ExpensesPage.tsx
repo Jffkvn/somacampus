@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { expenseService } from './expenseService';
 import { SchoolExpense, SchoolExpenseCategory } from '../../types/domain';
+import { useAuth } from '../../lib/authContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
 import { Button } from '../../components/ui/Button';
@@ -19,6 +20,9 @@ import {
 } from 'lucide-react';
 
 export const ExpensesPage: React.FC = () => {
+  const { schoolId } = useAuth();
+  const effectiveSchoolId = schoolId || '22222222-2222-2222-2222-222222222222';
+
   const [categories, setCategories] = useState<SchoolExpenseCategory[]>([]);
   const [expenses, setExpenses] = useState<SchoolExpense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,13 +44,13 @@ export const ExpensesPage: React.FC = () => {
     try {
       setIsLoading(true);
       const [cats, exps] = await Promise.all([
-        expenseService.getCategories('school-default'),
-        expenseService.getExpenses('school-default', 'term-1'),
+        expenseService.getCategories(effectiveSchoolId),
+        expenseService.getExpenses(effectiveSchoolId),
       ]);
       setCategories(cats);
       setExpenses(exps);
-      if (cats.length > 0 && !categoryId) {
-        setCategoryId(cats[0].id);
+      if (cats.length > 0) {
+        setCategoryId((prev) => prev || cats[0].id);
       }
     } catch (err) {
       console.error('Failed to load expenses', err);
@@ -57,7 +61,7 @@ export const ExpensesPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [effectiveSchoolId]);
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
   const foodSpent = expenses
@@ -88,22 +92,24 @@ export const ExpensesPage: React.FC = () => {
       return;
     }
 
+    const selectedCategory = categories.find((c) => c.id === categoryId) || categories[0];
+    const finalCategoryId = selectedCategory?.id || categoryId;
+
     try {
       setIsSaving(true);
       await expenseService.recordExpense({
-        schoolId: 'school-default',
-        categoryId,
+        schoolId: effectiveSchoolId,
+        categoryId: finalCategoryId,
         amount: numAmount,
         spentOn,
         paymentChannel,
-        recipientPayee,
-        description,
-        referenceNumber: referenceNumber || undefined,
-        termId: 'term-1',
+        recipientPayee: recipientPayee.trim() || 'Undisclosed Vendor',
+        description: description.trim() || 'General school operation expense',
+        referenceNumber: referenceNumber.trim() || undefined,
       });
 
       // Reload
-      const updated = await expenseService.getExpenses('school-default', 'term-1');
+      const updated = await expenseService.getExpenses(effectiveSchoolId);
       setExpenses(updated);
       setShowModal(false);
       setAmount('');

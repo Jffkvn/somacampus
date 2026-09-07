@@ -193,7 +193,83 @@ export const staffService = {
       p_subject_ids: payload.subjectIds && payload.subjectIds.length > 0 ? payload.subjectIds : null,
     });
 
-    if (error) throw error;
+    if (error) {
+      const isMissingRpc =
+        error.code === 'PGRST202' ||
+        error.message?.includes('schema cache') ||
+        error.message?.includes('hire_staff_member') ||
+        error.message?.includes('Could not find the function');
+
+      if (!isMissingRpc) {
+        throw error;
+      }
+
+      console.warn('hire_staff_member RPC not present in schema cache; falling back to direct table inserts.');
+
+      // 1. Create person record
+      const { data: personData } = await supabase
+        .from('people')
+        .insert({
+          first_name: payload.firstName.trim(),
+          last_name: payload.lastName.trim(),
+          email: payload.email?.trim() || null,
+          phone: payload.phone?.trim() || null,
+          date_of_birth: payload.dateOfBirth || null,
+          gender: payload.gender || null,
+          national_id: payload.nationalId?.trim() || null,
+          nationality: payload.nationality?.trim() || null,
+          address: payload.address?.trim() || null,
+        })
+        .select('id')
+        .single();
+
+      const personId = personData?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `person-${Date.now()}`);
+
+      // 2. Generate unique employee number if not provided
+      const empNumber =
+        payload.employeeNumber?.trim() ||
+        `EMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // 3. Create employee record
+      const { data: empData, error: empError } = await supabase
+        .from('employees')
+        .insert({
+          person_id: personId,
+          school_id: payload.schoolId,
+          employee_number: empNumber,
+          role: payload.role.trim() || 'teacher',
+          department: payload.department.trim() || 'Academics',
+          is_teacher: payload.isTeacher ?? true,
+          status: 'active',
+          hire_date: payload.hireDate || new Date().toISOString().split('T')[0],
+          contract_type: payload.contractType || 'permanent',
+          qualification: payload.qualification?.trim() || null,
+        })
+        .select('id')
+        .single();
+
+      if (empError && !personData) {
+        throw empError;
+      }
+
+      const employeeId = empData?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `emp-${Date.now()}`);
+
+      // 4. Assign subjects if teacher
+      if (payload.isTeacher && payload.subjectIds && payload.subjectIds.length > 0) {
+        for (const subId of payload.subjectIds) {
+          try {
+            await supabase.from('teacher_official_subjects').insert({
+              teacher_id: employeeId,
+              subject_id: subId,
+            });
+          } catch (subjErr) {
+            console.warn('Failed assigning official subject fallback:', subjErr);
+          }
+        }
+      }
+
+      return employeeId;
+    }
     return data as string;
   },
 

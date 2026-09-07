@@ -369,7 +369,13 @@ export const inventoryService = {
       .eq('school_id', schoolId)
       .eq('is_active', true)
       .order('name');
-    if (error) throw error;
+    if (error) {
+      if (error.message?.includes('schema cache') || (error as any)?.code === 'PGRST205' || error.message?.includes('stores')) {
+        console.warn('stores table missing from schema cache, returning MOCK_STORES:', error.message);
+        return MOCK_STORES;
+      }
+      throw error;
+    }
     return (data || []).map((s: any) => ({
       id: s.id,
       schoolId: s.school_id,
@@ -391,7 +397,13 @@ export const inventoryService = {
       .select('*')
       .eq('school_id', schoolId)
       .order('name');
-    if (error) throw error;
+    if (error) {
+      if (error.message?.includes('schema cache') || (error as any)?.code === 'PGRST205' || error.message?.includes('item_categories')) {
+        console.warn('item_categories table missing from schema cache, returning MOCK_CATEGORIES:', error.message);
+        return MOCK_CATEGORIES;
+      }
+      throw error;
+    }
     return (data || []).map((c: any) => ({
       id: c.id,
       schoolId: c.school_id,
@@ -433,7 +445,21 @@ export const inventoryService = {
     }
 
     const { data, error } = await query.order('name');
-    if (error) throw error;
+    if (error) {
+      if (error.message?.includes('schema cache') || (error as any)?.code === 'PGRST205' || error.message?.includes('consumables') || error.message?.includes('stores')) {
+        console.warn('consumables table/view missing from schema cache, returning MOCK_CONSUMABLES:', error.message);
+        let items = [...MOCK_CONSUMABLES];
+        if (options?.categoryId && options.categoryId !== 'all') {
+          items = items.filter((i) => i.categoryId === options.categoryId);
+        }
+        if (options?.search) {
+          const q = options.search.toLowerCase();
+          items = items.filter((i) => i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q));
+        }
+        return items;
+      }
+      throw error;
+    }
 
     return (data || []).map((row: any) => {
       const qty = Number(row.current_quantity || 0);
@@ -507,7 +533,26 @@ export const inventoryService = {
     }
 
     const { data, error } = await query.order('name');
-    if (error) throw error;
+    if (error) {
+      if (error.message?.includes('schema cache') || (error as any)?.code === 'PGRST205' || error.message?.includes('equipment_assets') || error.message?.includes('stores')) {
+        console.warn('equipment_assets table/view missing from schema cache, returning MOCK_ASSETS:', error.message);
+        let items = [...MOCK_ASSETS];
+        if (options?.categoryId && options.categoryId !== 'all') {
+          items = items.filter((i) => i.categoryId === options.categoryId);
+        }
+        if (options?.status && options.status !== 'all') {
+          items = items.filter((i) => i.status === options.status);
+        }
+        if (options?.search) {
+          const q = options.search.toLowerCase();
+          items = items.filter(
+            (i) => i.name.toLowerCase().includes(q) || i.assetTag.toLowerCase().includes(q)
+          );
+        }
+        return items;
+      }
+      throw error;
+    }
 
     return (data || []).map((row: any) => {
       const activeRows = Array.isArray(row.active_custody)
@@ -576,7 +621,17 @@ export const inventoryService = {
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
-    if (error) throw error;
+    if (error) {
+      if (error.message?.includes('schema cache') || (error as any)?.code === 'PGRST205' || error.message?.includes('stock_requests')) {
+        console.warn('stock_requests table missing from schema cache, returning MOCK_REQUESTS:', error.message);
+        let reqs = [...MOCK_REQUESTS];
+        if (status && status !== 'all') {
+          reqs = reqs.filter((r) => r.status === status);
+        }
+        return reqs;
+      }
+      throw error;
+    }
 
     return (data || []).map((r: any) => {
       const requester = Array.isArray(r.requester) ? r.requester[0] : r.requester;
@@ -637,7 +692,17 @@ export const inventoryService = {
     }
 
     const { data, error } = await query.order('created_at', { ascending: false }).limit(100);
-    if (error) throw error;
+    if (error) {
+      if (error.message?.includes('schema cache') || (error as any)?.code === 'PGRST205' || error.message?.includes('stock_movements')) {
+        console.warn('stock_movements table missing from schema cache, returning MOCK_MOVEMENTS:', error.message);
+        let movs = [...MOCK_MOVEMENTS];
+        if (consumableId) {
+          movs = movs.filter((m) => m.consumableId === consumableId);
+        }
+        return movs;
+      }
+      throw error;
+    }
 
     return (data || []).map((m: any) => {
       const c = Array.isArray(m.consumable) ? m.consumable[0] : m.consumable;

@@ -25,26 +25,41 @@ export const moneyMovementService = {
     termId: string = 'term-1'
   ): Promise<InstitutionalMoneyPicture> {
     // 1. Fetch fee accounts to get collections and outstanding balances
-    const feeAccounts = await financeService.getStudentFeeAccounts(schoolId, termId);
-    const totalAssessed = feeAccounts.reduce((sum, a) => sum + a.assessedAmount, 0);
-    const totalCollected = feeAccounts.reduce((sum, a) => sum + a.paidAmount, 0);
-    const outstandingCharges = feeAccounts.reduce((sum, a) => sum + a.balance, 0);
+    let feeAccounts: any[] = [];
+    try {
+      feeAccounts = await financeService.getStudentFeeAccounts(schoolId, termId);
+    } catch (err) {
+      console.warn('Failed to get fee accounts in moneyMovementService:', err);
+    }
+    const totalAssessed = feeAccounts.reduce((sum, a) => sum + (a.assessedAmount || 0), 0);
+    const totalCollected = feeAccounts.reduce((sum, a) => sum + (a.paidAmount || 0), 0);
+    const outstandingCharges = feeAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
 
     const tuitionFees = Math.round(totalCollected * 0.8);
     const activityFees = Math.round(totalCollected * 0.1);
     const otherIncome = totalCollected - tuitionFees - activityFees;
 
     // 2. Fetch operating expenses (Money Out - Operations)
-    const expenses = await expenseService.getExpenses(schoolId, termId);
-    const schoolOperations = expenses.reduce((sum, e) => sum + e.amount, 0);
+    let schoolOperations = 0;
+    try {
+      const expenses = await expenseService.getExpenses(schoolId, termId);
+      schoolOperations = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    } catch (err) {
+      console.warn('Failed to get operating expenses in moneyMovementService:', err);
+    }
 
     // 3. Fetch payroll runs (Money Out - Payroll)
-    const payrollRuns = await payrollService.getPayrollRuns(schoolId);
-    const finalizedRuns = payrollRuns.filter((r) => r.status === 'finalized' || r.status === 'approved');
-    const staffPayroll = finalizedRuns.reduce(
-      (sum, r) => sum + (r.totalGross + r.totalNssfEmployer),
-      0
-    );
+    let staffPayroll = 0;
+    try {
+      const payrollRuns = await payrollService.getPayrollRuns(schoolId);
+      const finalizedRuns = payrollRuns.filter((r) => r.status === 'finalized' || r.status === 'approved');
+      staffPayroll = finalizedRuns.reduce(
+        (sum, r) => sum + ((r.totalGross || 0) + (r.totalNssfEmployer || 0)),
+        0
+      );
+    } catch (err) {
+      console.warn('Failed to get payroll runs in moneyMovementService:', err);
+    }
 
     const totalExpenditure = staffPayroll + schoolOperations;
     const netOperationalMovement = totalCollected - totalExpenditure;
