@@ -1,0 +1,93 @@
+{
+  "results": [
+    {
+      "page": "Admissions Wizard (/students/new)",
+      "role": "Principal",
+      "status": "WARN",
+      "detail": "Multi-step admission wizard with completeness meter"
+    },
+    {
+      "page": "Admissions Queue (/admissions/queue)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Candidate review list with Approve & Enroll action"
+    },
+    {
+      "page": "Staff Directory (/staff)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Faculty directory with department filters and Add Staff CTA"
+    },
+    {
+      "page": "Staff Hire Wizard (/staff/new)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Hire wizard with official subject selection"
+    },
+    {
+      "page": "Staff Dossier & Editors (/staff/:id)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Personnel dossier with Leave Quota and Payroll Profile modals"
+    },
+    {
+      "page": "Classes Management (/classes)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Stage levels, streams, capacity meters, and class teacher assign"
+    },
+    {
+      "page": "HR Approvals Cockpit (/administration/hr/approvals)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Executive approval queues for leave and advances"
+    },
+    {
+      "page": "School Store & Inventory (/administration/inventory)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Central store, consumables, goods receipts, and asset custody"
+    },
+    {
+      "page": "Master Timetable Draft (/planning/timetable/draft)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Header status pill and 5-day active period allocation grid"
+    },
+    {
+      "page": "School Calendar (/calendar)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Interactive month view and event creation controls"
+    },
+    {
+      "page": "Expenses Logging (/finance/expenses)",
+      "role": "Principal",
+      "status": "PASS",
+      "detail": "Expense log with clean category and term UUID sanitization"
+    },
+    {
+      "page": "Teacher Today (/teacher/today)",
+      "role": "Teacher",
+      "status": "PASS",
+      "detail": "Rapid daily teaching schedule, attendance, and briefing"
+    },
+    {
+      "page": "Bulk Attendance Register (/teaching/classes/:id/attendance)",
+      "role": "Teacher",
+      "status": "PASS",
+      "detail": "Mark All Present register with exception toggles"
+    },
+    {
+      "page": "Resource Library (/teaching/resources)",
+      "role": "Teacher",
+      "status": "PASS",
+      "detail": "Clean vertical cards with non-overlapping metadata badges"
+    }
+  ],
+  "errors": [
+    "Failed to load timetable builder dependencies: Object",
+    "Failed to load timetable builder dependencies: Object"
+  ],
+  "timestamp": "2026-09-07T14:01:01.181Z"
+}
