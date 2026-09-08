@@ -234,7 +234,9 @@ describe('Staff Directory & Staff Dossier (Slice 1 Task 4)', () => {
     tableResponses['teacher_official_subjects'] = { data: [], error: null };
     tableResponses['teaching_allocations'] = { data: [], error: null };
     tableResponses['staff_documents'] = { data: [], error: null };
-    tableResponses['employee_leave_entitlements'] = { data: [], error: null };
+    tableResponses['leave_types'] = { data: [], error: null };
+    tableResponses['leave_entitlements'] = { data: [], error: null };
+    tableResponses['leave_requests'] = { data: [], error: null };
     tableResponses['employee_payroll_profiles'] = {
       data: {
         base_salary: 2500000,
@@ -319,5 +321,82 @@ describe('Staff Directory & Staff Dossier (Slice 1 Task 4)', () => {
     await expect(staffService.hireStaff(payload, 'admin')).rejects.toThrow(
       /Cannot hire staff in mock environment/i
     );
+  });
+
+  it('(8) leave balances compute real usage from approved leave_requests in the entitlement year', async () => {
+    const year = new Date().getFullYear();
+    tableResponses['employees'] = {
+      data: {
+        id: 'emp-20',
+        person_id: 'p-20',
+        school_id: 'sch-1',
+        employee_number: 'EMP-2026-0020',
+        role: 'Teacher',
+        department: 'Academics',
+        is_teacher: true,
+        status: 'active',
+        hire_date: '2026-01-01',
+        exit_date: null,
+        exit_reason: null,
+        contract_type: 'permanent',
+        qualification: 'B.Ed',
+        notes: null,
+        people: {
+          first_name: 'Brian',
+          last_name: 'Ssemakula',
+          email: 'brian@school.ug',
+          phone: '+256705555555',
+          date_of_birth: '1990-01-01',
+          gender: 'male',
+          national_id: null,
+          nationality: 'Ugandan',
+          address: null,
+          photo_url: null,
+        },
+      },
+      error: null,
+    };
+    tableResponses['teacher_official_subjects'] = { data: [], error: null };
+    tableResponses['teaching_allocations'] = { data: [], error: null };
+    tableResponses['staff_documents'] = { data: [], error: null };
+    tableResponses['leave_types'] = {
+      data: [
+        { id: 'lt-annual', name: 'Annual Leave', code: 'annual', default_entitlement_days: 21 },
+        { id: 'lt-sick', name: 'Sick Leave', code: 'sick', default_entitlement_days: 14 },
+      ],
+      error: null,
+    };
+    tableResponses['leave_entitlements'] = {
+      data: [{ id: 'ent-1', leave_type_id: 'lt-annual', entitled_days: 21 }],
+      error: null,
+    };
+    tableResponses['leave_requests'] = {
+      data: [
+        { leave_type_id: 'lt-annual', working_days: 3, start_date: `${year}-03-10`, status: 'approved' },
+        { leave_type_id: 'lt-annual', working_days: 2, start_date: `${year}-07-01`, status: 'approved' },
+        // Pending / rejected must not count toward used days.
+        { leave_type_id: 'lt-annual', working_days: 10, start_date: `${year}-08-01`, status: 'pending' },
+        { leave_type_id: 'lt-annual', working_days: 7, start_date: `${year}-02-01`, status: 'rejected' },
+        // Prior-year approved leave belongs to that year's entitlement, not this one.
+        { leave_type_id: 'lt-annual', working_days: 4, start_date: `${year - 1}-06-01`, status: 'approved' },
+        // Default-fallback type still accrues real approved usage.
+        { leave_type_id: 'lt-sick', working_days: 1.5, start_date: `${year}-04-05`, status: 'approved' },
+      ],
+      error: null,
+    };
+    tableResponses['employee_payroll_profiles'] = { data: null, error: null };
+
+    const dossier = await staffService.getStaffDossier('emp-20', 'admin', 'admin-user');
+    expect(dossier.leaveBalances).toHaveLength(2);
+
+    const annual = dossier.leaveBalances.find((b) => b.leaveTypeId === 'lt-annual')!;
+    expect(annual.annualAllowance).toBe(21);
+    expect(annual.usedDays).toBe(5);
+    expect(annual.remainingDays).toBe(16);
+
+    const sick = dossier.leaveBalances.find((b) => b.leaveTypeId === 'lt-sick')!;
+    expect(sick.annualAllowance).toBe(14);
+    expect(sick.usedDays).toBe(1.5);
+    expect(sick.remainingDays).toBe(12.5);
   });
 });

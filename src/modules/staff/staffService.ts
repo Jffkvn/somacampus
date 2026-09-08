@@ -477,6 +477,7 @@ export const staffService = {
     // Query leave entitlements & types
     let leaveBalances: StaffDossier['leaveBalances'] = [];
     try {
+      const leaveYear = new Date().getFullYear();
       const { data: typesData } = await supabase
         .from('leave_types')
         .select('id, name, code, default_entitlement_days')
@@ -487,21 +488,48 @@ export const staffService = {
         .from('leave_entitlements')
         .select('id, leave_type_id, entitled_days')
         .eq('employee_id', employeeId)
-        .eq('leave_year', new Date().getFullYear());
+        .eq('leave_year', leaveYear);
 
       const entMap = new Map((entData || []).map((e: any) => [e.leave_type_id, Number(e.entitled_days)]));
+
+      // Honest usage source: leave_entitlements carries no used_days column
+      // (schema: entitled_days only), so used days are computed from approved
+      // leave_requests working_days within the entitlement year. Pending,
+      // rejected, withdrawn and cancelled requests never count, nor does
+      // approved leave from other years.
+      let usageByType = new Map<string, number>();
+      try {
+        const { data: reqData } = await supabase
+          .from('leave_requests')
+          .select('leave_type_id, working_days, start_date, status')
+          .eq('employee_id', employeeId)
+          .eq('status', 'approved');
+        usageByType = new Map<string, number>();
+        for (const r of (reqData || []) as any[]) {
+          if (r?.status !== 'approved') continue;
+          const startYear = typeof r?.start_date === 'string' && r.start_date.length >= 4
+            ? Number(r.start_date.slice(0, 4))
+            : NaN;
+          if (Number.isNaN(startYear) || startYear !== leaveYear) continue;
+          const key = r.leave_type_id as string;
+          usageByType.set(key, (usageByType.get(key) || 0) + Number(r.working_days || 0));
+        }
+      } catch {
+        usageByType = new Map<string, number>();
+      }
 
       leaveBalances = (typesData || []).map((lt: any) => {
         const allowance = entMap.has(lt.id)
           ? Number(entMap.get(lt.id))
           : Number(lt.default_entitlement_days || 0);
+        const used = usageByType.get(lt.id) || 0;
         return {
           leaveTypeId: lt.id,
           leaveTypeName: lt.name,
           code: lt.code,
           annualAllowance: allowance,
-          usedDays: 0,
-          remainingDays: allowance,
+          usedDays: used,
+          remainingDays: allowance - used,
         };
       });
     } catch {

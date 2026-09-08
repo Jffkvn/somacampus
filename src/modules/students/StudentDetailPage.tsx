@@ -403,8 +403,11 @@ export const StudentDetailPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* TAB 1: PERSONAL & CONTACT */}
       {/* ========================================================================= */}
-      {activeTab === 'personal' && (
-        <div className="space-y-6">
+      {(activeTab === 'personal' || typeof window !== 'undefined') && (
+        <div
+          data-testid="student-tab-panel-personal"
+          className={activeTab === 'personal' ? 'space-y-6' : 'hidden print:block space-y-6'}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -480,8 +483,11 @@ export const StudentDetailPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* TAB 2: ENROLMENT HISTORY (INTERVAL TIMELINE) */}
       {/* ========================================================================= */}
-      {activeTab === 'enrolment' && (
-        <div className="space-y-6">
+      {(activeTab === 'enrolment' || typeof window !== 'undefined') && (
+        <div
+          data-testid="student-tab-panel-enrolment"
+          className={activeTab === 'enrolment' ? 'space-y-6' : 'hidden print:block space-y-6'}
+        >
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -555,8 +561,11 @@ export const StudentDetailPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* TAB 3: GUARDIANS & EMERGENCY CONTACTS */}
       {/* ========================================================================= */}
-      {activeTab === 'guardians' && (
-        <div className="space-y-6">
+      {(activeTab === 'guardians' || typeof window !== 'undefined') && (
+        <div
+          data-testid="student-tab-panel-guardians"
+          className={activeTab === 'guardians' ? 'space-y-6' : 'hidden print:block space-y-6'}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Guardians List */}
             <Card>
@@ -699,8 +708,11 @@ export const StudentDetailPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* TAB 4: HEALTH & CARE */}
       {/* ========================================================================= */}
-      {activeTab === 'health' && (
-        <div className="space-y-6">
+      {(activeTab === 'health' || typeof window !== 'undefined') && (
+        <div
+          data-testid="student-tab-panel-health"
+          className={activeTab === 'health' ? 'space-y-6' : 'hidden print:block space-y-6'}
+        >
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -785,8 +797,11 @@ export const StudentDetailPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* TAB 5: DOCUMENTS */}
       {/* ========================================================================= */}
-      {activeTab === 'documents' && (
-        <div className="space-y-6">
+      {(activeTab === 'documents' || typeof window !== 'undefined') && (
+        <div
+          data-testid="student-tab-panel-documents"
+          className={activeTab === 'documents' ? 'space-y-6' : 'hidden print:block space-y-6'}
+        >
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-bold text-slate-900">
@@ -836,8 +851,11 @@ export const StudentDetailPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* TAB 6: ACADEMICS & LEARNING INTELLIGENCE (PRESERVED) */}
       {/* ========================================================================= */}
-      {activeTab === 'academics' && profile && (
-        <div className="space-y-6">
+      {(activeTab === 'academics' || typeof window !== 'undefined') && profile && (
+        <div
+          data-testid="student-tab-panel-academics"
+          className={activeTab === 'academics' ? 'space-y-6' : 'hidden print:block space-y-6'}
+        >
           {/* 1. Academic Overview Strip (4 Pillars) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40">
@@ -1339,8 +1357,11 @@ export const StudentDetailPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* TAB 7: FINANCE & FEES (ROLE-SCOPED: LEADERSHIP/BURSAR ONLY) */}
       {/* ========================================================================= */}
-      {activeTab === 'finance' && canViewFinance && (
-        <div className="space-y-6">
+      {(activeTab === 'finance' || typeof window !== 'undefined') && canViewFinance && (
+        <div
+          data-testid="student-tab-panel-finance"
+          className={activeTab === 'finance' ? 'space-y-6' : 'hidden print:block space-y-6'}
+        >
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-bold text-slate-900">
