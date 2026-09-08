@@ -205,18 +205,18 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
             schemesRes,
             officialSubs,
           ] = await Promise.all([
-            supabase.from('terms').select('id, name, academic_year_id').eq('school_id', sId).limit(1),
+            supabase.from('terms').select('id, name, academic_year_id, academic_years!inner(school_id)').eq('academic_years.school_id', sId).limit(1),
             supabase.from('academic_years').select('id, name').eq('school_id', sId).limit(1),
             supabase.from('classes').select('id, name').eq('school_id', sId).order('name'),
             supabase.from('subjects').select('id, name').eq('school_id', sId).order('name'),
-            supabase.from('employees').select('id, user_id, people(first_name, last_name)').eq('school_id', sId),
+            supabase.from('employees').select('id, person_id, people(auth_user_id, first_name, last_name)').eq('school_id', sId),
             timetablePolicyService.getSubjectPreferences(sId),
             timetablePolicyService.getPolicies(sId),
             supabase
               .from('timetables')
-              .select('id, name, created_at, terms(name)')
+              .select('id, name, updated_at, terms(name)')
               .eq('school_id', sId)
-              .order('created_at', { ascending: false }),
+              .order('updated_at', { ascending: false }),
             supabase
               .from('schemes_of_work')
               .select('id, class_id, subject_id, created_by_employee_id, medium_term_plans(estimated_periods, week_start, week_end)')
@@ -245,14 +245,14 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
           }));
           setTeachers(teacherList.length > 0 ? teacherList : fallbackTeachers);
 
-          const currentEmp = (empRes.data ?? []).find((e: any) => e.user_id === user?.id);
+          const currentEmp = (empRes.data ?? []).find((e: any) => e.people?.auth_user_id === user?.id);
           setCurrentEmployeeId(currentEmp?.id ?? teacherList[0]?.id ?? fallbackTeachers[0].id);
 
           const pastList = (pastTtRes.data ?? []).map((t: any) => ({
             id: t.id,
             name: t.name,
             termName: t.terms?.name ?? 'Previous Term',
-            createdAt: t.created_at,
+            createdAt: t.updated_at,
           }));
           setPastTimetables(pastList);
 

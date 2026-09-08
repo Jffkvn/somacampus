@@ -26,123 +26,7 @@ const isMockEnv = (): boolean =>
   import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
   import.meta.env.VITE_SUPABASE_URL.includes('mock');
 
-// Mock in-memory state
-let mockFeeCategories: FeeCategory[] = [
-  { id: 'fc-tuition', schoolId: 'school-default', code: 'TUITION', name: 'Tuition & Academic Instruction', isMandatory: true, createdAt: '2026-01-01T00:00:00Z' },
-  { id: 'fc-dev', schoolId: 'school-default', code: 'DEVELOPMENT', name: 'Campus Development Levy', isMandatory: true, createdAt: '2026-01-01T00:00:00Z' },
-  { id: 'fc-lunch', schoolId: 'school-default', code: 'LUNCH', name: 'School Lunch & Catering', isMandatory: false, createdAt: '2026-01-01T00:00:00Z' },
-  { id: 'fc-transport', schoolId: 'school-default', code: 'TRANSPORT', name: 'School Bus Transport', isMandatory: false, createdAt: '2026-01-01T00:00:00Z' },
-  { id: 'fc-activity', schoolId: 'school-default', code: 'ACTIVITY', name: 'Club & Special Activity Fee', isMandatory: false, createdAt: '2026-01-01T00:00:00Z' },
-];
-
-let mockCharges: StudentCharge[] = [
-  {
-    id: 'chg-amari-tuition',
-    schoolId: 'school-default',
-    studentId: 'stud-amari',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    feeCategoryId: 'fc-tuition',
-    description: 'Term 1 Tuition — Stage 5',
-    amount: 2000000,
-    currency: 'UGX',
-    dueDate: '2026-09-15',
-    categoryName: 'Tuition',
-    createdAt: '2026-08-20T00:00:00Z',
-  },
-  {
-    id: 'chg-amari-lunch',
-    schoolId: 'school-default',
-    studentId: 'stud-amari',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    feeCategoryId: 'fc-lunch',
-    description: 'Term 1 Lunch & Refreshments',
-    amount: 500000,
-    currency: 'UGX',
-    dueDate: '2026-09-15',
-    categoryName: 'Lunch',
-    createdAt: '2026-08-20T00:00:00Z',
-  },
-  {
-    id: 'chg-aurora-tuition',
-    schoolId: 'school-default',
-    studentId: 'stud-aurora',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    feeCategoryId: 'fc-tuition',
-    description: 'Term 1 Tuition — Stage 7',
-    amount: 2300000,
-    currency: 'UGX',
-    dueDate: '2026-09-15',
-    categoryName: 'Tuition',
-    createdAt: '2026-08-20T00:00:00Z',
-  },
-  {
-    id: 'chg-aurora-lunch',
-    schoolId: 'school-default',
-    studentId: 'stud-aurora',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    feeCategoryId: 'fc-lunch',
-    description: 'Term 1 Lunch & Refreshments',
-    amount: 500000,
-    currency: 'UGX',
-    dueDate: '2026-09-15',
-    categoryName: 'Lunch',
-    createdAt: '2026-08-20T00:00:00Z',
-  },
-];
-
-let mockPayments: FeePayment[] = [
-  {
-    id: 'pmt-amari-1',
-    schoolId: 'school-default',
-    studentId: 'stud-amari',
-    amount: 2500000,
-    currency: 'UGX',
-    paymentDate: '2026-08-28',
-    paymentChannel: 'bank_deposit',
-    paymentReference: 'BNK-982141',
-    payerName: 'Grace Kyomugisha',
-    payerPhone: '+256772998811',
-    unallocatedAmount: 0,
-    receiptNumber: 'REC-202608-0014',
-    status: 'fully_allocated',
-    notes: 'Direct Stanbic Bank deposit',
-    createdAt: '2026-08-28T14:00:00Z',
-  },
-  {
-    id: 'pmt-aurora-1',
-    schoolId: 'school-default',
-    studentId: 'stud-aurora',
-    amount: 2000000,
-    currency: 'UGX',
-    paymentDate: '2026-09-01',
-    paymentChannel: 'mobile_money',
-    paymentReference: 'MM-88192039',
-    payerName: 'Joseph Namukasa',
-    payerPhone: '+256782334455',
-    unallocatedAmount: 0,
-    receiptNumber: 'REC-202609-0003',
-    status: 'partially_allocated',
-    notes: 'MTN Mobile Money transfer',
-    createdAt: '2026-09-01T09:30:00Z',
-  },
-];
-
-let mockAllocations: PaymentAllocation[] = [
-  { id: 'alloc-1', schoolId: 'school-default', paymentId: 'pmt-amari-1', chargeId: 'chg-amari-tuition', amount: 2000000, allocatedAt: '2026-08-28T14:05:00Z' },
-  { id: 'alloc-2', schoolId: 'school-default', paymentId: 'pmt-amari-1', chargeId: 'chg-amari-lunch', amount: 500000, allocatedAt: '2026-08-28T14:05:00Z' },
-  { id: 'alloc-3', schoolId: 'school-default', paymentId: 'pmt-aurora-1', chargeId: 'chg-aurora-tuition', amount: 2000000, allocatedAt: '2026-09-01T09:35:00Z' },
-];
-
-let mockStudentsMetadata = [
-  { id: 'stud-amari', admissionNumber: '2026/0142', fullName: 'Amari Kyomugisha', className: 'Stage 5 Blue' },
-  { id: 'stud-aurora', admissionNumber: '2026/0143', fullName: 'Aurora Namukasa', className: 'Stage 7 Red' },
-  { id: 'stud-brian', admissionNumber: '2026/0098', fullName: 'Brian Musoke', className: 'Stage 5 Blue' },
-  { id: 'stud-claire', admissionNumber: '2026/0115', fullName: 'Claire Nabatanzi', className: 'Stage 6 Yellow' },
-];
+import { financeFixtureStore } from './fixtures/financeFixtures';
 
 export interface RecordFeePaymentPayload {
   schoolId: string;
@@ -162,7 +46,7 @@ export const financeService = {
    * Fetch all fee categories
    */
   async getFeeCategories(schoolId: string): Promise<FeeCategory[]> {
-    if (isMockEnv()) return mockFeeCategories;
+    if (isMockEnv()) return financeFixtureStore.feeCategories;
     try {
       const { data, error } = await supabase.from('fee_categories').select('*').eq('school_id', schoolId);
       if (error) throw error;
@@ -186,11 +70,11 @@ export const financeService = {
    */
   async getStudentFeeAccounts(schoolId: string, termId: string = 'term-1'): Promise<StudentFeeAccount[]> {
     if (isMockEnv() || schoolId === 'school-default') {
-      return mockStudentsMetadata.map((stu) => {
-        const studentCharges = mockCharges.filter((c) => c.studentId === stu.id);
+      return financeFixtureStore.studentsMetadata.map((stu) => {
+        const studentCharges = financeFixtureStore.charges.filter((c) => c.studentId === stu.id);
         const totalAssessed = studentCharges.reduce((sum, c) => sum + c.amount, 0);
 
-        const studentAllocations = mockAllocations.filter((a) =>
+        const studentAllocations = financeFixtureStore.allocations.filter((a) =>
           studentCharges.some((c) => c.id === a.chargeId)
         );
         const totalPaid = studentAllocations.reduce((sum, a) => sum + a.amount, 0);
@@ -257,7 +141,7 @@ export const financeService = {
 
     if (isMockEnv()) {
       // Find open charges for this student
-      const studentCharges = mockCharges
+      const studentCharges = financeFixtureStore.charges
         .filter((c) => c.studentId === payload.studentId)
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate)); // Oldest first
 
@@ -269,7 +153,7 @@ export const financeService = {
       for (const charge of studentCharges) {
         if (remainingPayment <= 0) break;
 
-        const currentPaid = mockAllocations
+        const currentPaid = financeFixtureStore.allocations
           .filter((a) => a.chargeId === charge.id)
           .reduce((sum, a) => sum + a.amount, 0);
 
@@ -314,8 +198,8 @@ export const financeService = {
         createdAt: new Date().toISOString(),
       };
 
-      mockPayments.unshift(newPayment);
-      mockAllocations.push(...newAllocations);
+      financeFixtureStore.payments.unshift(newPayment);
+      financeFixtureStore.allocations.push(...newAllocations);
       return newPayment;
     }
 
@@ -434,22 +318,22 @@ export const financeService = {
    */
   async getStudentFeeStatement(studentId: string): Promise<StudentFeeStatement | null> {
     if (isMockEnv()) {
-      const studentMeta = mockStudentsMetadata.find((s) => s.id === studentId) || {
+      const studentMeta = financeFixtureStore.studentsMetadata.find((s) => s.id === studentId) || {
         id: studentId,
         admissionNumber: '2026/0142',
         fullName: 'Amari Kyomugisha',
         className: 'Stage 5 Blue',
       };
 
-      const charges = mockCharges.filter((c) => c.studentId === studentId);
-      const payments = mockPayments.filter((p) => p.studentId === studentId);
+      const charges = financeFixtureStore.charges.filter((c) => c.studentId === studentId);
+      const payments = financeFixtureStore.payments.filter((p) => p.studentId === studentId);
 
       let totalAssessed = 0;
       let totalPaid = 0;
 
       const chargesWithBalance = charges.map((chg) => {
         totalAssessed += chg.amount;
-        const allocs = mockAllocations.filter((a) => a.chargeId === chg.id);
+        const allocs = financeFixtureStore.allocations.filter((a) => a.chargeId === chg.id);
         const paidAmount = allocs.reduce((sum, a) => sum + a.amount, 0);
         totalPaid += paidAmount;
         return {

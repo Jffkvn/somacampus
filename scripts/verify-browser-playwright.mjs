@@ -38,6 +38,7 @@ async function run() {
   const page = await context.newPage();
 
   const allCollectedErrors = [];
+  const allNetworkErrors = [];
   let currentRouteErrors = [];
 
   page.on('console', (msg) => {
@@ -53,6 +54,19 @@ async function run() {
     allCollectedErrors.push(err.message);
     currentRouteErrors.push(err.message);
     console.error(`  ❌ Page Exception: ${err.message}`);
+  });
+
+  page.on('response', (res) => {
+    if (res.status() >= 400) {
+      const url = res.url();
+      const status = res.status();
+      const method = res.request().method();
+      const entry = `HTTP ${status} [${method}] ${url}`;
+      allNetworkErrors.push({ status, method, url });
+      allCollectedErrors.push(entry);
+      currentRouteErrors.push(entry);
+      console.warn(`  ⚠️ HTTP Error: ${status} ${method} ${url}`);
+    }
   });
 
   async function saveScreenshot(filename) {
@@ -333,13 +347,16 @@ async function run() {
     startRoute('10b. Stock Adjustment Modal');
     const adjustBtn = page.locator('button:has-text("Adjust")').first();
     let adjustOpened = false;
-    if (await adjustBtn.isVisible()) {
+    try {
+      await adjustBtn.waitFor({ state: 'visible', timeout: 4000 });
       await adjustBtn.click();
       await page.waitForTimeout(600);
       adjustOpened = true;
       await saveScreenshot('10b_inventory_adjust_delta.png');
       const cancelBtn = page.locator('button:has-text("Cancel")').first();
       if (await cancelBtn.isVisible()) await cancelBtn.click();
+    } catch (e) {
+      console.warn('Adjust button not visible within timeout:', e.message);
     }
     const eval10b = evaluateRouteStatus(adjustOpened);
     results.push({
@@ -463,6 +480,39 @@ async function run() {
       detail: 'Clean vertical cards with non-overlapping metadata badges',
       screenshot: '16_resource_library.png',
       errors: eval16.errors,
+    });
+
+    // 17. Cambridge AI Teaching Assignment Studio
+    startRoute('17. Cambridge Primary AI Assignment Studio (/teaching/assignments/new)');
+    await page.goto(`${BASE_URL}/teaching/assignments/new`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(1000);
+
+    // Open AI Cambridge Assist Modal
+    const aiAssistBtn = page.locator('button:has-text("AI Cambridge Assist")');
+    if ((await aiAssistBtn.count()) > 0) {
+      await aiAssistBtn.click();
+      await page.waitForTimeout(500);
+
+      // Click Generate Grounded Draft
+      const generateBtn = page.locator('button:has-text("Generate Grounded Draft")');
+      if ((await generateBtn.count()) > 0) {
+        await generateBtn.click();
+        await page.waitForTimeout(1000);
+      }
+    }
+
+    const studioContent = await page.content();
+    const hasStudio = studioContent.includes('AI Generated Draft — Human Review Required') && studioContent.includes('Cambridge Goal');
+    await saveScreenshot('17_ai_teaching_assignment_studio.png');
+    const eval17 = evaluateRouteStatus(hasStudio);
+    results.push({
+      id: 17,
+      page: 'Cambridge AI Assignment Studio (/teaching/assignments/new)',
+      role: 'Teacher',
+      status: eval17.status,
+      detail: '5-Layer curriculum grounding draft with mandatory human-in-the-loop review alert',
+      screenshot: '17_ai_teaching_assignment_studio.png',
+      errors: eval17.errors,
     });
 
   } finally {

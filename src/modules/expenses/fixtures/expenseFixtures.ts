@@ -1,0 +1,90 @@
+import { SchoolExpense, SchoolExpenseCategory } from '../../../types/domain';
+
+export const DEFAULT_EXPENSE_CATEGORIES: SchoolExpenseCategory[] = [
+  { id: '11111111-e001-4000-8000-000000000001', schoolId: '22222222-2222-2222-2222-222222222222', name: 'School Catering & Food', code: 'FOOD_LUNCH', createdAt: '2026-01-01T00:00:00Z' },
+  { id: '11111111-e001-4000-8000-000000000002', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Electricity (Umeme / Yaka)', code: 'ELECTRICITY', createdAt: '2026-01-01T00:00:00Z' },
+  { id: '11111111-e001-4000-8000-000000000003', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Water & Sanitation (NWSC)', code: 'WATER', createdAt: '2026-01-01T00:00:00Z' },
+  { id: '11111111-e001-4000-8000-000000000004', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Campus Internet & Connectivity', code: 'INTERNET', createdAt: '2026-01-01T00:00:00Z' },
+  { id: '11111111-e001-4000-8000-000000000005', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Facility Repairs & Maintenance', code: 'MAINTENANCE', createdAt: '2026-01-01T00:00:00Z' },
+  { id: '11111111-e001-4000-8000-000000000006', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Classroom Stationery & Supplies', code: 'STATIONERY', createdAt: '2026-01-01T00:00:00Z' },
+];
+
+export const INITIAL_EXPENSES: SchoolExpense[] = [
+  {
+    id: 'exp-1',
+    schoolId: '22222222-2222-2222-2222-222222222222',
+    categoryId: '11111111-e001-4000-8000-000000000001',
+    categoryName: 'School Catering & Food',
+    amount: 3200000,
+    currency: 'UGX',
+    spentOn: '2026-08-25',
+    paymentChannel: 'bank_transfer',
+    recipientPayee: 'Kampala Fresh Produce Suppliers Ltd',
+    description: 'Bulk grain, vegetables, and fruit for Term 1 boarders & day lunch',
+    referenceNumber: 'EFT-881290',
+    academicYearId: 'ay-2026-2027',
+    termId: 'term-1',
+    status: 'reconciled',
+    createdAt: '2026-08-25T11:00:00Z',
+  },
+  {
+    id: 'exp-2',
+    schoolId: '22222222-2222-2222-2222-222222222222',
+    categoryId: '11111111-e001-4000-8000-000000000002',
+    categoryName: 'Electricity (Umeme / Yaka)',
+    amount: 1450000,
+    currency: 'UGX',
+    spentOn: '2026-08-28',
+    paymentChannel: 'mobile_money',
+    recipientPayee: 'Umeme Yaka Pre-paid',
+    description: 'Main campus administration and classroom power units token purchase',
+    referenceNumber: 'MM-9921401',
+    academicYearId: 'ay-2026-2027',
+    termId: 'term-1',
+    status: 'reconciled',
+    createdAt: '2026-08-28T09:00:00Z',
+  },
+  {
+    id: 'exp-3',
+    schoolId: '22222222-2222-2222-2222-222222222222',
+    categoryId: '11111111-e001-4000-8000-000000000004',
+    categoryName: 'Campus Internet & Connectivity',
+    amount: 850000,
+    currency: 'UGX',
+    spentOn: '2026-09-01',
+    paymentChannel: 'bank_transfer',
+    recipientPayee: 'Roke Telkom Uganda',
+    description: 'Dedicated fiber internet subscription for September 2026',
+    referenceNumber: 'INV-44120',
+    academicYearId: 'ay-2026-2027',
+    termId: 'term-1',
+    status: 'approved',
+    createdAt: '2026-09-01T14:00:00Z',
+  },
+  {
+    id: 'exp-4',
+    schoolId: '22222222-2222-2222-2222-222222222222',
+    categoryId: '11111111-e001-4000-8000-000000000005',
+    categoryName: 'Facility Repairs & Maintenance',
+    amount: 620000,
+    currency: 'UGX',
+    spentOn: '2026-09-02',
+    paymentChannel: 'cash',
+    recipientPayee: 'Kato Plumbing & Electrical Services',
+    description: 'Emergency repair of washroom valves and science lab water lines',
+    referenceNumber: 'VOUCHER-088',
+    academicYearId: 'ay-2026-2027',
+    termId: 'term-1',
+    status: 'approved',
+    createdAt: '2026-09-02T16:00:00Z',
+  },
+];
+
+export const expenseFixtureStore = {
+  categories: [...DEFAULT_EXPENSE_CATEGORIES],
+  expenses: [...INITIAL_EXPENSES],
+  reset() {
+    this.categories = [...DEFAULT_EXPENSE_CATEGORIES];
+    this.expenses = [...INITIAL_EXPENSES];
+  },
+};

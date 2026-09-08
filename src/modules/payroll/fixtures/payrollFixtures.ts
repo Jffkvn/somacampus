@@ -1,0 +1,225 @@
+import {
+  PayrollPeriod,
+  SchoolPayrollRun,
+  SchoolPayrollItem,
+  EmployeePayrollProfile,
+} from '../../../types/domain';
+import { computePayrollItem, ItemComputationContext } from '../payrollItem';
+import { UG_PAYE_BANDS_2026 } from '../calculations';
+
+export const INITIAL_PAYROLL_PERIODS: PayrollPeriod[] = [
+  {
+    id: 'period-2026-08',
+    schoolId: 'school-default',
+    periodStart: '2026-08-01',
+    periodEnd: '2026-08-31',
+    periodMonth: '2026-08',
+    label: 'August 2026',
+    isClosed: true,
+    createdAt: '2026-08-01T08:00:00Z',
+  },
+  {
+    id: 'period-2026-09',
+    schoolId: 'school-default',
+    periodStart: '2026-09-01',
+    periodEnd: '2026-09-30',
+    periodMonth: '2026-09',
+    label: 'September 2026',
+    isClosed: false,
+    createdAt: '2026-09-01T08:00:00Z',
+  },
+];
+
+export const INITIAL_EMPLOYEE_PAYROLL_PROFILES: EmployeePayrollProfile[] = [
+  {
+    id: 'prof-sarah',
+    schoolId: 'school-default',
+    employeeId: 'emp-teacher-1',
+    employeeName: 'Sarah Nabwire',
+    jobTitle: 'Senior Mathematics Teacher',
+    effectiveFrom: '2026-01-01',
+    payBasis: 'salaried',
+    taxTreatment: 'local',
+    baseSalary: 1800000,
+    currency: 'UGX',
+    nssfApplicable: true,
+    paymentMethod: 'bank_transfer',
+    bankName: 'Stanbic Bank Uganda',
+    bankAccountNumber: '9030018824151',
+    bankAccountName: 'Sarah Nabwire',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'prof-david',
+    schoolId: 'school-default',
+    employeeId: 'emp-bursar-1',
+    employeeName: 'David Kato',
+    jobTitle: 'School Bursar & Finance Officer',
+    effectiveFrom: '2026-01-01',
+    payBasis: 'salaried',
+    taxTreatment: 'local',
+    baseSalary: 2400000,
+    currency: 'UGX',
+    nssfApplicable: true,
+    paymentMethod: 'bank_transfer',
+    bankName: 'Centenary Bank',
+    bankAccountNumber: '3100049281',
+    bankAccountName: 'David Kato',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'prof-grace',
+    schoolId: 'school-default',
+    employeeId: 'emp-teacher-2',
+    employeeName: 'Grace Alupo',
+    jobTitle: 'Primary Science Lead',
+    effectiveFrom: '2026-01-01',
+    payBasis: 'salaried',
+    taxTreatment: 'local',
+    baseSalary: 1650000,
+    currency: 'UGX',
+    nssfApplicable: true,
+    paymentMethod: 'mobile_money',
+    mobileMoneyNumber: '+256772123456',
+    mobileMoneyProvider: 'mtn',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'prof-robert',
+    schoolId: 'school-default',
+    employeeId: 'emp-principal-1',
+    employeeName: 'Robert Mukasa',
+    jobTitle: 'Headteacher / Principal',
+    effectiveFrom: '2026-01-01',
+    payBasis: 'salaried',
+    taxTreatment: 'local',
+    baseSalary: 3500000,
+    currency: 'UGX',
+    nssfApplicable: true,
+    paymentMethod: 'bank_transfer',
+    bankName: 'Standard Chartered',
+    bankAccountNumber: '0100234857100',
+    bankAccountName: 'Robert Mukasa',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+];
+
+export const INITIAL_PAYROLL_RUNS: SchoolPayrollRun[] = [
+  {
+    id: 'run-2026-08',
+    schoolId: 'school-default',
+    periodId: 'period-2026-08',
+    periodMonth: '2026-08',
+    periodLabel: 'August 2026',
+    runNumber: 1,
+    runType: 'regular',
+    status: 'finalized',
+    calculationSettings: { statutoryVersion: '2026.1' },
+    totalGross: 9350000,
+    totalPaye: 1983000,
+    totalNssfEmployee: 467500,
+    totalNssfEmployer: 935000,
+    totalWht: 0,
+    totalDeductions: 2450500,
+    totalNet: 6899500,
+    itemsCount: 4,
+    finalizedAt: '2026-08-28T16:00:00Z',
+    createdAt: '2026-08-25T09:00:00Z',
+    updatedAt: '2026-08-28T16:00:00Z',
+  },
+  {
+    id: 'run-2026-09',
+    schoolId: 'school-default',
+    periodId: 'period-2026-09',
+    periodMonth: '2026-09',
+    periodLabel: 'September 2026',
+    runNumber: 1,
+    runType: 'regular',
+    status: 'calculated',
+    calculationSettings: { statutoryVersion: '2026.1' },
+    totalGross: 9350000,
+    totalPaye: 1983000,
+    totalNssfEmployee: 467500,
+    totalNssfEmployer: 935000,
+    totalWht: 0,
+    totalDeductions: 2450500,
+    totalNet: 6899500,
+    itemsCount: 4,
+    createdAt: '2026-09-02T10:00:00Z',
+    updatedAt: '2026-09-02T11:00:00Z',
+  },
+];
+
+const FIXTURE_COMPUTATION_CONTEXT: ItemComputationContext = {
+  settings: {
+    paye_bands: UG_PAYE_BANDS_2026,
+    nssf_employee_rate: 5,
+    nssf_employer_rate: 10,
+    overtime_multiplier: 1.5,
+    standard_monthly_hours: 173.33,
+    wht_rate: 6,
+  },
+  statutoryVersion: '2026.1',
+  taxConfigurationId: null,
+  payeBands: UG_PAYE_BANDS_2026,
+  surchargeThreshold: 10000000,
+  surchargeRate: 0.1,
+};
+
+export function createInitialPayrollItems(): Record<string, SchoolPayrollItem[]> {
+  return {
+    'run-2026-09': INITIAL_EMPLOYEE_PAYROLL_PROFILES.map((p) => {
+      const { computed, snapshot } = computePayrollItem(
+        {
+          baseSalary: p.baseSalary,
+          taxTreatment: p.taxTreatment,
+          customWhtRate: p.customWhtRate ?? null,
+          customOvertimeRate: p.customOvertimeRate ?? null,
+        },
+        FIXTURE_COMPUTATION_CONTEXT,
+      );
+      return {
+        id: `item-${p.employeeId}-2026-09`,
+        schoolId: 'school-default',
+        payrollRunId: 'run-2026-09',
+        employeeId: p.employeeId,
+        employeeName: p.employeeName || 'Staff Member',
+        jobTitle: p.jobTitle,
+        grossSalary: computed.gross_salary,
+        overtimeHours: computed.overtime_hours,
+        overtimeAmount: computed.overtime_amount,
+        allowances: computed.allowances,
+        otherDeductions: computed.other_deductions,
+        paye: computed.paye,
+        nssfEmployee: computed.nssf_employee,
+        nssfEmployer: computed.nssf_employer,
+        whtAmount: computed.wht_amount,
+        advanceDeduction: computed.advance_deduction,
+        unpaidLeaveDeduction: computed.unpaid_leave_deduction,
+        outstandingDeductions: computed.outstanding_deductions,
+        netPay: computed.net_pay,
+        employeeType: computed.employee_type,
+        pctMonthWorked: computed.pct_month_worked,
+        calculationSnapshot: snapshot,
+        createdAt: '2026-09-02T11:00:00Z',
+      };
+    }),
+  };
+}
+
+export const payrollFixtureStore = {
+  periods: [...INITIAL_PAYROLL_PERIODS],
+  profiles: [...INITIAL_EMPLOYEE_PAYROLL_PROFILES],
+  runs: [...INITIAL_PAYROLL_RUNS],
+  items: createInitialPayrollItems(),
+  reset() {
+    this.periods = [...INITIAL_PAYROLL_PERIODS];
+    this.profiles = [...INITIAL_EMPLOYEE_PAYROLL_PROFILES];
+    this.runs = [...INITIAL_PAYROLL_RUNS];
+    this.items = createInitialPayrollItems();
+  },
+};

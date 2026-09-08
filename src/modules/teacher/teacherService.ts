@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase';
 import { fanOutAttendanceRecord } from '../notifications/notificationFanout';
 import { TeacherTodayViewModel, TimetableEntry, ClassResponsibility, AttendanceSession, AttendanceAuditLog } from '../../types/domain';
 import { toDayOfWeek, toHHMM, toLocalYYYYMMDD, deriveRecorderRole, selectActiveEntry } from './scheduleUtils';
+import { INITIAL_TEACHER_SCHEDULE, getTeacherScheduleFallback, INITIAL_STUDENT_ROSTER } from './fixtures/teacherFixtures';
 
 const VERIF = ['verified_gps', 'verified_manual', 'flagged'] as const;
 type VerificationMethod = (typeof VERIF)[number];
@@ -25,30 +26,7 @@ export const teacherService = {
       teacherEmailOrId.startsWith('teacher-');
 
     if (isMockEnv) {
-      const mockSchedule: TimetableEntry[] = [
-        {
-          id: 'tt-entry-001',
-          timetableId: 'tt-term-1',
-          schoolId: '22222222-2222-2222-2222-222222222222',
-          classId: '55555555-5555-5555-5555-555555555551',
-          className: 'Stage 5 Blue',
-          streamName: 'Blue',
-          subjectId: '77777777-7777-7777-7777-777777777771',
-          subjectName: 'Mathematics',
-          teacherId: '99999999-9999-9999-9999-999999999992', // David Musoke
-          teacherName: 'Mr. David Musoke',
-          roomName: 'Lab Block Room 3',
-          dayOfWeek: 2,
-          startTime: '08:00',
-          endTime: '09:00',
-          studentCount: 24,
-          curriculumPosition: {
-            topicId: 'cambridge-p5-fractions',
-            topicName: 'Fractions & Decimals',
-            objective: 'Convert mixed numbers to improper fractions and solve word problems.',
-          },
-        },
-      ];
+      const schedule = [...INITIAL_TEACHER_SCHEDULE];
 
       return {
         teacherId: teacherEmailOrId,
@@ -69,9 +47,9 @@ export const teacherService = {
             isCurrentUserClassTeacher: true,
           },
         ],
-        schedule: mockSchedule,
+        schedule,
         activeClassIndex: 0,
-        activeTimetableEntry: mockSchedule[0],
+        activeTimetableEntry: schedule[0],
         completedLessonIds: [],
         dailyEvents: [],
       };
@@ -295,76 +273,8 @@ export const teacherService = {
       }
 
       // 3. Process Scheduled Teaching Timetable
-      const fallbackSchedule: TimetableEntry[] = [
-        {
-          id: 'tt-entry-001',
-          timetableId: 'tt-term-1',
-          schoolId: '22222222-2222-2222-2222-222222222222',
-          classId: '55555555-5555-5555-5555-555555555551',
-          className: 'Stage 5 Blue',
-          streamName: 'Blue',
-          subjectId: '77777777-7777-7777-7777-777777777771',
-          subjectName: 'Mathematics',
-          teacherId: '99999999-9999-9999-9999-999999999992',
-          teacherName: 'Mr. David Musoke',
-          roomName: 'Lab Block Room 3',
-          dayOfWeek: 2,
-          startTime: '08:00',
-          endTime: '09:00',
-          studentCount: 24,
-          curriculumPosition: {
-            topicId: 'cambridge-p5-fractions',
-            topicName: 'Fractions & Decimals',
-            objective: 'Convert mixed numbers to improper fractions and solve word problems.',
-          },
-        },
-        {
-          id: 'tt-entry-002',
-          timetableId: 'tt-term-1',
-          schoolId: '22222222-2222-2222-2222-222222222222',
-          classId: '55555555-5555-5555-5555-555555555551',
-          className: 'Stage 5 Blue',
-          streamName: 'Blue',
-          subjectId: '77777777-7777-7777-7777-777777777772',
-          subjectName: 'English',
-          teacherId: employeeId,
-          teacherName: teacherName,
-          roomName: 'Classroom 5B',
-          dayOfWeek: 2,
-          startTime: '09:00',
-          endTime: '10:00',
-          studentCount: 24,
-          curriculumPosition: {
-            topicId: 'cambridge-p5-grammar',
-            topicName: 'Complex Sentences',
-            objective: 'Identify and construct complex sentences using subordinate conjunctions.',
-          },
-        },
-        {
-          id: 'tt-entry-003',
-          timetableId: 'tt-term-1',
-          schoolId: '22222222-2222-2222-2222-222222222222',
-          classId: '55555555-5555-5555-5555-555555555551',
-          className: 'Stage 5 Blue',
-          streamName: 'Blue',
-          subjectId: '77777777-7777-7777-7777-777777777773',
-          subjectName: 'Science',
-          teacherId: '99999999-9999-9999-9999-999999999994',
-          teacherName: 'Mr. James Kato',
-          roomName: 'Science Lab 1',
-          dayOfWeek: 2,
-          startTime: '11:00',
-          endTime: '12:00',
-          studentCount: 24,
-          curriculumPosition: {
-            topicId: 'cambridge-p5-water',
-            topicName: 'The Water Cycle',
-            objective: 'Investigate evaporation, condensation, precipitation, and accumulation.',
-          },
-        },
-      ];
-
-      let schedule: TimetableEntry[] = fallbackSchedule;
+      const defaultSchedule = getTeacherScheduleFallback(employeeId, teacherName);
+      let schedule: TimetableEntry[] = defaultSchedule;
       if (ttRes.status === 'fulfilled' && ttRes.value.data && ttRes.value.data.length > 0) {
         const mapped: TimetableEntry[] = (ttRes.value.data as any[])
           .map((r) => {
@@ -795,23 +705,12 @@ export const teacherService = {
    * Fetches the enrolled student roster for a class/stream.
    */
   async getClassStudents(classId: string, streamId?: string): Promise<Array<{ id: string; admissionNumber: string; name: string; status: 'present' | 'absent' | 'late' | 'excused' }>> {
-    const fallbackStudents = [
-      { id: '22222222-0000-0000-0000-000000000001', admissionNumber: 'GCC-2024-001', name: 'John Okello', status: 'present' as const },
-      { id: '22222222-0000-0000-0000-000000000002', admissionNumber: 'GCC-2024-002', name: 'Grace Achieng', status: 'present' as const },
-      { id: '22222222-0000-0000-0000-000000000003', admissionNumber: 'GCC-2024-003', name: 'Brian Kigozi', status: 'absent' as const },
-      { id: '22222222-0000-0000-0000-000000000004', admissionNumber: 'GCC-2024-004', name: 'Doreen Nalubega', status: 'present' as const },
-      { id: '22222222-0000-0000-0000-000000000005', admissionNumber: 'GCC-2024-005', name: 'Emmanuel Sserwadda', status: 'present' as const },
-      { id: '22222222-0000-0000-0000-000000000006', admissionNumber: 'GCC-2024-006', name: 'Faith Nakato', status: 'present' as const },
-      { id: '22222222-0000-0000-0000-000000000007', admissionNumber: 'GCC-2024-007', name: 'George William Mukasa', status: 'present' as const },
-      { id: '22222222-0000-0000-0000-000000000008', admissionNumber: 'GCC-2024-008', name: 'Harriet Namatovu', status: 'present' as const },
-    ];
-
     const isMockEnv = !import.meta.env.VITE_SUPABASE_URL ||
       import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
       import.meta.env.VITE_SUPABASE_URL.includes('mock');
 
     if (isMockEnv) {
-      return fallbackStudents;
+      return [...INITIAL_STUDENT_ROSTER];
     }
 
     try {
@@ -832,7 +731,7 @@ export const teacherService = {
 
       const { data, error } = await query;
       if (error || !data || data.length === 0) {
-        return fallbackStudents;
+        return [...INITIAL_STUDENT_ROSTER];
       }
 
       return data.map((d: any) => {
@@ -846,7 +745,7 @@ export const teacherService = {
         };
       });
     } catch {
-      return fallbackStudents;
+      return [...INITIAL_STUDENT_ROSTER];
     }
   },
 };

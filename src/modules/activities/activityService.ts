@@ -13,7 +13,6 @@
 import { supabase } from '../../lib/supabase';
 import {
   SchoolActivity,
-  ActivityEnrolment,
   ActivityClearance,
   ActivityParticipantProjection,
   ClearanceStatus,
@@ -26,126 +25,7 @@ const isMockEnv = (): boolean =>
   import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
   import.meta.env.VITE_SUPABASE_URL.includes('mock');
 
-let mockActivities: SchoolActivity[] = [
-  {
-    id: 'act-swimming',
-    schoolId: 'school-default',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    name: 'Competitive Swimming Squad',
-    category: 'sports',
-    isPaid: true,
-    feeAmount: 250000,
-    leadTeacherId: 'emp-teacher-1',
-    leadTeacherName: 'Sarah Nabwire',
-    capacity: 25,
-    enrolledCount: 3,
-    status: 'active',
-    createdAt: '2026-08-15T00:00:00Z',
-  },
-  {
-    id: 'act-robotics',
-    schoolId: 'school-default',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    name: 'Junior Robotics & STEM Club',
-    category: 'academic_club',
-    isPaid: true,
-    feeAmount: 300000,
-    leadTeacherId: 'emp-teacher-2',
-    leadTeacherName: 'Grace Alupo',
-    capacity: 20,
-    enrolledCount: 2,
-    status: 'active',
-    createdAt: '2026-08-15T00:00:00Z',
-  },
-  {
-    id: 'act-debate',
-    schoolId: 'school-default',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    name: 'Primary Debate & Public Speaking',
-    category: 'arts',
-    isPaid: false,
-    feeAmount: 0,
-    leadTeacherId: 'emp-teacher-1',
-    leadTeacherName: 'Sarah Nabwire',
-    capacity: 30,
-    enrolledCount: 4,
-    status: 'active',
-    createdAt: '2026-08-15T00:00:00Z',
-  },
-];
-
-let mockActivityEnrolments: ActivityEnrolment[] = [
-  {
-    id: 'enr-1',
-    schoolId: 'school-default',
-    activityId: 'act-swimming',
-    studentId: 'stud-amari',
-    studentName: 'Amari Kyomugisha',
-    className: 'Stage 5 Blue',
-    streamName: 'Blue',
-    status: 'enrolled',
-    enrolledAt: '2026-08-20T10:00:00Z',
-  },
-  {
-    id: 'enr-2',
-    schoolId: 'school-default',
-    activityId: 'act-swimming',
-    studentId: 'stud-aurora',
-    studentName: 'Aurora Namukasa',
-    className: 'Stage 7 Red',
-    streamName: 'Red',
-    status: 'enrolled',
-    enrolledAt: '2026-08-20T10:30:00Z',
-  },
-  {
-    id: 'enr-3',
-    schoolId: 'school-default',
-    activityId: 'act-swimming',
-    studentId: 'stud-brian',
-    studentName: 'Brian Musoke',
-    className: 'Stage 5 Blue',
-    streamName: 'Blue',
-    status: 'enrolled',
-    enrolledAt: '2026-08-21T09:00:00Z',
-  },
-];
-
-let mockClearances: ActivityClearance[] = [
-  {
-    id: 'clr-amari',
-    schoolId: 'school-default',
-    activityId: 'act-swimming',
-    studentId: 'stud-amari',
-    status: 'cleared',
-    basis: 'paid',
-    clearedAt: '2026-08-28T14:10:00Z',
-    operationalNote: 'Term 1 sports fee verified by bursar',
-  },
-  {
-    id: 'clr-aurora',
-    schoolId: 'school-default',
-    activityId: 'act-swimming',
-    studentId: 'stud-aurora',
-    status: 'cleared',
-    basis: 'promise_to_pay',
-    clearedAt: '2026-09-02T11:00:00Z',
-    validUntil: '2026-09-25',
-    operationalNote: 'Parent signed promissory commitment to pay by Sept 25',
-  },
-  {
-    id: 'clr-brian',
-    schoolId: 'school-default',
-    activityId: 'act-swimming',
-    studentId: 'stud-brian',
-    status: 'pending_review',
-    basis: 'promise_to_pay',
-    clearedAt: '2026-09-03T08:00:00Z',
-    operationalNote: 'Awaiting parent letter',
-  },
-];
+import { activityFixtureStore } from './fixtures/activityFixtures';
 
 /**
  * Server-side allowlist constructor for the Teacher Financial Privacy Firewall.
@@ -197,7 +77,7 @@ export const activityService = {
    */
   async getActivities(schoolId: string, termId?: string): Promise<SchoolActivity[]> {
     if (isMockEnv()) {
-      return mockActivities;
+      return activityFixtureStore.activities;
     }
     try {
       let query = supabase.from('school_activities').select('*').eq('school_id', schoolId);
@@ -218,8 +98,8 @@ export const activityService = {
         status: a.status,
         createdAt: a.created_at,
       }));
-    } catch {
-      return mockActivities;
+    } catch (err) {
+      throw new Error('Failed to fetch school activities', { cause: err });
     }
   },
 
@@ -236,11 +116,11 @@ export const activityService = {
     operationalNote?: string | null;
   }): Promise<ActivityClearance> {
     if (isMockEnv()) {
-      const existingIdx = mockClearances.findIndex(
+      const existingIdx = activityFixtureStore.clearances.findIndex(
         (c) => c.activityId === payload.activityId && c.studentId === payload.studentId
       );
       const clr: ActivityClearance = {
-        id: existingIdx >= 0 ? mockClearances[existingIdx].id : `clr-${Date.now()}`,
+        id: existingIdx >= 0 ? activityFixtureStore.clearances[existingIdx].id : `clr-${Date.now()}`,
         schoolId: payload.schoolId,
         activityId: payload.activityId,
         studentId: payload.studentId,
@@ -251,9 +131,9 @@ export const activityService = {
         clearedAt: new Date().toISOString(),
       };
       if (existingIdx >= 0) {
-        mockClearances[existingIdx] = clr;
+        activityFixtureStore.clearances[existingIdx] = clr;
       } else {
-        mockClearances.push(clr);
+        activityFixtureStore.clearances.push(clr);
       }
       return clr;
     }
@@ -267,29 +147,33 @@ export const activityService = {
           student_id: payload.studentId,
           status: payload.status,
           basis: payload.basis,
-          valid_until: payload.validUntil,
-          operational_note: payload.operationalNote,
-          cleared_at: new Date().toISOString(),
+          valid_until: payload.validUntil || null,
+          operational_note: payload.operationalNote || null,
         },
         { onConflict: 'activity_id,student_id' }
       )
       .select()
       .single();
 
-    if (error) throw error;
-    return data;
+    if (error) throw new Error(`Failed to set clearance: ${error.message}`);
+    return {
+      id: data.id,
+      schoolId: data.school_id,
+      activityId: data.activity_id,
+      studentId: data.student_id,
+      status: data.status,
+      basis: data.basis,
+      validUntil: data.valid_until,
+      operationalNote: data.operational_note,
+      clearedAt: data.cleared_at,
+    };
   },
 
   /**
-   * TEACHER FINANCIAL PRIVACY FIREWALL PROJECTION
+   * Primary consumer query for teachers and coaches. Emits exclusively operational
+   * projection records, completely separated from financial collection rows.
    *
-   * Renders the activity roster for the teacher, built SERVER-SIDE through the
-   * field allowlist (toParticipantProjection) — never by UI filtering.
-   * STRICT GUARANTEE: Contains zero fee balances, zero debt amounts, zero
-   * parent payment histories, zero charge/payment IDs.
-   *
-   * Finance scope: rows are qualified by school_id (RLS enforces; the explicit
-   * filter keeps cross-school reads empty even before RLS). RLS denies throw —
+   * In non-mock environments, queries live Supabase and fails closed on DB errors —
    * they are never masked with mock data.
    */
   async getRosterForTeacher(
@@ -297,16 +181,14 @@ export const activityService = {
     schoolId?: string
   ): Promise<ActivityParticipantProjection[]> {
     if (!isMockEnv()) {
-      // Live path: allowlisted columns only. Financial tables
-      // (student_charges / fee_payments / payment_allocations) are NEVER read.
-      let activityQuery = supabase
+      const { data: activityRow, error: actError } = await supabase
         .from('school_activities')
-        .select('id, name, school_id')
-        .eq('id', activityId);
-      if (schoolId) activityQuery = activityQuery.eq('school_id', schoolId);
-      const { data: activityRow, error: activityError } = await activityQuery.maybeSingle();
-      if (activityError) throw activityError;
+        .select('name, school_id')
+        .eq('id', activityId)
+        .maybeSingle();
+      if (actError) throw actError;
       if (!activityRow) return [];
+      if (schoolId && activityRow.school_id !== schoolId) return [];
 
       let enrolQuery = supabase
         .from('activity_enrolments')
@@ -341,14 +223,14 @@ export const activityService = {
       });
     }
 
-    const activity = mockActivities.find((a) => a.id === activityId);
+    const activity = activityFixtureStore.activities.find((a) => a.id === activityId);
     if (schoolId && activity && activity.schoolId !== schoolId) return [];
-    const enrolments = mockActivityEnrolments.filter(
+    const enrolments = activityFixtureStore.enrolments.filter(
       (e) => e.activityId === activityId && (!schoolId || e.schoolId === schoolId)
     );
 
     return enrolments.map((enr) => {
-      const clearance = mockClearances.find(
+      const clearance = activityFixtureStore.clearances.find(
         (c) => c.activityId === activityId && c.studentId === enr.studentId
       );
 

@@ -22,6 +22,7 @@ import {
 } from '../../types/domain';
 import { computePayrollItem, ItemComputationContext } from './payrollItem';
 import { UG_PAYE_BANDS_2026 } from './calculations';
+import { payrollFixtureStore } from './fixtures/payrollFixtures';
 
 const isMockEnv = (): boolean =>
   process.env.NODE_ENV === 'test' ||
@@ -152,197 +153,7 @@ export function selectEffectiveProfiles(rows: any[], periodEnd: string | null): 
   return picked.filter(Boolean);
 }
 
-// In-memory fallback state for mock/local development
-let mockPeriods: PayrollPeriod[] = [
-  {
-    id: 'period-2026-08',
-    schoolId: 'school-default',
-    periodStart: '2026-08-01',
-    periodEnd: '2026-08-31',
-    periodMonth: '2026-08',
-    label: 'August 2026',
-    isClosed: true,
-    createdAt: '2026-08-01T08:00:00Z',
-  },
-  {
-    id: 'period-2026-09',
-    schoolId: 'school-default',
-    periodStart: '2026-09-01',
-    periodEnd: '2026-09-30',
-    periodMonth: '2026-09',
-    label: 'September 2026',
-    isClosed: false,
-    createdAt: '2026-09-01T08:00:00Z',
-  },
-];
 
-let mockProfiles: EmployeePayrollProfile[] = [
-  {
-    id: 'prof-sarah',
-    schoolId: 'school-default',
-    employeeId: 'emp-teacher-1',
-    employeeName: 'Sarah Nabwire',
-    jobTitle: 'Senior Mathematics Teacher',
-    effectiveFrom: '2026-01-01',
-    payBasis: 'salaried',
-    taxTreatment: 'local',
-    baseSalary: 1800000,
-    currency: 'UGX',
-    nssfApplicable: true,
-    paymentMethod: 'bank_transfer',
-    bankName: 'Stanbic Bank Uganda',
-    bankAccountNumber: '9030018824151',
-    bankAccountName: 'Sarah Nabwire',
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-  },
-  {
-    id: 'prof-david',
-    schoolId: 'school-default',
-    employeeId: 'emp-bursar-1',
-    employeeName: 'David Kato',
-    jobTitle: 'School Bursar & Finance Officer',
-    effectiveFrom: '2026-01-01',
-    payBasis: 'salaried',
-    taxTreatment: 'local',
-    baseSalary: 2400000,
-    currency: 'UGX',
-    nssfApplicable: true,
-    paymentMethod: 'bank_transfer',
-    bankName: 'Centenary Bank',
-    bankAccountNumber: '3100049281',
-    bankAccountName: 'David Kato',
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-  },
-  {
-    id: 'prof-grace',
-    schoolId: 'school-default',
-    employeeId: 'emp-teacher-2',
-    employeeName: 'Grace Alupo',
-    jobTitle: 'Primary Science Lead',
-    effectiveFrom: '2026-01-01',
-    payBasis: 'salaried',
-    taxTreatment: 'local',
-    baseSalary: 1650000,
-    currency: 'UGX',
-    nssfApplicable: true,
-    paymentMethod: 'mobile_money',
-    mobileMoneyNumber: '+256772123456',
-    mobileMoneyProvider: 'mtn',
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-  },
-  {
-    id: 'prof-robert',
-    schoolId: 'school-default',
-    employeeId: 'emp-principal-1',
-    employeeName: 'Robert Mukasa',
-    jobTitle: 'Headteacher / Principal',
-    effectiveFrom: '2026-01-01',
-    payBasis: 'salaried',
-    taxTreatment: 'local',
-    baseSalary: 3500000,
-    currency: 'UGX',
-    nssfApplicable: true,
-    paymentMethod: 'bank_transfer',
-    bankName: 'Standard Chartered',
-    bankAccountNumber: '0100234857100',
-    bankAccountName: 'Robert Mukasa',
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-  },
-];
-
-let mockRuns: SchoolPayrollRun[] = [
-  {
-    id: 'run-2026-08',
-    schoolId: 'school-default',
-    periodId: 'period-2026-08',
-    periodMonth: '2026-08',
-    periodLabel: 'August 2026',
-    runNumber: 1,
-    runType: 'regular',
-    status: 'finalized',
-    calculationSettings: { statutoryVersion: '2026.1' },
-    totalGross: 9350000,
-    totalPaye: 1983000,
-    totalNssfEmployee: 467500,
-    totalNssfEmployer: 935000,
-    totalWht: 0,
-    totalDeductions: 2450500,
-    totalNet: 6899500,
-    itemsCount: 4,
-    finalizedAt: '2026-08-28T16:00:00Z',
-    createdAt: '2026-08-25T09:00:00Z',
-    updatedAt: '2026-08-28T16:00:00Z',
-  },
-  {
-    id: 'run-2026-09',
-    schoolId: 'school-default',
-    periodId: 'period-2026-09',
-    periodMonth: '2026-09',
-    periodLabel: 'September 2026',
-    runNumber: 1,
-    runType: 'regular',
-    status: 'calculated',
-    calculationSettings: { statutoryVersion: '2026.1' },
-    totalGross: 9350000,
-    totalPaye: 1983000,
-    totalNssfEmployee: 467500,
-    totalNssfEmployer: 935000,
-    totalWht: 0,
-    totalDeductions: 2450500,
-    totalNet: 6899500,
-    itemsCount: 4,
-    createdAt: '2026-09-02T10:00:00Z',
-    updatedAt: '2026-09-02T11:00:00Z',
-  },
-];
-
-let mockItems: Record<string, SchoolPayrollItem[]> = {
-  'run-2026-09': mockProfiles.map((p) => {
-    // D4-review: ONE inputs object feeds figures + snapshot — the snapshot
-    // freezes exactly what was computed (profile overrides as supplied,
-    // statutory constants as the band source).
-    const { computed, snapshot } = computePayrollItem(
-      {
-        baseSalary: p.baseSalary,
-        taxTreatment: p.taxTreatment,
-        customWhtRate: p.customWhtRate ?? null,
-        customOvertimeRate: p.customOvertimeRate ?? null,
-      },
-      MOCK_COMPUTATION_CONTEXT,
-    );
-    return {
-      id: `item-${p.employeeId}-2026-09`,
-      schoolId: 'school-default',
-      payrollRunId: 'run-2026-09',
-      employeeId: p.employeeId,
-      employeeName: p.employeeName || 'Staff Member',
-      jobTitle: p.jobTitle,
-      grossSalary: computed.gross_salary,
-      overtimeHours: computed.overtime_hours,
-      overtimeAmount: computed.overtime_amount,
-      allowances: computed.allowances,
-      otherDeductions: computed.other_deductions,
-      paye: computed.paye,
-      nssfEmployee: computed.nssf_employee,
-      nssfEmployer: computed.nssf_employer,
-      whtAmount: computed.wht_amount,
-      advanceDeduction: computed.advance_deduction,
-      unpaidLeaveDeduction: computed.unpaid_leave_deduction,
-      outstandingDeductions: computed.outstanding_deductions,
-      netPay: computed.net_pay,
-      employeeType: computed.employee_type,
-      pctMonthWorked: computed.pct_month_worked,
-      // D4: frozen inputs captured at computation time — finalized reads
-      // render this stored snapshot, never live profiles/config.
-      calculationSnapshot: snapshot,
-      createdAt: '2026-09-02T11:00:00Z',
-    };
-  }),
-};
 
 export const payrollService = {
   /**
@@ -350,7 +161,7 @@ export const payrollService = {
    */
   async getPayrollPeriods(schoolId: string): Promise<PayrollPeriod[]> {
     if (isMockEnv()) {
-      return [...mockPeriods].sort((a, b) => b.periodMonth.localeCompare(a.periodMonth));
+      return [...payrollFixtureStore.periods].sort((a, b) => b.periodMonth.localeCompare(a.periodMonth));
     }
     try {
       const { data, error } = await supabase
@@ -394,7 +205,7 @@ export const payrollService = {
         isClosed: false,
         createdAt: new Date().toISOString(),
       };
-      mockPeriods.unshift(newPeriod);
+      payrollFixtureStore.periods.unshift(newPeriod);
       return newPeriod;
     }
 
@@ -427,7 +238,7 @@ export const payrollService = {
    */
   async getPayrollRuns(schoolId: string, periodId?: string): Promise<SchoolPayrollRun[]> {
     if (isMockEnv()) {
-      let filtered = [...mockRuns];
+      let filtered = [...payrollFixtureStore.runs];
       if (periodId) filtered = filtered.filter((r) => r.periodId === periodId);
       return filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }
@@ -476,8 +287,8 @@ export const payrollService = {
    */
   async getPayrollRunDetails(runId: string): Promise<{ run: SchoolPayrollRun; items: SchoolPayrollItem[] } | null> {
     if (isMockEnv()) {
-      const run = mockRuns.find((r) => r.id === runId) || mockRuns[0];
-      const items = mockItems[run.id] || mockItems['run-2026-09'] || [];
+      const run = payrollFixtureStore.runs.find((r) => r.id === runId) || payrollFixtureStore.runs[0];
+      const items = payrollFixtureStore.items[run.id] || payrollFixtureStore.items['run-2026-09'] || [];
       return { run, items };
     }
     try {
@@ -570,7 +381,7 @@ export const payrollService = {
    */
   async createAndCalculateDraftRun(schoolId: string, periodId: string): Promise<SchoolPayrollRun> {
     if (isMockEnv()) {
-      const period = mockPeriods.find((p) => p.id === periodId) || mockPeriods[1];
+      const period = payrollFixtureStore.periods.find((p) => p.id === periodId) || payrollFixtureStore.periods[1];
       const runId = `run-${period.periodMonth}-${Date.now()}`;
       
       let totalGross = 0;
@@ -579,7 +390,7 @@ export const payrollService = {
       let totalNssfEmpr = 0;
       let totalNet = 0;
 
-      const items: SchoolPayrollItem[] = mockProfiles.map((p) => {
+      const items: SchoolPayrollItem[] = payrollFixtureStore.profiles.map((p) => {
         const { computed, snapshot } = computePayrollItem(
           {
             baseSalary: p.baseSalary,
@@ -649,8 +460,8 @@ export const payrollService = {
         updatedAt: new Date().toISOString(),
       };
 
-      mockRuns.unshift(newRun);
-      mockItems[runId] = items;
+      payrollFixtureStore.runs.unshift(newRun);
+      payrollFixtureStore.items[runId] = items;
       return newRun;
     }
 
@@ -792,7 +603,7 @@ export const payrollService = {
    */
   async updateRunStatus(runId: string, nextStatus: PayrollRunStatus): Promise<boolean> {
     if (isMockEnv()) {
-      const run = mockRuns.find((r) => r.id === runId);
+      const run = payrollFixtureStore.runs.find((r) => r.id === runId);
       if (!run) return false;
       if (
         (run.status === 'approved' || run.status === 'finalized') &&
@@ -864,7 +675,7 @@ export const payrollService = {
    */
   async getPayrollProfile(employeeId: string, schoolId?: string): Promise<EmployeePayrollProfile | null> {
     if (isMockEnv()) {
-      const found = mockProfiles.find(
+      const found = payrollFixtureStore.profiles.find(
         (p) => p.employeeId === employeeId && (!schoolId || p.schoolId === schoolId)
       );
       return found ?? null;
@@ -877,32 +688,32 @@ export const payrollService = {
       if (schoolId) query = query.eq('school_id', schoolId);
       const { data, error } = await query
         .order('effective_from', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
       if (error) throw error;
-      const row: any = (data || [])[0];
-      if (!row) return null;
+      if (!data) return null;
       return {
-        id: row.id,
-        schoolId: row.school_id,
-        employeeId: row.employee_id,
-        effectiveFrom: row.effective_from,
-        effectiveTo: row.effective_to ?? null,
-        payBasis: row.pay_basis,
-        taxTreatment: row.tax_treatment,
-        baseSalary: Number(row.base_salary || 0),
-        hourlyRate: row.hourly_rate != null ? Number(row.hourly_rate) : null,
-        currency: row.currency || 'UGX',
-        nssfApplicable: row.nssf_applicable ?? true,
-        customWhtRate: row.custom_wht_rate != null ? Number(row.custom_wht_rate) : null,
-        customOvertimeRate: row.custom_overtime_rate != null ? Number(row.custom_overtime_rate) : null,
-        paymentMethod: row.payment_method,
-        bankName: row.bank_name ?? null,
-        bankAccountNumber: row.bank_account_number ?? null,
-        bankAccountName: row.bank_account_name ?? null,
-        mobileMoneyNumber: row.mobile_money_number ?? null,
-        mobileMoneyProvider: row.mobile_money_provider ?? null,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
+        id: data.id,
+        schoolId: data.school_id,
+        employeeId: data.employee_id,
+        effectiveFrom: data.effective_from,
+        effectiveTo: data.effective_to ?? null,
+        payBasis: data.pay_basis,
+        taxTreatment: data.tax_treatment,
+        baseSalary: Number(data.base_salary || 0),
+        hourlyRate: data.hourly_rate != null ? Number(data.hourly_rate) : null,
+        currency: data.currency || 'UGX',
+        nssfApplicable: data.nssf_applicable ?? true,
+        customWhtRate: data.custom_wht_rate != null ? Number(data.custom_wht_rate) : null,
+        customOvertimeRate: data.custom_overtime_rate != null ? Number(data.custom_overtime_rate) : null,
+        paymentMethod: data.payment_method,
+        bankName: data.bank_name ?? null,
+        bankAccountNumber: data.bank_account_number ?? null,
+        bankAccountName: data.bank_account_name ?? null,
+        mobileMoneyNumber: data.mobile_money_number ?? null,
+        mobileMoneyProvider: data.mobile_money_provider ?? null,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
       };
     } catch (err) {
       throw new Error('Failed to fetch payroll profile', { cause: err });
@@ -918,7 +729,7 @@ export const payrollService = {
   async getMyPayslips(employeeId: string, schoolId?: string): Promise<SchoolPayrollItem[]> {
     if (isMockEnv()) {
       const allItems: SchoolPayrollItem[] = [];
-      for (const items of Object.values(mockItems)) {
+      for (const items of Object.values(payrollFixtureStore.items)) {
         const found = items.filter(
           (it) => it.employeeId === employeeId && (!schoolId || it.schoolId === schoolId)
         );

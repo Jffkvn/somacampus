@@ -1,9 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { assignmentService } from './assignmentService';
+import {
+  teachingAiService,
+  type GroundedAssignmentDraft,
+} from './teachingAiService';
 import type { EvidenceTrack, SubmissionType } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import {
+  Sparkles,
+  BookOpen,
+  Layers,
+  AlertTriangle,
+  CheckCircle2,
+  X,
+  FileText,
+} from 'lucide-react';
 
 const DEFAULT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
 const DEFAULT_TEACHER_ID = '99999999-9999-9999-9999-999999999992'; // David Musoke
@@ -29,8 +42,69 @@ export const AssignmentCreatePage: React.FC = () => {
   const [assignedDate, setAssignedDate] = useState(today);
   const [dueDate, setDueDate] = useState(nextWeek);
 
+  // AI Grounding Assist State (Track A Core Loop)
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [selectedObjectiveCode, setSelectedObjectiveCode] = useState('5Nn.01');
+  const [customEvidenceNotes, setCustomEvidenceNotes] = useState(
+    'Covered mixed numbers conversion. 4 students struggled with simplifying improper fractions.'
+  );
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [groundedDraft, setGroundedDraft] = useState<GroundedAssignmentDraft | null>(null);
+  const [isAiApproved, setIsAiApproved] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Available Cambridge objectives for Stage 5 Mathematics
+  const availableObjectives = useMemo(() => {
+    return teachingAiService.getAvailableCambridgeObjectives('mathematics', 5);
+  }, []);
+
+  const handleGenerateAiDraft = async () => {
+    try {
+      setIsGeneratingAi(true);
+      setErrorMessage(null);
+
+      const draft = await teachingAiService.generateAssignmentDraft({
+        objectiveCode: selectedObjectiveCode,
+        subjectName: 'Mathematics',
+        stageNumber: 5,
+        lessonContext: {
+          schoolId: DEFAULT_SCHOOL_ID,
+          teacherId: DEFAULT_TEACHER_ID,
+          classId: prefillClassId,
+          className: 'Stage 5 Blue',
+          streamId: prefillStreamId,
+          streamName: 'Blue',
+          subjectId: prefillSubjectId,
+          subjectName: 'Mathematics',
+          teacherName: 'Mr. David Musoke',
+          lessonId: prefillLessonId,
+          topic: prefillTopic || 'Fractions & Decimals',
+        },
+        evidenceContext: {
+          strugglingConcept: customEvidenceNotes,
+          strugglingStudentCount: 4,
+          observations: [customEvidenceNotes],
+        },
+        preferredSubmissionType: submissionType,
+        preferredEvidenceTrack: evidenceTrack,
+      });
+
+      setGroundedDraft(draft);
+      setTitle(draft.title);
+      setInstructions(draft.instructions);
+      setSubmissionType(draft.submissionType);
+      setEvidenceTrack(draft.evidenceTrack);
+      setMaxScore(draft.maxScore);
+      setIsAiApproved(false);
+      setIsAiModalOpen(false);
+    } catch (err: any) {
+      setErrorMessage(err.message ?? 'Failed to generate AI assignment draft.');
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +118,10 @@ export const AssignmentCreatePage: React.FC = () => {
     }
     if (evidenceTrack === 'formal_graded' && (!maxScore || Number(maxScore) <= 0)) {
       setErrorMessage('Formal graded assignments must have a maximum score greater than 0');
+      return;
+    }
+    if (groundedDraft && !isAiApproved) {
+      setErrorMessage('You must review and check the approval confirmation before publishing an AI-drafted assignment.');
       return;
     }
 
@@ -75,7 +153,7 @@ export const AssignmentCreatePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto px-4 py-6">
+    <div className="space-y-6 max-w-3xl mx-auto px-4 py-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <Link to="/teaching/assignments" className="hover:text-slate-800">
@@ -87,14 +165,79 @@ export const AssignmentCreatePage: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl font-bold text-slate-900">
-            Create Assignment / Homework
-          </CardTitle>
-          <p className="text-xs text-slate-500 mt-1">
-            Establish expected student work linked directly to the Stage 5 Blue curriculum.
-          </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle className="text-xl font-bold text-slate-900">
+                Create Assignment / Homework
+              </CardTitle>
+              <p className="text-xs text-slate-500 mt-1">
+                Establish expected student work linked directly to the Stage 5 Blue curriculum.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsAiModalOpen(true)}
+              className="flex items-center gap-1.5 border-teal-600 text-teal-800 bg-teal-50 hover:bg-teal-100 font-medium"
+            >
+              <Sparkles className="w-4 h-4 text-teal-600" />
+              AI Cambridge Assist
+            </Button>
+          </div>
         </CardHeader>
+
         <CardContent>
+          {/* Grounding Audit Banner (Shown when AI draft is populated) */}
+          {groundedDraft && (
+            <div className="mb-6 p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-amber-900 font-semibold text-xs">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>AI Generated Draft — Human Review Required</span>
+              </div>
+              <p className="text-xs text-amber-800">
+                This draft was assembled by the 5-layer teaching engine. Grounding layers active:
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                <div className="p-2 bg-white/90 rounded border border-amber-200/60 flex items-start gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-teal-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-800">Cambridge Goal:</span>
+                    <p className="text-slate-600">{groundedDraft.grounding.curriculumObjective.code}</p>
+                  </div>
+                </div>
+
+                <div className="p-2 bg-white/90 rounded border border-amber-200/60 flex items-start gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-indigo-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-800">Library Material:</span>
+                    <p className="text-slate-600 truncate">{groundedDraft.grounding.matchedResources[0]?.title || 'Standard pack'}</p>
+                  </div>
+                </div>
+
+                <div className="p-2 bg-white/90 rounded border border-amber-200/60 flex items-start gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-800">Class Evidence:</span>
+                    <p className="text-slate-600">4 struggling learners scaffolded</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Explicit Human-in-the-loop Acceptance Checkbox */}
+              <label className="flex items-center gap-2 pt-2 border-t border-amber-200 cursor-pointer select-none text-xs font-medium text-amber-950">
+                <input
+                  type="checkbox"
+                  checked={isAiApproved}
+                  onChange={(e) => setIsAiApproved(e.target.checked)}
+                  className="w-4 h-4 rounded text-teal-700 focus:ring-teal-600 border-amber-300"
+                />
+                <span>I have reviewed, adapted, and approved this AI-generated assignment content for my students.</span>
+              </label>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             {errorMessage && (
               <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">
@@ -220,16 +363,23 @@ export const AssignmentCreatePage: React.FC = () => {
 
             {/* Instructions */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Instructions / Questions
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Instructions / Questions & Scaffolding
+                </label>
+                {groundedDraft && (
+                  <span className="text-[11px] text-teal-700 font-medium">
+                    Grounded with 4 Rubric Criteria
+                  </span>
+                )}
+              </div>
               <textarea
-                rows={4}
+                rows={8}
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
                 placeholder="Detail the pages, exercises, or tasks expected from each student..."
                 required
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 resize-y"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-600 resize-y"
               />
             </div>
 
@@ -244,8 +394,12 @@ export const AssignmentCreatePage: React.FC = () => {
                 type="submit"
                 variant="primary"
                 size="md"
-                disabled={isSubmitting}
-                className="bg-teal-700 hover:bg-teal-800 text-white"
+                disabled={isSubmitting || (Boolean(groundedDraft) && !isAiApproved)}
+                className={`text-white ${
+                  groundedDraft && !isAiApproved
+                    ? 'bg-slate-400 cursor-not-allowed'
+                    : 'bg-teal-700 hover:bg-teal-800'
+                }`}
               >
                 {isSubmitting ? 'Publishing...' : 'Publish Assignment'}
               </Button>
@@ -253,6 +407,104 @@ export const AssignmentCreatePage: React.FC = () => {
           </form>
         </CardContent>
       </Card>
+
+      {/* AI Grounding Modal Drawer */}
+      {isAiModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="px-5 py-4 bg-gradient-to-r from-teal-800 to-teal-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-teal-300" />
+                <h3 className="text-base font-bold">Cambridge AI Teaching Loop Assist</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAiModalOpen(false)}
+                className="text-teal-200 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <p className="font-semibold text-slate-800">Active Classroom Context (Layer 2)</p>
+                <p className="text-slate-600 mt-0.5">
+                  Class: <span className="font-medium text-slate-900">Stage 5 Blue</span> &bull; Subject: <span className="font-medium text-slate-900">Mathematics</span> &bull; Teacher: <span className="font-medium text-slate-900">Mr. David Musoke</span>
+                </p>
+              </div>
+
+              {/* Layer 1 Objective Picker */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  1. Cambridge Primary Standard (Layer 1)
+                </label>
+                <select
+                  value={selectedObjectiveCode}
+                  onChange={(e) => setSelectedObjectiveCode(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-600"
+                >
+                  {availableObjectives.map((obj) => (
+                    <option key={obj.code} value={obj.code}>
+                      {obj.code} — {obj.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Resolved directly from the verified Cambridge Primary Pilot Pack.
+                </p>
+              </div>
+
+              {/* Layer 3 Evidence Notes */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  2. Class Evidence & Misconceptions to Scaffold (Layer 3)
+                </label>
+                <textarea
+                  rows={2}
+                  value={customEvidenceNotes}
+                  onChange={(e) => setCustomEvidenceNotes(e.target.value)}
+                  placeholder="e.g. 4 students struggled with converting mixed numbers into improper fractions..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-600"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  The engine will embed hints and tape diagram scaffolding for these specific learners.
+                </p>
+              </div>
+
+              {/* Layer 4 Search-Before-Generate notice */}
+              <div className="p-2.5 bg-teal-50 border border-teal-200/80 rounded-lg flex items-center gap-2 text-teal-900">
+                <FileText className="w-4 h-4 text-teal-700 shrink-0" />
+                <span className="text-[11px]">
+                  <strong>Search-before-generate (Layer 4):</strong> Vetted school resources matching this objective will be referenced in the instructions.
+                </span>
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsAiModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={isGeneratingAi}
+                onClick={handleGenerateAiDraft}
+                className="bg-teal-700 hover:bg-teal-800 text-white flex items-center gap-1.5"
+              >
+                <Sparkles className="w-4 h-4" />
+                {isGeneratingAi ? 'Synthesizing 5 Layers...' : 'Generate Grounded Draft'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

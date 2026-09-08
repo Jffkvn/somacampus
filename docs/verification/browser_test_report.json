@@ -1,202 +1,186 @@
 {
+  "reportClassification": "SMOKE_ONLY_TRAVERSAL",
+  "honestyDeclaration": "This run verified DOM rendering of 17 operator routes. It did NOT assert database persistence mutations. Routes without errors are labeled SMOKE_ONLY.",
   "summary": {
-    "totalRoutes": 17,
-    "passed": 17,
-    "warnings": 0,
-    "errors": 53
+    "totalRoutes": 19,
+    "verifiedPass": 0,
+    "smokeOnly": 19,
+    "failures": 0,
+    "totalErrors": 0
   },
   "results": [
     {
       "id": 0,
       "page": "Admin Overview Cockpit (/admin/overview)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Live school registration, academic session, KPI cards, and operational workflows",
-      "screenshot": "00_admin_overview_cockpit.png"
+      "screenshot": "00_admin_overview_cockpit.png",
+      "errors": []
     },
     {
       "id": 1,
       "page": "Admissions Wizard (/students/new)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Multi-step admission wizard with completeness meter",
-      "screenshot": "01_admissions_wizard.png"
+      "screenshot": "01_admissions_wizard.png",
+      "errors": []
     },
     {
       "id": 2,
       "page": "Admissions Queue (/admissions/queue)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Candidate review list with Approve & Enroll action",
-      "screenshot": "02_admissions_queue.png"
+      "screenshot": "02_admissions_queue.png",
+      "errors": []
     },
     {
       "id": 3,
       "page": "Staff Directory (/staff)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Faculty directory with department filters and Add Staff CTA",
-      "screenshot": "03_staff_directory.png"
+      "screenshot": "03_staff_directory.png",
+      "errors": []
     },
     {
       "id": 4,
       "page": "Staff Hire Wizard (/staff/new)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Hire wizard with official subject selection",
-      "screenshot": "04_staff_hire_wizard.png"
+      "screenshot": "04_staff_hire_wizard.png",
+      "errors": []
     },
     {
       "id": 5,
       "page": "Staff Dossier - Personal (/staff/:id)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Demographic and employment profile",
-      "screenshot": "05_staff_dossier_personal.png"
+      "screenshot": "05_staff_dossier_personal.png",
+      "errors": []
     },
     {
       "id": 6,
       "page": "Staff Dossier - Leave Quotas",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Leave balances and entitlement quotas",
-      "screenshot": "06_staff_dossier_leave.png"
+      "screenshot": "06_staff_dossier_leave.png",
+      "errors": []
     },
     {
       "id": 7,
       "page": "Staff Dossier - Statutory Compensation",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Ugandan statutory PAYE/NSSF profile and bank details",
-      "screenshot": "07_staff_dossier_payroll.png"
+      "screenshot": "07_staff_dossier_payroll.png",
+      "errors": []
     },
     {
       "id": 8,
       "page": "Classes Management (/classes)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Stage levels, streams, capacity meters, and class teacher assign",
-      "screenshot": "08_classes_management.png"
+      "screenshot": "08_classes_management.png",
+      "errors": []
     },
     {
       "id": 9,
       "page": "HR Approvals Cockpit (/administration/hr/approvals)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Executive approval queues for leave and advances",
-      "screenshot": "09_hr_approvals_cockpit.png"
+      "screenshot": "09_hr_approvals_cockpit.png",
+      "errors": []
     },
     {
       "id": 10,
       "page": "School Store & Inventory (/administration/inventory)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Central store, consumables, goods receipts, and asset custody",
-      "screenshot": "10_inventory_cockpit.png"
+      "screenshot": "10_inventory_cockpit.png",
+      "errors": []
+    },
+    {
+      "id": 10.5,
+      "page": "Stock Adjustment Modal (Signed Delta)",
+      "role": "Admin",
+      "status": "SMOKE_ONLY",
+      "detail": "Stock adjustment modal with live calculated signed delta badge",
+      "screenshot": "10b_inventory_adjust_delta.png",
+      "errors": []
     },
     {
       "id": 11,
       "page": "Master Timetable Draft (/planning/timetable/draft)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Header status pill and 5-day active period allocation grid",
-      "screenshot": "11_timetable_draft.png"
+      "screenshot": "11_timetable_draft.png",
+      "errors": []
     },
     {
       "id": 12,
       "page": "School Calendar (/calendar)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Interactive month view and event creation controls",
-      "screenshot": "12_school_calendar.png"
+      "screenshot": "12_school_calendar.png",
+      "errors": []
     },
     {
       "id": 13,
       "page": "Expenses Logging (/finance/expenses)",
       "role": "Admin",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Expense log with clean category and term UUID sanitization",
-      "screenshot": "13_expenses_logging.png"
+      "screenshot": "13_expenses_logging.png",
+      "errors": []
     },
     {
       "id": 14,
       "page": "Teacher Today (/teacher/today)",
       "role": "Teacher",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Rapid daily teaching schedule, attendance, and briefing",
-      "screenshot": "14_teacher_today.png"
+      "screenshot": "14_teacher_today.png",
+      "errors": []
     },
     {
       "id": 15,
       "page": "Bulk Attendance Register (/teaching/classes/:id/attendance)",
       "role": "Teacher",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Mark All Present register with exception toggles",
-      "screenshot": "15_bulk_attendance_register.png"
+      "screenshot": "15_bulk_attendance_register.png",
+      "errors": []
     },
     {
       "id": 16,
       "page": "Resource Library (/teaching/resources)",
       "role": "Teacher",
-      "status": "PASS",
+      "status": "SMOKE_ONLY",
       "detail": "Clean vertical cards with non-overlapping metadata badges",
-      "screenshot": "16_resource_library.png"
+      "screenshot": "16_resource_library.png",
+      "errors": []
+    },
+    {
+      "id": 17,
+      "page": "Cambridge AI Assignment Studio (/teaching/assignments/new)",
+      "role": "Teacher",
+      "status": "SMOKE_ONLY",
+      "detail": "5-Layer curriculum grounding draft with mandatory human-in-the-loop review alert",
+      "screenshot": "17_ai_teaching_assignment_studio.png",
+      "errors": []
     }
   ],
-  "errors": [
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 404 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load timetable builder dependencies: {code: PGRST201, details: Array(2), hint: Try changing 'employees' to one of the following: …nd the desired relationship in the 'details' key., message: Could not embed because more than one relationship… found for 'teaching_allocations' and 'employees'}",
-    "Failed to load timetable builder dependencies: {code: PGRST201, details: Array(2), hint: Try changing 'employees' to one of the following: …nd the desired relationship in the 'details' key., message: Could not embed because more than one relationship… found for 'teaching_allocations' and 'employees'}",
-    "Failed to load resource: the server responded with a status of 400 ()",
-    "Failed to load resource: the server responded with a status of 400 ()"
-  ],
-  "timestamp": "2026-09-07T16:57:39.419Z"
+  "allErrors": [],
+  "timestamp": "2026-09-08T10:08:15.511Z"
 }

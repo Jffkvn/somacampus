@@ -466,14 +466,17 @@ export const timetablePolicyService = {
    */
   async getTeachingAllocations(
     schoolId: string,
-    academicYearId: string,
+    academicYearId?: string,
     filter?: { classId?: string; subjectId?: string; teacherId?: string; status?: TeachingAllocationStatus },
   ): Promise<TeachingAllocation[]> {
     let query = supabase
       .from('teaching_allocations')
-      .select('*, classes(name), subjects(name), employees(id, person_id, people(first_name, last_name)), streams(name)')
-      .eq('school_id', schoolId)
-      .eq('academic_year_id', academicYearId);
+      .select('*, classes(name), subjects(name), employees!teaching_allocations_teacher_id_fkey(id, person_id, people(first_name, last_name)), streams(name)')
+      .eq('school_id', schoolId);
+
+    if (academicYearId) {
+      query = query.eq('academic_year_id', academicYearId);
+    }
 
     if (filter?.classId) query = query.eq('class_id', filter.classId);
     if (filter?.subjectId) query = query.eq('subject_id', filter.subjectId);
@@ -565,7 +568,7 @@ export const timetablePolicyService = {
         .from('teaching_allocations')
         .update(payload)
         .eq('id', input.id)
-        .select('*, classes(name), subjects(name), employees(id, person_id, people(first_name, last_name))')
+        .select('*, classes(name), subjects(name), employees!teaching_allocations_teacher_id_fkey(id, person_id, people(first_name, last_name))')
         .single();
       if (error) throw error;
       result = data;
@@ -573,7 +576,7 @@ export const timetablePolicyService = {
       const { data, error } = await supabase
         .from('teaching_allocations')
         .insert(payload)
-        .select('*, classes(name), subjects(name), employees(id, person_id, people(first_name, last_name))')
+        .select('*, classes(name), subjects(name), employees!teaching_allocations_teacher_id_fkey(id, person_id, people(first_name, last_name))')
         .single();
       if (error) throw error;
       result = data;

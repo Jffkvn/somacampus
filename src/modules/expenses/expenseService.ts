@@ -20,94 +20,18 @@ const isMockEnv = (): boolean =>
 export const isUUID = (val?: string | null): boolean =>
   typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
 
-export const DEFAULT_EXPENSE_CATEGORIES: SchoolExpenseCategory[] = [
-  { id: '11111111-e001-4000-8000-000000000001', schoolId: '22222222-2222-2222-2222-222222222222', name: 'School Catering & Food', code: 'FOOD_LUNCH', createdAt: '2026-01-01T00:00:00Z' },
-  { id: '11111111-e001-4000-8000-000000000002', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Electricity (Umeme / Yaka)', code: 'ELECTRICITY', createdAt: '2026-01-01T00:00:00Z' },
-  { id: '11111111-e001-4000-8000-000000000003', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Water & Sanitation (NWSC)', code: 'WATER', createdAt: '2026-01-01T00:00:00Z' },
-  { id: '11111111-e001-4000-8000-000000000004', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Campus Internet & Connectivity', code: 'INTERNET', createdAt: '2026-01-01T00:00:00Z' },
-  { id: '11111111-e001-4000-8000-000000000005', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Facility Repairs & Maintenance', code: 'MAINTENANCE', createdAt: '2026-01-01T00:00:00Z' },
-  { id: '11111111-e001-4000-8000-000000000006', schoolId: '22222222-2222-2222-2222-222222222222', name: 'Classroom Stationery & Supplies', code: 'STATIONERY', createdAt: '2026-01-01T00:00:00Z' },
-];
-
-let mockCategories: SchoolExpenseCategory[] = [...DEFAULT_EXPENSE_CATEGORIES];
-
-let mockExpenses: SchoolExpense[] = [
-  {
-    id: 'exp-1',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    categoryId: '11111111-e001-4000-8000-000000000001',
-    categoryName: 'School Catering & Food',
-    amount: 3200000,
-    currency: 'UGX',
-    spentOn: '2026-08-25',
-    paymentChannel: 'bank_transfer',
-    recipientPayee: 'Kampala Fresh Produce Suppliers Ltd',
-    description: 'Bulk grain, vegetables, and fruit for Term 1 boarders & day lunch',
-    referenceNumber: 'EFT-881290',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    status: 'reconciled',
-    createdAt: '2026-08-25T11:00:00Z',
-  },
-  {
-    id: 'exp-2',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    categoryId: '11111111-e001-4000-8000-000000000002',
-    categoryName: 'Electricity (Umeme / Yaka)',
-    amount: 1450000,
-    currency: 'UGX',
-    spentOn: '2026-08-28',
-    paymentChannel: 'mobile_money',
-    recipientPayee: 'Umeme Yaka Pre-paid',
-    description: 'Main campus administration and classroom power units token purchase',
-    referenceNumber: 'MM-9921401',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    status: 'reconciled',
-    createdAt: '2026-08-28T09:00:00Z',
-  },
-  {
-    id: 'exp-3',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    categoryId: '11111111-e001-4000-8000-000000000004',
-    categoryName: 'Campus Internet & Connectivity',
-    amount: 850000,
-    currency: 'UGX',
-    spentOn: '2026-09-01',
-    paymentChannel: 'bank_transfer',
-    recipientPayee: 'Roke Telkom Uganda',
-    description: 'Dedicated fiber internet subscription for September 2026',
-    referenceNumber: 'INV-44120',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    status: 'approved',
-    createdAt: '2026-09-01T14:00:00Z',
-  },
-  {
-    id: 'exp-4',
-    schoolId: '22222222-2222-2222-2222-222222222222',
-    categoryId: '11111111-e001-4000-8000-000000000005',
-    categoryName: 'Facility Repairs & Maintenance',
-    amount: 620000,
-    currency: 'UGX',
-    spentOn: '2026-09-02',
-    paymentChannel: 'cash',
-    recipientPayee: 'Kato Plumbing & Electrical Services',
-    description: 'Emergency repair of washroom valves and science lab water lines',
-    referenceNumber: 'VOUCHER-088',
-    academicYearId: 'ay-2026-2027',
-    termId: 'term-1',
-    status: 'approved',
-    createdAt: '2026-09-02T16:00:00Z',
-  },
-];
+import {
+  DEFAULT_EXPENSE_CATEGORIES,
+  expenseFixtureStore,
+} from './fixtures/expenseFixtures';
+export { DEFAULT_EXPENSE_CATEGORIES };
 
 export const expenseService = {
   /**
    * Get expense categories
    */
   async getCategories(schoolId: string): Promise<SchoolExpenseCategory[]> {
-    if (isMockEnv()) return mockCategories;
+    if (isMockEnv()) return expenseFixtureStore.categories;
     try {
       const effectiveSchoolId = isUUID(schoolId) ? schoolId : '22222222-2222-2222-2222-222222222222';
       const { data, error } = await supabase
@@ -123,14 +47,6 @@ export const expenseService = {
         createdAt: c.created_at,
       }));
     } catch (err) {
-      const msg = (err as any)?.message || '';
-      if (
-        msg.includes('schema cache') ||
-        msg.includes('Could not find') ||
-        (err as any)?.code === 'PGRST205'
-      ) {
-        return DEFAULT_EXPENSE_CATEGORIES;
-      }
       throw new Error('Failed to fetch expense categories', { cause: err });
     }
   },
@@ -140,7 +56,7 @@ export const expenseService = {
    */
   async getExpenses(schoolId: string, termId?: string): Promise<SchoolExpense[]> {
     if (isMockEnv()) {
-      let filtered = [...mockExpenses];
+      let filtered = [...expenseFixtureStore.expenses];
       if (termId && isUUID(termId)) filtered = filtered.filter((e) => !e.termId || e.termId === termId);
       return filtered.sort((a, b) => b.spentOn.localeCompare(a.spentOn));
     }
@@ -178,14 +94,6 @@ export const expenseService = {
         createdAt: e.created_at,
       }));
     } catch (err) {
-      const msg = (err as any)?.message || '';
-      if (
-        msg.includes('schema cache') ||
-        msg.includes('Could not find') ||
-        (err as any)?.code === 'PGRST205'
-      ) {
-        return mockExpenses;
-      }
       throw new Error('Failed to fetch school expenses', { cause: err });
     }
   },
@@ -216,7 +124,7 @@ export const expenseService = {
       effectiveCategoryId = DEFAULT_EXPENSE_CATEGORIES[0].id;
     }
 
-    const cat = mockCategories.find((c) => c.id === payload.categoryId) || DEFAULT_EXPENSE_CATEGORIES[0];
+    const cat = expenseFixtureStore.categories.find((c) => c.id === payload.categoryId) || DEFAULT_EXPENSE_CATEGORIES[0];
 
     if (isMockEnv()) {
       const newExp: SchoolExpense = {
@@ -235,7 +143,17 @@ export const expenseService = {
         status: 'recorded',
         createdAt: new Date().toISOString(),
       };
-      mockExpenses.unshift(newExp);
+      expenseFixtureStore.expenses.unshift(newExp);
+
+      await writeFinancialAudit({
+        schoolId: payload.schoolId,
+        entityType: 'expense',
+        entityId: newExp.id,
+        action: 'create',
+        reason: `recordExpense ${payload.description}`,
+        previousData: null,
+        newData: newExp,
+      });
       return newExp;
     }
 
@@ -251,37 +169,13 @@ export const expenseService = {
       term_id: effectiveTermId,
     };
 
-    let data: any = null;
-    try {
-      const res = await supabase
-        .from('school_expenses')
-        .insert(insertRow)
-        .select()
-        .single();
-      if (res.error) throw res.error;
-      data = res.data;
-    } catch (insertError) {
-      const msg = (insertError as any)?.message || '';
-      if (
-        msg.includes('invalid input syntax for type uuid') ||
-        msg.includes('schema cache') ||
-        msg.includes('Could not find') ||
-        (insertError as any)?.code === 'PGRST205'
-      ) {
-        console.warn('school_expenses insert fallback to memory:', msg);
-        data = {
-          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `exp-${Date.now()}`,
-          ...insertRow,
-          categoryName: cat?.name || 'General Operations',
-          currency: 'UGX',
-          status: 'recorded',
-          createdAt: new Date().toISOString(),
-        };
-        mockExpenses.unshift(data);
-      } else {
-        throw insertError;
-      }
-    }
+    const res = await supabase
+      .from('school_expenses')
+      .insert(insertRow)
+      .select()
+      .single();
+    if (res.error) throw res.error;
+    const data = res.data;
 
     await writeFinancialAudit({
       schoolId: payload.schoolId,

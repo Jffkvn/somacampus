@@ -419,7 +419,7 @@ export const inventoryService = {
         category:item_categories(name),
         active_custody:asset_custody(
           id, custodian_type, custodian_id, issued_at, expected_return_date, returned_at,
-          custodian:people(first_name, last_name)
+          custodian:people!asset_custody_custodian_id_fkey(first_name, last_name)
         )
       `)
       .eq('school_id', schoolId);
