@@ -120,6 +120,33 @@ const errMessage = (err: unknown): string =>
     ? String((err as { message: unknown }).message)
     : 'unknown error';
 
+/**
+ * Batch B Task 3 — atomicity limitation, stated honestly.
+ *
+ * supabase-js / PostgREST exposes NO client-side multi-statement
+ * transaction, so the multi-step `submitApplication` path below (application
+ * row -> storage blobs -> guardian rows -> document rows) CANNOT be a real
+ * transaction. True atomicity would require a server-side RPC (a migration —
+ * out of scope, schema frozen), the same pattern the approve path already
+ * uses (`approve_admission_application` owns people + students + enrolment +
+ * guardians in ONE Postgres transaction). Until such an RPC exists, child
+ * failures run best-effort COMPENSATING rollback: remove uploaded blobs and
+ * delete the orphan rows, then throw an error naming the original cause AND
+ * the rollback outcome. Compensation is NOT a transaction — a crashed client
+ * or a denied rollback delete can still leave orphans; the error message
+ * says so explicitly instead of claiming atomicity.
+ */
+async function bestEffortDelete(table: string, column: string, value: string): Promise<string> {
+  try {
+    const { error } = await supabase.from(table).delete().eq(column, value);
+    return error
+      ? `${table}: ROLLBACK FAILED (${errMessage(error)}) — orphan rows may remain`
+      : `${table}: rolled back`;
+  } catch (e) {
+    return `${table}: ROLLBACK FAILED (${errMessage(e)}) — orphan rows may remain`;
+  }
+}
+
 export const admissionService = {
   /**
    * School admission queue, pending applications first (then newest).
@@ -245,48 +272,78 @@ export const admissionService = {
     const applicationId = String((app as { id: string }).id);
 
     // Blobs first: <school>/<application-id>/<filename> in the private bucket.
+    // Guardian + document inserts are child steps of this one application;
+    // any child failure compensates (best-effort, NOT a transaction — see
+    // the limitation note above) instead of leaving a silent orphan.
     const storedPaths: string[] = [];
-    for (const { file } of input.files) {
-      const storagePath = `${input.schoolId}/${applicationId}/${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from(STUDENT_DOCS_BUCKET)
-        .upload(storagePath, file);
-      if (uploadError) {
-        throw new Error(`admissionService.submitApplication: upload failed: ${errMessage(uploadError)}`);
+    try {
+      for (const { file } of input.files) {
+        const storagePath = `${input.schoolId}/${applicationId}/${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from(STUDENT_DOCS_BUCKET)
+          .upload(storagePath, file);
+        if (uploadError) {
+          throw new Error(`upload failed: ${errMessage(uploadError)}`);
+        }
+        storedPaths.push(storagePath);
       }
-      storedPaths.push(storagePath);
-    }
 
-    const { error: guardianError } = await supabase
-      .from('admission_application_guardians')
-      .insert(
-        input.guardians.map((g) => ({
-          application_id: applicationId,
-          name: g.name.trim(),
-          relationship: g.relationship.trim(),
-          phone: g.phone?.trim() || null,
-          email: g.email?.trim() || null,
-          is_emergency: g.isEmergency,
-          is_primary: g.isPrimary,
-        })),
-      );
-    if (guardianError) {
-      throw new Error(`admissionService.submitApplication: ${errMessage(guardianError)}`);
-    }
-
-    if (input.files.length > 0) {
-      const { error: docError } = await supabase
-        .from('admission_application_documents')
+      const { error: guardianError } = await supabase
+        .from('admission_application_guardians')
         .insert(
-          input.files.map((f, i) => ({
+          input.guardians.map((g) => ({
             application_id: applicationId,
-            doc_type: f.docType,
-            storage_path: storedPaths[i],
+            name: g.name.trim(),
+            relationship: g.relationship.trim(),
+            phone: g.phone?.trim() || null,
+            email: g.email?.trim() || null,
+            is_emergency: g.isEmergency,
+            is_primary: g.isPrimary,
           })),
         );
-      if (docError) {
-        throw new Error(`admissionService.submitApplication: ${errMessage(docError)}`);
+      if (guardianError) {
+        throw new Error(`guardian insert failed: ${errMessage(guardianError)}`);
       }
+
+      if (input.files.length > 0) {
+        const { error: docError } = await supabase
+          .from('admission_application_documents')
+          .insert(
+            input.files.map((f, i) => ({
+              application_id: applicationId,
+              doc_type: f.docType,
+              storage_path: storedPaths[i],
+            })),
+          );
+        if (docError) {
+          throw new Error(`document insert failed: ${errMessage(docError)}`);
+        }
+      }
+    } catch (childError) {
+      const cause = errMessage(childError);
+      const notes: string[] = [];
+      if (storedPaths.length > 0) {
+        try {
+          const { error: removeError } = await supabase.storage
+            .from(STUDENT_DOCS_BUCKET)
+            .remove(storedPaths);
+          notes.push(
+            removeError
+              ? `storage: ROLLBACK FAILED (${errMessage(removeError)}) — orphan blobs may remain`
+              : `storage: removed ${storedPaths.length} uploaded blob(s)`,
+          );
+        } catch (e) {
+          notes.push(`storage: ROLLBACK FAILED (${errMessage(e)}) — orphan blobs may remain`);
+        }
+      }
+      // Child rows first, then the parent application row.
+      notes.push(await bestEffortDelete('admission_application_documents', 'application_id', applicationId));
+      notes.push(await bestEffortDelete('admission_application_guardians', 'application_id', applicationId));
+      notes.push(await bestEffortDelete('admission_applications', 'id', applicationId));
+      throw new Error(
+        `admissionService.submitApplication: ${cause} ` +
+          `[compensating rollback (best-effort, NOT a transaction): ${notes.join('; ')}]`,
+      );
     }
 
     return { applicationId };
@@ -331,19 +388,31 @@ export const admissionService = {
     }
 
     if (overrideClass?.classId) {
-      await supabase
+      // Pre-step OUTSIDE the atomic RPC: a placement update that fails must
+      // throw BEFORE the approve RPC runs (never approve into a placement
+      // the caller thinks failed). Conversely, if the RPC then fails, this
+      // already-committed placement persists — surfaced explicitly below.
+      const { error: placementError } = await supabase
         .from('admission_applications')
         .update({
           class_id: overrideClass.classId,
           stream_id: overrideClass.streamId || null,
         })
         .eq('id', applicationId);
+      if (placementError) {
+        throw new Error(
+          `admissionService.approveApplication: class placement update failed, approval NOT attempted: ${errMessage(placementError)}`,
+        );
+      }
     }
     const { data, error } = await supabase.rpc('approve_admission_application', {
       p_application_id: applicationId,
     });
     if (error) {
-      throw new Error(`admissionService.approveApplication: ${errMessage(error)}`);
+      const placementNote = overrideClass?.classId
+        ? ' (class placement update persists; approval did not complete)'
+        : '';
+      throw new Error(`admissionService.approveApplication: ${errMessage(error)}${placementNote}`);
     }
     return { studentId: String(data) };
   },
