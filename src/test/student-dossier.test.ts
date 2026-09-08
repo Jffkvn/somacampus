@@ -369,10 +369,11 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
     });
 
     expect(success).toBe(true);
+    // 'relocated' is not a DB-allowed exit_reason — it maps to the 'other' bucket.
     expect(mockRpc).toHaveBeenCalledWith('withdraw_student', {
       p_student_id: STUDENT_ID,
       p_effective_date: '2026-09-01',
-      p_exit_reason: 'relocated',
+      p_exit_reason: 'other',
       p_final_status: 'withdrawn',
     });
   });
@@ -425,5 +426,95 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
         reason: 'transferred_class',
       })
     ).rejects.toThrow();
+  });
+
+  describe('withdraw exit_reason mapping (Batch A Task 1)', () => {
+    it('(h) withdrawing with UI category transferred_school SUCCEEDS with allowed enum', async () => {
+      mockRpc.mockResolvedValueOnce({ data: true, error: null });
+
+      const success = await studentService.withdrawStudent(STUDENT_ID, 'admin', {
+        effectiveDate: '2026-09-01',
+        reason: 'transferred_school',
+        finalStatus: 'withdrawn',
+      });
+
+      expect(success).toBe(true);
+      expect(mockRpc).toHaveBeenCalledWith('withdraw_student', {
+        p_student_id: STUDENT_ID,
+        p_effective_date: '2026-09-01',
+        p_exit_reason: 'withdrawn',
+        p_final_status: 'withdrawn',
+      });
+    });
+
+    it('(i) free-text notes suffix is stripped so the CHECK-constrained enum stays valid', async () => {
+      mockRpc.mockResolvedValueOnce({ data: true, error: null });
+
+      const success = await studentService.withdrawStudent(STUDENT_ID, 'principal', {
+        effectiveDate: '2026-09-01',
+        reason: "transferred_school: Relocated to Entebbe, admitted to St. Mary's",
+        finalStatus: 'withdrawn',
+      });
+
+      expect(success).toBe(true);
+      expect(mockRpc).toHaveBeenCalledWith('withdraw_student', {
+        p_student_id: STUDENT_ID,
+        p_effective_date: '2026-09-01',
+        p_exit_reason: 'withdrawn',
+        p_final_status: 'withdrawn',
+      });
+    });
+
+    it('(j) maps every UI exit-reason category to an allowed DB enum value', async () => {
+      const cases: Array<[string, string]> = [
+        ['transferred_school', 'withdrawn'],
+        ['family_relocated', 'withdrawn'],
+        ['completed_studies', 'graduated'],
+        ['financial_reasons', 'withdrawn'],
+        ['medical_reasons', 'withdrawn'],
+        ['other', 'other'],
+        // Already-allowed values pass through untouched.
+        ['withdrawn', 'withdrawn'],
+        ['graduated', 'graduated'],
+        ['promoted', 'promoted'],
+        ['transferred_class', 'transferred_class'],
+        ['transferred_stream', 'transferred_stream'],
+        // Unknown legacy values fall back to the honest 'other' bucket.
+        ['relocated', 'other'],
+      ];
+
+      for (const [input, expected] of cases) {
+        mockRpc.mockResolvedValueOnce({ data: true, error: null });
+        const ok = await studentService.withdrawStudent(STUDENT_ID, 'admin', {
+          effectiveDate: '2026-09-01',
+          reason: input,
+          finalStatus: 'withdrawn',
+        });
+        expect(ok).toBe(true);
+        expect(mockRpc).toHaveBeenLastCalledWith('withdraw_student', {
+          p_student_id: STUDENT_ID,
+          p_effective_date: '2026-09-01',
+          p_exit_reason: expected,
+          p_final_status: 'withdrawn',
+        });
+      }
+    });
+
+    it('(k) defaults to withdrawn when no reason is given', async () => {
+      mockRpc.mockResolvedValueOnce({ data: true, error: null });
+
+      const success = await studentService.withdrawStudent(STUDENT_ID, 'admin', {
+        effectiveDate: '2026-09-01',
+        finalStatus: 'withdrawn',
+      });
+
+      expect(success).toBe(true);
+      expect(mockRpc).toHaveBeenCalledWith('withdraw_student', {
+        p_student_id: STUDENT_ID,
+        p_effective_date: '2026-09-01',
+        p_exit_reason: 'withdrawn',
+        p_final_status: 'withdrawn',
+      });
+    });
   });
 });

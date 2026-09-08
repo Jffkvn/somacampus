@@ -133,6 +133,48 @@ function assertLeadershipRole(role: string): void {
   }
 }
 
+/**
+ * DB-allowed student_enrolments.exit_reason values (migration
+ * 20260917000001 CHECK — the source of truth, no migration in scope).
+ */
+const ALLOWED_EXIT_REASONS = new Set([
+  'promoted',
+  'transferred_class',
+  'transferred_stream',
+  'withdrawn',
+  'graduated',
+  'other',
+]);
+
+/**
+ * UI exit-reason categories (StudentWithdrawModal) → allowed DB enum.
+ * transferred_class/stream are internal moves, never withdrawal outcomes,
+ * so every external-leaving category maps to 'withdrawn' except a completed
+ * cycle, which is honestly a graduation.
+ */
+const WITHDRAW_EXIT_REASON_MAP: Record<string, string> = {
+  transferred_school: 'withdrawn',
+  family_relocated: 'withdrawn',
+  completed_studies: 'graduated',
+  financial_reasons: 'withdrawn',
+  medical_reasons: 'withdrawn',
+};
+
+/**
+ * Normalizes a withdraw reason to a CHECK-safe enum before the RPC call.
+ * The modal sends "category: free-text notes"; there is no notes/exit_notes
+ * column on student_enrolments and the withdraw_student RPC signature is
+ * fixed (p_exit_reason only), so the base category is extracted and mapped
+ * and the free text is dropped at this boundary. Unknown values fall back
+ * to the honest 'other' bucket; absent reason keeps the RPC default.
+ */
+function mapWithdrawExitReason(rawReason?: string): string {
+  if (!rawReason || !rawReason.trim()) return 'withdrawn';
+  const base = rawReason.split(':')[0].trim().toLowerCase();
+  if (ALLOWED_EXIT_REASONS.has(base)) return base;
+  return WITHDRAW_EXIT_REASON_MAP[base] ?? 'other';
+}
+
 export const studentService = {
   /**
    * Read-only directory of active enrolments for a school.
@@ -737,7 +779,7 @@ export const studentService = {
     const { data, error } = await supabase.rpc('withdraw_student', {
       p_student_id: studentId,
       p_effective_date: payload.effectiveDate ?? null,
-      p_exit_reason: payload.reason ?? 'withdrawn',
+      p_exit_reason: mapWithdrawExitReason(payload.reason),
       p_final_status: payload.finalStatus ?? 'withdrawn',
     });
 
