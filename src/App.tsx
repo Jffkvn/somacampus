@@ -41,6 +41,7 @@ import { BulkAttendanceRegisterPage } from './modules/attendance/BulkAttendanceR
 import { ResourceLibraryPage } from './modules/teaching/ResourceLibraryPage';
 import { HRApprovalsPage } from './modules/hr/HRApprovalsPage';
 import { InventoryPage } from './modules/inventory/InventoryPage';
+import { InventoryRequestPage } from './modules/inventory/InventoryRequestPage';
 import { AdminOverviewPage } from './modules/admin/AdminOverviewPage';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoadingState } from './components/ui/LoadingState';
@@ -305,6 +306,16 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/administration/inventory">
                 <InventoryPage />
+              </RequireAccess>
+            }
+          />
+          {/* Teacher supply-request surface (request-only): form + own
+              requests. Manager console above stays admin/principal. */}
+          <Route
+            path="inventory/request"
+            element={
+              <RequireAccess path="/inventory/request">
+                <InventoryRequestPage />
               </RequireAccess>
             }
           />

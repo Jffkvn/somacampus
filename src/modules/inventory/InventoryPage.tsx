@@ -132,10 +132,26 @@ export const InventoryPage: React.FC = () => {
   const [returnCondition, setReturnCondition] = useState<'new' | 'good' | 'fair' | 'poor' | 'damaged'>('good');
   const [returnNotes, setReturnNotes] = useState<string>('');
 
+  // Store / category bootstrap (empty-state recovery when nothing exists yet)
+  const [newStoreName, setNewStoreName] = useState<string>('');
+  const [newStoreLocation, setNewStoreLocation] = useState<string>('');
+  const [newCatName, setNewCatName] = useState<string>('');
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Fail-closed caller identity: inventory FKs reference people(id), never a
+  // raw auth UID. The service resolves auth UID -> people.id, so handlers must
+  // pass a real session id — never a hardcoded dummy person id.
+  const requireCallerId = (): string | null => {
+    if (!user?.id) {
+      setErrorMessage('Sign-in required: no session identity. Refusing to record inventory movements without a resolved staff identity.');
+      return null;
+    }
+    return user.id;
+  };
 
   const loadAllData = useCallback(async () => {
     setIsLoading(true);
@@ -211,13 +227,18 @@ export const InventoryPage: React.FC = () => {
   const handleReceiptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!receiptSupplier.trim() || !receiptRef.trim() || !receiptConsumableId) return;
+    if (!receiptStoreId) {
+      setErrorMessage('No store configured — create a store first before recording receipts.');
+      return;
+    }
+    const callerId = requireCallerId();
+    if (!callerId) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      const callerId = user?.id || 'admin-person-id';
       await inventoryService.recordStockReceipt({
         schoolId: effectiveSchoolId,
-        storeId: receiptStoreId || (stores[0]?.id ?? 'store-main'),
+        storeId: receiptStoreId,
         supplier: receiptSupplier.trim(),
         referenceNumber: receiptRef.trim(),
         receivedBy: callerId,
@@ -247,10 +268,11 @@ export const InventoryPage: React.FC = () => {
   const handleAdjustSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAdjustItem || !adjustReason.trim()) return;
+    const callerId = requireCallerId();
+    if (!callerId) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      const callerId = user?.id || 'admin-person-id';
       await inventoryService.adjustStock({
         schoolId: effectiveSchoolId,
         consumableId: selectedAdjustItem.id,
@@ -274,10 +296,11 @@ export const InventoryPage: React.FC = () => {
   const handleNewRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReqPurpose.trim() || !newReqConsumableId) return;
+    const callerId = requireCallerId();
+    if (!callerId) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      const callerId = user?.id || 'person-florence';
       await inventoryService.createStockRequest({
         schoolId: effectiveSchoolId,
         requesterId: callerId,
@@ -303,10 +326,11 @@ export const InventoryPage: React.FC = () => {
 
   // Handle Approve Request
   const handleApproveRequest = async (requestId: string) => {
+    const callerId = requireCallerId();
+    if (!callerId) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      const callerId = user?.id || 'admin-person-id';
       await inventoryService.approveStockRequest(requestId, callerId);
       showSuccess('Stock request approved. Ready for issuance.');
       await loadAllData();
@@ -321,10 +345,11 @@ export const InventoryPage: React.FC = () => {
   const handleIssueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRequestToIssue) return;
+    const callerId = requireCallerId();
+    if (!callerId) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      const callerId = user?.id || 'admin-person-id';
       const lines = selectedRequestToIssue.lines.map((l) => ({
         consumableId: l.consumableId,
         quantity: l.approvedQty !== null && l.approvedQty !== undefined ? l.approvedQty : l.requestedQty,
@@ -350,10 +375,11 @@ export const InventoryPage: React.FC = () => {
   const handleRejectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRequestToReject || !rejectReason.trim()) return;
+    const callerId = requireCallerId();
+    if (!callerId) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      const callerId = user?.id || 'admin-person-id';
       await inventoryService.rejectStockRequest(selectedRequestToReject.id, callerId, rejectReason.trim());
       setIsRejectModalOpen(false);
       setSelectedRequestToReject(null);
@@ -428,14 +454,62 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
+  // Bootstrap: create the first store when none exists (receipts require one)
+  const handleCreateStoreSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStoreName.trim()) return;
+    setIsProcessing(true);
+    setErrorMessage(null);
+    try {
+      const created = await inventoryService.createStore({
+        schoolId: effectiveSchoolId,
+        name: newStoreName.trim(),
+        location: newStoreLocation.trim() || null,
+      });
+      setStores((prev) => [...prev, created]);
+      setReceiptStoreId(created.id);
+      setNewStoreName('');
+      setNewStoreLocation('');
+      showSuccess(`Store "${created.name}" created — receipts can now be recorded.`);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to create store');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Bootstrap: create the first category when none exists (items require one)
+  const handleCreateCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    setIsProcessing(true);
+    setErrorMessage(null);
+    try {
+      const created = await inventoryService.createCategory({
+        schoolId: effectiveSchoolId,
+        name: newCatName.trim(),
+      });
+      setCategories((prev) => [...prev, created]);
+      setNewConsCatId(created.id);
+      setNewAssetCatId(created.id);
+      setNewCatName('');
+      showSuccess(`Category "${created.name}" created — items can now be catalogued.`);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to create category');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Handle Issue Asset
   const handleAssignAssetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAssetToAssign || !assignCustodianId.trim()) return;
+    const callerId = requireCallerId();
+    if (!callerId) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      const callerId = user?.id || 'admin-person-id';
       await inventoryService.issueAsset({
         schoolId: effectiveSchoolId,
         assetId: selectedAssetToAssign.id,
@@ -462,10 +536,11 @@ export const InventoryPage: React.FC = () => {
   const handleReturnAssetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAssetToReturn) return;
+    const callerId = requireCallerId();
+    if (!callerId) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      const callerId = user?.id || 'admin-person-id';
       await inventoryService.returnAsset({
         schoolId: effectiveSchoolId,
         assetId: selectedAssetToReturn.id,
@@ -1162,6 +1237,36 @@ export const InventoryPage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handleReceiptSubmit} className="p-6 space-y-4">
+              {stores.length === 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-2">
+                  <p className="font-semibold">No store configured — create a store first.</p>
+                  <p className="text-xs">Goods receipts require a destination store. Create one below, then record the receipt.</p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      placeholder="Store name (e.g. Main Store)"
+                      value={newStoreName}
+                      onChange={(e) => setNewStoreName(e.target.value)}
+                      className="flex-1 text-sm border border-amber-300 rounded-lg p-2 bg-white text-slate-900"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Location (optional)"
+                      value={newStoreLocation}
+                      onChange={(e) => setNewStoreLocation(e.target.value)}
+                      className="flex-1 text-sm border border-amber-300 rounded-lg p-2 bg-white text-slate-900"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isProcessing || !newStoreName.trim()}
+                      onClick={(e) => handleCreateStoreSubmit(e as unknown as React.FormEvent)}
+                    >
+                      {isProcessing ? 'Creating...' : 'Create Store'}
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Supplier / Vendor</label>
                 <input
@@ -1259,7 +1364,7 @@ export const InventoryPage: React.FC = () => {
                 <Button type="button" variant="outline" onClick={() => setIsReceiptModalOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isProcessing}>
+                <Button type="submit" disabled={isProcessing || stores.length === 0}>
                   {isProcessing ? 'Recording...' : 'Record Inward Stock'}
                 </Button>
               </div>
@@ -1547,6 +1652,28 @@ export const InventoryPage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handleAddConsumableSubmit} className="p-6 space-y-4">
+              {categories.length === 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-2">
+                  <p className="font-semibold">No category configured — create a category first.</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Category name (e.g. Stationery)"
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      className="flex-1 text-sm border border-amber-300 rounded-lg p-2 bg-white text-slate-900"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isProcessing || !newCatName.trim()}
+                      onClick={(e) => handleCreateCategorySubmit(e as unknown as React.FormEvent)}
+                    >
+                      {isProcessing ? 'Creating...' : 'Create Category'}
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Item Name</label>
                 <input

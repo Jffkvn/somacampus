@@ -6,6 +6,7 @@
  * Mock Honesty: Fails closed on database errors. Zero synthetic in-memory mocks.
  */
 import { supabase } from '../../lib/supabase';
+import { writeFinancialAudit } from '../../lib/financialAudit';
 
 export interface InventoryStore {
   id: string;
@@ -166,6 +167,54 @@ const errMessage = (err: unknown): string =>
     ? String((err as { message: unknown }).message)
     : 'Unknown database error';
 
+/**
+ * Resolve a caller-supplied identity to a people.id before writing it into
+ * any people-FK column (requester_id, received_by, created_by, decided_by,
+ * issued_by, returned_to). Callers (e.g. InventoryPage via useAuth) hold the
+ * Supabase auth UID, but every inventory FK references people(id).
+ *
+ * Strategy: accept an already-resolved people.id OR a raw auth UID (resolved
+ * via people.auth_user_id, the codebase idiom used by communicationService,
+ * identity.ts, financialAudit.ts). Fail closed with a clear error when
+ * neither matches — NEVER write a raw auth UID into a people-FK column.
+ */
+async function resolvePeopleId(candidate: string, field: string): Promise<string> {
+  const id = (candidate || '').trim();
+  if (!id) {
+    throw new Error(
+      `inventoryService: ${field} is required (no signed-in identity). Refusing to write an empty identity into a people-FK column.`
+    );
+  }
+
+  const { data: byId, error: byIdErr } = await supabase
+    .from('people')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle();
+  if (byIdErr) {
+    throw new Error(`inventoryService: people lookup failed for ${field}: ${errMessage(byIdErr)}`);
+  }
+  if ((byId as { id?: string } | null)?.id) {
+    return (byId as { id: string }).id;
+  }
+
+  const { data: byAuth, error: byAuthErr } = await supabase
+    .from('people')
+    .select('id')
+    .eq('auth_user_id', id)
+    .maybeSingle();
+  if (byAuthErr) {
+    throw new Error(`inventoryService: people lookup failed for ${field}: ${errMessage(byAuthErr)}`);
+  }
+  if ((byAuth as { id?: string } | null)?.id) {
+    return (byAuth as { id: string }).id;
+  }
+
+  throw new Error(
+    `inventoryService: unresolvable ${field} — no person record for this session (no people row with id or auth_user_id matching the caller). Refusing to write a raw auth UID into people-FK columns.`
+  );
+}
+
 export const inventoryService = {
   /**
    * List all stores / storage locations in the school
@@ -216,6 +265,87 @@ export const inventoryService = {
       code: c.code,
       description: c.description,
     }));
+  },
+
+  /**
+   * Create a store / storage location (leadership insert per RLS stores_write).
+   * Minimal bootstrap so the manager console can recover from "no stores".
+   */
+  async createStore(payload: {
+    schoolId: string;
+    name: string;
+    location?: string | null;
+  }): Promise<InventoryStore> {
+    if (isMockEnv()) {
+      throw new Error('Cannot create store in mock environment: live database required.');
+    }
+    if (!payload.name?.trim()) {
+      throw new Error('inventoryService.createStore: store name is required.');
+    }
+
+    const { data, error } = await supabase
+      .from('stores')
+      .insert({
+        school_id: payload.schoolId,
+        name: payload.name.trim(),
+        location: payload.location?.trim() || null,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(`inventoryService.createStore: ${errMessage(error)}`);
+    }
+    return {
+      id: (data as any).id,
+      schoolId: (data as any).school_id,
+      name: (data as any).name,
+      location: (data as any).location,
+      isActive: (data as any).is_active ?? true,
+    };
+  },
+
+  /**
+   * Create an item category (leadership insert per RLS categories_write).
+   * Minimal bootstrap so the manager console can recover from "no categories".
+   */
+  async createCategory(payload: {
+    schoolId: string;
+    name: string;
+    code?: string;
+    description?: string | null;
+  }): Promise<ItemCategory> {
+    if (isMockEnv()) {
+      throw new Error('Cannot create category in mock environment: live database required.');
+    }
+    if (!payload.name?.trim()) {
+      throw new Error('inventoryService.createCategory: category name is required.');
+    }
+    const code =
+      payload.code?.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_') ||
+      payload.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+
+    const { data, error } = await supabase
+      .from('item_categories')
+      .insert({
+        school_id: payload.schoolId,
+        name: payload.name.trim(),
+        code,
+        description: payload.description?.trim() || null,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(`inventoryService.createCategory: ${errMessage(error)}`);
+    }
+    return {
+      id: (data as any).id,
+      schoolId: (data as any).school_id,
+      name: (data as any).name,
+      code: (data as any).code,
+      description: (data as any).description,
+    };
   },
 
   /**
@@ -347,9 +477,15 @@ export const inventoryService = {
   },
 
   /**
-   * List material requisitions / stock requests
+   * List material requisitions / stock requests.
+   * Accepts a legacy status string or an options object; requesterId scopes
+   * the teacher request surface to the viewer's own requisitions (RLS also
+   * restricts staff to own rows — defense in depth).
    */
-  async listStockRequests(schoolId: string, status?: string): Promise<StockRequest[]> {
+  async listStockRequests(
+    schoolId: string,
+    statusOrOptions?: string | { status?: string; requesterId?: string }
+  ): Promise<StockRequest[]> {
     if (isMockEnv()) {
       return [];
     }
@@ -367,8 +503,14 @@ export const inventoryService = {
       `)
       .eq('school_id', schoolId);
 
+    const status = typeof statusOrOptions === 'string' ? statusOrOptions : statusOrOptions?.status;
+    const requesterId = typeof statusOrOptions === 'object' ? statusOrOptions?.requesterId : undefined;
+
     if (status && status !== 'all') {
       query = query.eq('status', status);
+    }
+    if (requesterId) {
+      query = query.eq('requester_id', requesterId);
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
@@ -495,7 +637,9 @@ export const inventoryService = {
   },
 
   /**
-   * Create a new stock request (staff requisition)
+   * Create a new stock request (staff requisition).
+   * requesterId may be a people.id or a raw auth UID (resolved via
+   * people.auth_user_id); unresolvable identities fail closed.
    */
   async createStockRequest(payload: {
     schoolId: string;
@@ -508,11 +652,13 @@ export const inventoryService = {
       throw new Error('Cannot create stock request in mock environment: live database required.');
     }
 
+    const requesterPersonId = await resolvePeopleId(payload.requesterId, 'requesterId');
+
     const { data: reqData, error: reqErr } = await supabase
       .from('stock_requests')
       .insert({
         school_id: payload.schoolId,
-        requester_id: payload.requesterId,
+        requester_id: requesterPersonId,
         department: payload.department,
         purpose: payload.purpose,
         status: 'pending',
@@ -542,49 +688,118 @@ export const inventoryService = {
   },
 
   /**
-   * Approve a stock request (leadership action)
+   * Approve a stock request (leadership action).
+   * Guarded to pending requests only (fetch-then-update with eq status
+   * pending, mirroring hrService decideLeaveRequest). Writes a financial
+   * audit entry: approvals commit future stock-value movement, so who/when
+   * belongs in the append-only audit log alongside decided_by/at on the row.
    */
   async approveStockRequest(requestId: string, decidedBy: string): Promise<boolean> {
     if (isMockEnv()) {
       throw new Error('Cannot approve stock request in mock environment: live database required.');
     }
 
+    const deciderPersonId = await resolvePeopleId(decidedBy, 'decidedBy');
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('stock_requests')
+      .select('school_id, status')
+      .eq('id', requestId)
+      .single();
+    if (fetchErr) {
+      throw new Error(`inventoryService.approveStockRequest: ${errMessage(fetchErr)}`);
+    }
+    if (!current) {
+      throw new Error('inventoryService.approveStockRequest: stock request not found.');
+    }
+    if ((current as any).status !== 'pending') {
+      throw new Error(
+        `Invalid State: Stock request is ${(current as any).status}, only pending requests can be approved.`
+      );
+    }
+
     const { error } = await supabase
       .from('stock_requests')
       .update({
         status: 'approved',
-        decided_by: decidedBy,
+        decided_by: deciderPersonId,
         decided_at: new Date().toISOString(),
       })
-      .eq('id', requestId);
+      .eq('id', requestId)
+      .eq('status', 'pending');
 
     if (error) {
       throw new Error(`inventoryService.approveStockRequest: ${errMessage(error)}`);
     }
+    await writeFinancialAudit({
+      schoolId: (current as any).school_id,
+      entityType: 'stock_request',
+      entityId: requestId,
+      action: 'approved',
+      performedBy: deciderPersonId,
+      reason: `approveStockRequest ${requestId}`,
+      previousData: { status: (current as any).status ?? 'pending' },
+      newData: { id: requestId, status: 'approved', decided_by: deciderPersonId },
+    });
     return true;
   },
 
   /**
-   * Reject a stock request
+   * Reject a stock request.
+   * Same pending guard + audit as approve (rejections close out a claimed
+   * stock need, so the decision is audited with its reason).
    */
   async rejectStockRequest(requestId: string, decidedBy: string, rejectionReason: string): Promise<boolean> {
     if (isMockEnv()) {
       throw new Error('Cannot reject stock request in mock environment: live database required.');
+    }
+    if (!rejectionReason?.trim()) {
+      throw new Error('inventoryService.rejectStockRequest: a rejection reason is required.');
+    }
+
+    const deciderPersonId = await resolvePeopleId(decidedBy, 'decidedBy');
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('stock_requests')
+      .select('school_id, status')
+      .eq('id', requestId)
+      .single();
+    if (fetchErr) {
+      throw new Error(`inventoryService.rejectStockRequest: ${errMessage(fetchErr)}`);
+    }
+    if (!current) {
+      throw new Error('inventoryService.rejectStockRequest: stock request not found.');
+    }
+    if ((current as any).status !== 'pending') {
+      throw new Error(
+        `Invalid State: Stock request is ${(current as any).status}, only pending requests can be rejected.`
+      );
     }
 
     const { error } = await supabase
       .from('stock_requests')
       .update({
         status: 'rejected',
-        decided_by: decidedBy,
+        decided_by: deciderPersonId,
         decided_at: new Date().toISOString(),
-        rejection_reason: rejectionReason,
+        rejection_reason: rejectionReason.trim(),
       })
-      .eq('id', requestId);
+      .eq('id', requestId)
+      .eq('status', 'pending');
 
     if (error) {
       throw new Error(`inventoryService.rejectStockRequest: ${errMessage(error)}`);
     }
+    await writeFinancialAudit({
+      schoolId: (current as any).school_id,
+      entityType: 'stock_request',
+      entityId: requestId,
+      action: 'rejected',
+      performedBy: deciderPersonId,
+      reason: rejectionReason.trim(),
+      previousData: { status: (current as any).status ?? 'pending' },
+      newData: { id: requestId, status: 'rejected', decided_by: deciderPersonId },
+    });
     return true;
   },
 
@@ -601,10 +816,12 @@ export const inventoryService = {
       throw new Error('Cannot issue stock in mock environment: live database required.');
     }
 
+    const issuedByPersonId = await resolvePeopleId(payload.issuedBy, 'issuedBy');
+
     const { data, error } = await supabase.rpc('issue_stock_for_request', {
       p_school_id: payload.schoolId,
       p_request_id: payload.requestId,
-      p_issued_by: payload.issuedBy,
+      p_issued_by: issuedByPersonId,
       p_lines: payload.lines.map((l) => ({
         consumable_id: l.consumableId,
         quantity: l.quantity,
@@ -631,12 +848,19 @@ export const inventoryService = {
       throw new Error('Cannot record stock receipt in mock environment: live database required.');
     }
 
+    if (!payload.storeId?.trim()) {
+      throw new Error(
+        'inventoryService.recordStockReceipt: storeId is required — create a store first (no fallback store).'
+      );
+    }
+    const receivedByPersonId = await resolvePeopleId(payload.receivedBy, 'receivedBy');
+
     const { data, error } = await supabase.rpc('record_stock_receipt', {
       p_school_id: payload.schoolId,
       p_store_id: payload.storeId,
       p_supplier: payload.supplier,
       p_reference_number: payload.referenceNumber,
-      p_received_by: payload.receivedBy,
+      p_received_by: receivedByPersonId,
       p_notes: payload.notes || '',
       p_lines: payload.lines.map((l) => ({
         consumable_id: l.consumableId,
@@ -663,12 +887,14 @@ export const inventoryService = {
       throw new Error('Cannot adjust stock in mock environment: live database required.');
     }
 
+    const adjustedByPersonId = await resolvePeopleId(payload.adjustedBy, 'adjustedBy');
+
     const { data, error } = await supabase.rpc('adjust_stock_level', {
       p_school_id: payload.schoolId,
       p_consumable_id: payload.consumableId,
       p_new_quantity: payload.newQuantity,
       p_reason: payload.reason,
-      p_adjusted_by: payload.adjustedBy,
+      p_adjusted_by: adjustedByPersonId,
     });
 
     if (error) throw error;
@@ -692,12 +918,14 @@ export const inventoryService = {
       throw new Error('Cannot issue asset in mock environment: live database required.');
     }
 
+    const issuedByPersonId = await resolvePeopleId(payload.issuedBy, 'issuedBy');
+
     const { data, error } = await supabase.rpc('issue_asset_custody', {
       p_school_id: payload.schoolId,
       p_asset_id: payload.assetId,
       p_custodian_type: payload.custodianType,
       p_custodian_id: payload.custodianId,
-      p_issued_by: payload.issuedBy,
+      p_issued_by: issuedByPersonId,
       p_expected_return: payload.expectedReturnDate || null,
       p_condition: payload.condition || 'good',
       p_notes: payload.notes || '',
@@ -721,10 +949,12 @@ export const inventoryService = {
       throw new Error('Cannot return asset in mock environment: live database required.');
     }
 
+    const returnedToPersonId = await resolvePeopleId(payload.returnedTo, 'returnedTo');
+
     const { data, error } = await supabase.rpc('return_asset_custody', {
       p_school_id: payload.schoolId,
       p_asset_id: payload.assetId,
-      p_returned_to: payload.returnedTo,
+      p_returned_to: returnedToPersonId,
       p_condition: payload.condition || 'good',
       p_notes: payload.notes || '',
     });

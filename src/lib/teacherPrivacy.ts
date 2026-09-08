@@ -30,8 +30,12 @@
   *   /dashboard/school         <-> school.dashboard.view   (principal, admin)
   *   /timetable                <-> timetable.view_all / timetable.view_assigned
   *     (teacher, admin, principal; builder stays leadership-only)
- *   /admin/overview           <-> school.settings.manage  (admin)
- *   /administration/inventory <-> inventory.manage        (admin, principal)
+  *   /admin/overview           <-> school.settings.manage  (admin)
+  *   /administration/inventory <-> inventory.manage        (admin, principal)
+  *   /inventory/request        <-> request-only surface    (teacher, admin,
+  *     principal — teachers file requisitions and read ONLY their own rows;
+  *     the manager console above stays leadership-only; RLS + the service
+  *     requester_id filter arbitrate the rows)
  *   /administration/audit     <-> admin-only allowlist entry (no dedicated
  *     code — navigation allowlist is the gate, RLS the data arbiter).
  *
@@ -97,6 +101,10 @@ export const ROUTE_ROLE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> 
   { prefix: '/dashboard/school', roles: ['principal', 'admin'] },
   { prefix: '/admin/overview', roles: ['admin'] },
   { prefix: '/administration/inventory', roles: ['admin', 'principal'] },
+  // Teacher supply-request surface: request-only (form + own-requests list).
+  // Explicitly pinned so the fail-closed suite documents the intent: teacher
+  // may reach ONLY this path, never the manager console above.
+  { prefix: '/inventory/request', roles: ['teacher', 'admin', 'principal'] },
   { prefix: '/administration/audit', roles: ['admin'] },
   { prefix: '/administration/payroll', roles: ['bursar', 'admin', 'principal'] },
   // Phase 9G Task 1 centre operations: money-role page (director/admin,

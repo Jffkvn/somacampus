@@ -54,6 +54,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
       { label: 'Worksheets', href: '/teaching/worksheets', roles: ['teacher', 'admin'] },
       { label: 'Quizzes', href: '/teaching/quizzes', roles: ['teacher', 'admin'] },
       { label: 'Resource Library', href: '/teaching/resources', roles: ['teacher', 'admin', 'principal'] },
+      { label: 'Supply Requests', href: '/inventory/request', roles: ['teacher', 'admin', 'principal'] },
     ],
   },
   {
