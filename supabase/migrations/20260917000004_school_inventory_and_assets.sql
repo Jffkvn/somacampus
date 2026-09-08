@@ -278,7 +278,7 @@ CREATE POLICY stock_requests_read ON public.stock_requests
     OR (
       public.is_staff_in_school(school_id)
       AND requester_id IN (
-        SELECT person_id FROM public.users WHERE id = auth.uid()
+        SELECT id FROM public.people WHERE auth_user_id = auth.uid()
       )
     )
   );
@@ -287,7 +287,7 @@ CREATE POLICY stock_requests_insert ON public.stock_requests
   FOR INSERT WITH CHECK (
     public.is_staff_in_school(school_id)
     AND requester_id IN (
-      SELECT person_id FROM public.users WHERE id = auth.uid()
+      SELECT id FROM public.people WHERE auth_user_id = auth.uid()
     )
   );
 
@@ -297,7 +297,7 @@ CREATE POLICY stock_requests_update ON public.stock_requests
     OR (
       status = 'draft'
       AND requester_id IN (
-        SELECT person_id FROM public.users WHERE id = auth.uid()
+        SELECT id FROM public.people WHERE auth_user_id = auth.uid()
       )
     )
   )
@@ -306,7 +306,7 @@ CREATE POLICY stock_requests_update ON public.stock_requests
     OR (
       status IN ('draft', 'pending')
       AND requester_id IN (
-        SELECT person_id FROM public.users WHERE id = auth.uid()
+        SELECT id FROM public.people WHERE auth_user_id = auth.uid()
       )
     )
   );
@@ -320,7 +320,7 @@ CREATE POLICY stock_request_lines_read ON public.stock_request_lines
         OR (
           public.is_staff_in_school(sr.school_id)
           AND sr.requester_id IN (
-            SELECT person_id FROM public.users WHERE id = auth.uid()
+            SELECT id FROM public.people WHERE auth_user_id = auth.uid()
           )
         )
       )
@@ -335,7 +335,7 @@ CREATE POLICY stock_request_lines_write ON public.stock_request_lines
         OR (
           sr.status = 'draft'
           AND sr.requester_id IN (
-            SELECT person_id FROM public.users WHERE id = auth.uid()
+            SELECT id FROM public.people WHERE auth_user_id = auth.uid()
           )
         )
       )
@@ -348,7 +348,7 @@ CREATE POLICY stock_request_lines_write ON public.stock_request_lines
         OR (
           sr.status IN ('draft', 'pending')
           AND sr.requester_id IN (
-            SELECT person_id FROM public.users WHERE id = auth.uid()
+            SELECT id FROM public.people WHERE auth_user_id = auth.uid()
           )
         )
       )
