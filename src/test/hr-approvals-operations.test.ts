@@ -228,8 +228,7 @@ describe('HR Approvals & Carried Bug Fixes (Slice 2)', () => {
     ).resolves.toBeDefined();
   });
 
-  it('(6) buildEffectiveLeaveBalances counts approved requests toward usedDays', () => {
-    const leaveTypes: LeaveType[] = [
+  it('(6) buildEffectiveLeaveBalances counts approved requests toward usedDays', () => {    const leaveTypes: LeaveType[] = [
       {
         id: 'lt-annual',
         schoolId: 'school-1',
@@ -293,5 +292,30 @@ describe('HR Approvals & Carried Bug Fixes (Slice 2)', () => {
     expect(annual.usedDays).toBe(3); // from approved request
     expect(annual.pendingDays).toBe(2); // from pending request
     expect(annual.availableDays).toBe(16); // 21 - 3 - 2 = 16
+  });
+
+  it('(7) decideLeaveRequest requires callerUserId for decision attribution', async () => {
+    tableResponses.leave_requests = {
+      data: { id: 'req-1', school_id: 'school-1', status: 'pending' },
+      error: null,
+    };
+
+    await expect(hrService.decideLeaveRequest('req-1', 'approved', 'All covered')).rejects.toThrow(
+      /callerUserId.*required|decision attribution/i
+    );
+    await expect(
+      hrService.decideLeaveRequest('req-1', 'approved', 'All covered', '   ')
+    ).rejects.toThrow(/callerUserId.*required|decision attribution/i);
+  });
+
+  it('(8) decideAdvanceRequest requires callerUserId for decision attribution', async () => {
+    tableResponses.staff_advances = {
+      data: { id: 'adv-1', school_id: 'school-1', status: 'pending' },
+      error: null,
+    };
+
+    await expect(hrService.decideAdvanceRequest('adv-1', 'active', 'Approved')).rejects.toThrow(
+      /callerUserId.*required|decision attribution/i
+    );
   });
 });

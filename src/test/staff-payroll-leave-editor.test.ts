@@ -61,6 +61,7 @@ describe('Staff Payroll & Leave Entitlement Editors (Plan Section 3)', () => {
           employeeId,
           baseSalary: 3500000,
           effectiveFrom: '2026-09-01',
+          actorRole: 'admin',
         })
       ).rejects.toThrow(/mock environment/);
       await expect(
@@ -73,6 +74,61 @@ describe('Staff Payroll & Leave Entitlement Editors (Plan Section 3)', () => {
         })
       ).rejects.toThrow(/mock environment/);
       await expect(hrService.getEffectiveBalances(schoolId, employeeId)).resolves.toEqual([]);
+    });
+  });
+
+  describe('payroll write gates (hr.payroll.manage — admin only)', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_SUPABASE_URL', LIVE_URL);
+      vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-key');
+    });
+
+    it.each(['teacher', 'principal', 'bursar'] as const)(
+      'upsertPayrollProfile rejects %s (no hr.payroll.manage)',
+      async (actorRole) => {
+        await expect(
+          hrService.upsertPayrollProfile({
+            schoolId,
+            employeeId,
+            baseSalary: 3500000,
+            effectiveFrom: '2026-09-01',
+            actorRole,
+          })
+        ).rejects.toThrow(/hr\.payroll\.manage|not authorized|permission/i);
+      }
+    );
+
+    it('upsertPayrollProfile rejects a missing actorRole', async () => {
+      await expect(
+        hrService.upsertPayrollProfile({ schoolId, employeeId, baseSalary: 3500000 })
+      ).rejects.toThrow(/actorRole.*required|hr\.payroll\.manage|not authorized/i);
+    });
+
+    it.each(['teacher', 'principal', 'bursar'] as const)(
+      'upsertLeaveEntitlement rejects %s (no hr.payroll.manage)',
+      async (actorRole) => {
+        await expect(
+          hrService.upsertLeaveEntitlement({
+            schoolId,
+            employeeId,
+            leaveTypeId: 'lt-annual',
+            leaveYear: 2026,
+            entitledDays: 28,
+            actorRole,
+          })
+        ).rejects.toThrow(/hr\.payroll\.manage|not authorized|permission/i);
+      }
+    );
+
+    it('upsertLeaveEntitlement rejects a missing actorRole', async () => {
+      await expect(
+        hrService.upsertLeaveEntitlement({
+          schoolId,
+          employeeId,
+          leaveTypeId: 'lt-annual',
+          entitledDays: 5,
+        })
+      ).rejects.toThrow(/actorRole.*required|hr\.payroll\.manage|not authorized/i);
     });
   });
 
@@ -116,6 +172,7 @@ describe('Staff Payroll & Leave Entitlement Editors (Plan Section 3)', () => {
         bankAccountName: 'David Musoke',
         nssfApplicable: true,
         effectiveFrom: '2026-09-01',
+        actorRole: 'admin',
       });
 
       const profiles = await hrService.getEmployeePayrollProfiles(schoolId);
@@ -158,6 +215,7 @@ describe('Staff Payroll & Leave Entitlement Editors (Plan Section 3)', () => {
         bankAccountNumber: '9030012345678',
         nssfApplicable: true,
         effectiveFrom: '2026-10-01',
+        actorRole: 'admin',
       });
 
       const profiles = await hrService.getEmployeePayrollProfiles(schoolId);
@@ -204,6 +262,7 @@ describe('Staff Payroll & Leave Entitlement Editors (Plan Section 3)', () => {
         leaveTypeId: 'lt-annual',
         leaveYear: 2026,
         entitledDays: 28,
+        actorRole: 'admin',
       });
 
       const balances = await hrService.getEffectiveBalances(schoolId, employeeId);

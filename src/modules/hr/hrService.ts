@@ -13,6 +13,7 @@
 
 import { supabase } from '../../lib/supabase';
 import { writeFinancialAudit } from '../../lib/financialAudit';
+import { hasPermission, type UserRole } from '../../config/permissions';
 import {
   LeaveType,
   LeaveRequest,
@@ -441,6 +442,9 @@ export const hrService = {
     if (isMockEnv()) {
       throw new Error('hrService.decideLeaveRequest: unavailable in mock environment (no fake writes)');
     }
+    if (!callerUserId?.trim()) {
+      throw new Error('hrService.decideLeaveRequest: callerUserId is required for decision attribution (decided_by).');
+    }
     const { data: current, error: fetchErr } = await supabase
       .from('leave_requests')
       .select('school_id, status')
@@ -483,6 +487,9 @@ export const hrService = {
   ): Promise<boolean> {
     if (isMockEnv()) {
       throw new Error('hrService.decideAdvanceRequest: unavailable in mock environment (no fake writes)');
+    }
+    if (!callerUserId?.trim()) {
+      throw new Error('hrService.decideAdvanceRequest: callerUserId is required for decision attribution (decided_by).');
     }
     const { data: current, error: fetchErr } = await supabase
       .from('staff_advances')
@@ -587,7 +594,9 @@ export const hrService = {
   },
 
   /**
-   * Upsert an employee payroll profile atomically
+   * Upsert an employee payroll profile atomically.
+   * Gated on hr.payroll.manage (per ROLE_PERMISSIONS: admin only) — callers
+   * thread the viewer's role from the UI auth context.
    */
   async upsertPayrollProfile(payload: {
     schoolId: string;
@@ -601,11 +610,21 @@ export const hrService = {
     bankAccountName?: string;
     nssfApplicable?: boolean;
     effectiveFrom?: string;
+    actorRole?: UserRole;
   }): Promise<void> {
     const effectiveFrom = payload.effectiveFrom || new Date().toISOString().slice(0, 10);
 
     if (isMockEnv()) {
       throw new Error('hrService.upsertPayrollProfile: unavailable in mock environment (no fake writes)');
+    }
+
+    if (!payload.actorRole) {
+      throw new Error('hrService.upsertPayrollProfile: actorRole is required (hr.payroll.manage).');
+    }
+    if (!hasPermission(payload.actorRole, 'hr.payroll.manage')) {
+      throw new Error(
+        `hrService.upsertPayrollProfile: role '${payload.actorRole}' is not authorized (requires hr.payroll.manage).`
+      );
     }
 
     // Close existing profile
@@ -634,7 +653,9 @@ export const hrService = {
   },
 
   /**
-   * Upsert an employee leave entitlement for a specific leave year
+   * Upsert an employee leave entitlement for a specific leave year.
+   * Gated on hr.payroll.manage (per ROLE_PERMISSIONS: admin only) — callers
+   * thread the viewer's role from the UI auth context.
    */
   async upsertLeaveEntitlement(payload: {
     schoolId: string;
@@ -642,11 +663,21 @@ export const hrService = {
     leaveTypeId: string;
     leaveYear?: number;
     entitledDays: number;
+    actorRole?: UserRole;
   }): Promise<void> {
     const leaveYear = payload.leaveYear || new Date().getFullYear();
 
     if (isMockEnv()) {
       throw new Error('hrService.upsertLeaveEntitlement: unavailable in mock environment (no fake writes)');
+    }
+
+    if (!payload.actorRole) {
+      throw new Error('hrService.upsertLeaveEntitlement: actorRole is required (hr.payroll.manage).');
+    }
+    if (!hasPermission(payload.actorRole, 'hr.payroll.manage')) {
+      throw new Error(
+        `hrService.upsertLeaveEntitlement: role '${payload.actorRole}' is not authorized (requires hr.payroll.manage).`
+      );
     }
 
     const { error } = await supabase

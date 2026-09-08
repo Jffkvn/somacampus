@@ -63,6 +63,9 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   const [advances, setAdvances] = useState<StaffAdvance[]>([]);
   const [payslips, setPayslips] = useState<SchoolPayrollItem[]>([]);
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
+  // Holiday-load failure is surfaced, never swallowed: when set, the leave
+  // UI warns that day counts exclude public holidays (weekends-only).
+  const [holidaysError, setHolidaysError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Leave Modal
@@ -137,18 +140,24 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   async function loadData(empId: string) {
     try {
       setIsLoading(true);
-      const [effBalances, myReqs, myAdvs, mySlips, schoolHolidays] = await Promise.all([
+      setHolidaysError(null);
+      const [effBalances, myReqs, myAdvs, mySlips] = await Promise.all([
         hrService.getEffectiveBalances(schoolId, empId),
         hrService.getMyLeaveRequests(empId, schoolId),
         hrService.getMyAdvances(empId, schoolId),
         payrollService.getMyPayslips(empId, schoolId),
-        hrService.getSchoolHolidays(schoolId).catch(() => [] as PublicHoliday[]),
       ]);
       setBalances(effBalances);
       setRequests(myReqs);
       setAdvances(myAdvs);
       setPayslips(mySlips);
-      setHolidays(schoolHolidays);
+      try {
+        setHolidays(await hrService.getSchoolHolidays(schoolId));
+      } catch (holidayErr) {
+        console.error('Failed to load school holidays', holidayErr);
+        setHolidays([]);
+        setHolidaysError('Could not load holidays — leave day counts currently exclude weekends only, not public holidays.');
+      }
       // M2: resolve the viewer's actual basic salary for the 50% advance
       // cap; keep the documented fallback when the profile is unreadable.
       try {
@@ -300,6 +309,12 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
       {/* TAB 1: LEAVE & BALANCES */}
       {activeTab === 'leave' && (
         <div className="space-y-6">
+          {holidaysError && (
+            <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 flex items-start gap-3" role="alert">
+              <Info className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-900 font-semibold">{holidaysError}</p>
+            </div>
+          )}
           {/* Effective Leave Balances Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {balances.slice(0, 4).map((b) => (
@@ -618,6 +633,11 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
                 <span>Calculated Working Days:</span>
                 <span className="text-sm font-bold">{calculatedWorkingDays} days</span>
               </div>
+              {holidaysError && (
+                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2" role="alert">
+                  Could not load holidays — this count excludes weekends only, not public holidays.
+                </p>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Reason for Request</label>

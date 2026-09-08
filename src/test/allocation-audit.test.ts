@@ -397,8 +397,8 @@ describe('D9 audit coverage: services ATTEMPT audit write with who/what/when/sch
   });
 
   it('salary advance + leave approvals attempt audit (who/when pinned)', async () => {
-    await hrService.decideAdvanceRequest('adv-1', 'active', 'Approved for test');
-    await hrService.decideLeaveRequest('req-leave-1', 'approved', 'Approved for test');
+    await hrService.decideAdvanceRequest('adv-1', 'active', 'Approved for test', TEST_ACTOR_ID);
+    await hrService.decideLeaveRequest('req-leave-1', 'approved', 'Approved for test', TEST_ACTOR_ID);
     const inserts = auditInserts();
     expect(inserts.length).toBeGreaterThan(0);
     for (const ins of inserts) {

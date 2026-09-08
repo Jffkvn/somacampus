@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useAuth } from '../../lib/authContext';
+import type { UserRole } from '../../config/permissions';
 import { hrService } from './hrService';
 import { LeaveRequest, StaffAdvance, LeaveType } from '../../types/domain';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
@@ -23,7 +24,7 @@ import { LoadingState } from '../../components/ui/LoadingState';
 const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
 
 export const HRApprovalsPage: React.FC = () => {
-  const { schoolId, user } = useAuth();
+  const { schoolId, user, role } = useAuth();
   const effectiveSchoolId = schoolId ?? PILOT_SCHOOL_ID;
 
   const [activeTab, setActiveTab] = useState<'leave' | 'advances' | 'policies' | 'profiles'>('leave');
@@ -77,7 +78,10 @@ export const HRApprovalsPage: React.FC = () => {
     setActionError(null);
     setActionSuccess(null);
     try {
-      await hrService.decideLeaveRequest(reqId, 'approved', undefined, user?.id);
+      const ok = await hrService.decideLeaveRequest(reqId, 'approved', undefined, user?.id);
+      if (!ok) {
+        throw new Error('Leave approval failed — the request was not updated. Please retry.');
+      }
       setActionSuccess('Leave request approved and balance deducted.');
       await loadAll();
     } catch (err) {
@@ -90,7 +94,10 @@ export const HRApprovalsPage: React.FC = () => {
     setIsRejecting(true);
     setActionError(null);
     try {
-      await hrService.decideLeaveRequest(rejectingLeaveId, 'rejected', rejectReason.trim(), user?.id);
+      const ok = await hrService.decideLeaveRequest(rejectingLeaveId, 'rejected', rejectReason.trim(), user?.id);
+      if (!ok) {
+        throw new Error('Leave rejection failed — the request was not updated. Please retry.');
+      }
       setRejectingLeaveId(null);
       setRejectReason('');
       setActionSuccess('Leave request rejected.');
@@ -106,7 +113,10 @@ export const HRApprovalsPage: React.FC = () => {
     setActionError(null);
     setActionSuccess(null);
     try {
-      await hrService.decideAdvanceRequest(advId, 'active', undefined, user?.id);
+      const ok = await hrService.decideAdvanceRequest(advId, 'active', undefined, user?.id);
+      if (!ok) {
+        throw new Error('Advance approval failed — the request was not updated. Please retry.');
+      }
       setActionSuccess('Salary advance approved and scheduled for payroll deductions.');
       await loadAll();
     } catch (err) {
@@ -119,7 +129,10 @@ export const HRApprovalsPage: React.FC = () => {
     setIsRejecting(true);
     setActionError(null);
     try {
-      await hrService.decideAdvanceRequest(rejectingAdvanceId, 'rejected', rejectReason.trim(), user?.id);
+      const ok = await hrService.decideAdvanceRequest(rejectingAdvanceId, 'rejected', rejectReason.trim(), user?.id);
+      if (!ok) {
+        throw new Error('Advance rejection failed — the request was not updated. Please retry.');
+      }
       setRejectingAdvanceId(null);
       setRejectReason('');
       setActionSuccess('Salary advance rejected.');
@@ -623,6 +636,7 @@ export const HRApprovalsPage: React.FC = () => {
         <PayrollProfileEditModal
           schoolId={effectiveSchoolId}
           profile={editingProfile}
+          actorRole={role}
           onClose={() => setShowProfileModal(false)}
           onSaved={async () => {
             setShowProfileModal(false);
@@ -763,6 +777,7 @@ const LeaveTypeEditModal: React.FC<LeaveTypeEditModalProps> = ({ schoolId, initi
 interface PayrollProfileEditModalProps {
   schoolId: string;
   profile: any;
+  actorRole: UserRole;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -770,6 +785,7 @@ interface PayrollProfileEditModalProps {
 const PayrollProfileEditModal: React.FC<PayrollProfileEditModalProps> = ({
   schoolId,
   profile,
+  actorRole,
   onClose,
   onSaved,
 }) => {
@@ -798,6 +814,7 @@ const PayrollProfileEditModal: React.FC<PayrollProfileEditModalProps> = ({
         bankAccountNumber: bankAccountNumber.trim() || undefined,
         bankAccountName: bankAccountName.trim() || undefined,
         nssfApplicable,
+        actorRole,
       });
       onSaved();
     } catch (err) {
