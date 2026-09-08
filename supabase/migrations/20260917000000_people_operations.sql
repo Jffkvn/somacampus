@@ -602,10 +602,10 @@ VALUES ('student_docs', 'student_docs', false),
        ('staff_docs', 'staff_docs', false)
 ON CONFLICT (id) DO NOTHING;
 
-COMMENT ON TABLE storage.buckets IS
-  'people-ops doc buckets (20260917000000): student_docs + staff_docs are '
-  'private; object paths follow <school_id>/<owner_id>/<file> and policies '
-  'below gate on foldername(name)[1] = caller school (text compare, D7).';
+-- NOTE (2026-09-08): COMMENT ON storage.buckets removed — the CLI role is not
+-- table owner. Buckets are private; object paths follow
+-- <school_id>/<owner_id>/<file> and policies below gate on
+-- foldername(name)[1] = caller school (text compare, D7).
 
 DROP POLICY IF EXISTS people_docs_staff_select ON storage.objects;
 CREATE POLICY people_docs_staff_select ON storage.objects
