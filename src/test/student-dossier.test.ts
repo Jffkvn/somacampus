@@ -517,4 +517,112 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
       });
     });
   });
+
+  describe('guardian phone visibility gating (Batch A Task 2)', () => {
+    const seedContactTables = () => {
+      tableResponses['students'] = {
+        data: {
+          id: STUDENT_ID,
+          admission_number: 'GCC-2026-0042',
+          status: 'active',
+          created_at: '2026-01-10T08:00:00Z',
+          person: { id: 'per-1111', first_name: 'Grace', last_name: 'Achieng' },
+        },
+        error: null,
+      };
+      tableResponses['student_enrolments'] = {
+        data: [
+          {
+            id: 'enr-1',
+            status: 'active',
+            start_date: '2026-01-10',
+            classes: { id: 'cls-1', name: 'Year 5' },
+            streams: { id: 'stm-1', name: 'Blue' },
+            academic_years: { id: 'ay-2026', name: '2026–2027' },
+          },
+        ],
+        error: null,
+      };
+      tableResponses['student_guardians'] = {
+        data: [
+          {
+            id: 'sg-1',
+            relationship: 'Mother',
+            is_primary: true,
+            person: {
+              id: 'per-g1',
+              first_name: 'Sarah',
+              last_name: 'Achieng',
+              phone: '+256701234567',
+              email: 'mother@example.com',
+              address: 'Plot 42 Kololo, Kampala',
+            },
+          },
+        ],
+        error: null,
+      };
+      tableResponses['student_emergency_contacts'] = {
+        data: [
+          {
+            id: 'sec-1',
+            student_id: STUDENT_ID,
+            name: 'Uncle David',
+            relationship: 'Uncle',
+            phone: '+256772987654',
+            priority: 1,
+            address: 'Ntinda, Kampala',
+          },
+        ],
+        error: null,
+      };
+      tableResponses['student_medical_alerts'] = {
+        data: { student_id: STUDENT_ID, allergies: null },
+        error: null,
+      };
+      tableResponses['student_medical'] = {
+        data: {
+          student_id: STUDENT_ID,
+          allergies: null,
+          conditions: null,
+          medication: null,
+          blood_group: null,
+          restrictions: null,
+          notes: null,
+        },
+        error: null,
+      };
+      tableResponses['student_documents'] = { data: [], error: null };
+    };
+
+    it('(l) teacher-role projection contains NO guardian phone/email/address, DOES contain emergency contact', async () => {
+      seedContactTables();
+      const dossier = await studentService.getStudentDossier(STUDENT_ID, SCHOOL_ID, 'teacher');
+      expect(dossier).not.toBeNull();
+      expect(dossier?.guardians).toHaveLength(1);
+      expect(dossier?.guardians[0].name).toBe('Sarah Achieng');
+      expect(dossier?.guardians[0].relationship).toBe('Mother');
+      expect('phone' in (dossier?.guardians[0] as object)).toBe(false);
+      expect('email' in (dossier?.guardians[0] as object)).toBe(false);
+      expect('address' in (dossier?.guardians[0] as object)).toBe(false);
+      expect(dossier?.emergencyContacts).toHaveLength(1);
+      expect(dossier?.emergencyContacts[0]).toMatchObject({
+        name: 'Uncle David',
+        relationship: 'Uncle',
+        phone: '+256772987654',
+      });
+    });
+
+    it('(m) admin/principal projection keeps full guardian + emergency fields', async () => {
+      for (const officeRole of ['admin', 'principal']) {
+        seedContactTables();
+        captured = [];
+        const dossier = await studentService.getStudentDossier(STUDENT_ID, SCHOOL_ID, officeRole);
+        expect(dossier).not.toBeNull();
+        expect(dossier?.guardians[0].phone).toBe('+256701234567');
+        expect(dossier?.guardians[0].email).toBe('mother@example.com');
+        expect(dossier?.guardians[0].address).toBe('Plot 42 Kololo, Kampala');
+        expect(dossier?.emergencyContacts[0].phone).toBe('+256772987654');
+      }
+    });
+  });
 });

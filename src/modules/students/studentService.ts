@@ -509,6 +509,14 @@ export const studentService = {
           .eq('student_id', studentId);
 
         if (Array.isArray(gData)) {
+          // Batch A Task 2 — phone visibility gating (locked rule: office + emergency-only).
+          // Office roles (admin/principal) see full guardian contact; every other
+          // role (teacher, bursar, parent, ...) gets identity + relationship only.
+          // Emergency contacts are never redacted (teachers need them).
+          // Minimal decision: bursar stays redacted for guardian PII — finance
+          // access is already firewalled separately and fee collection runs
+          // through the office, not class-teacher address lists.
+          const canViewGuardianContact = callerRole === 'admin' || callerRole === 'principal';
           guardians = gData.map((g: any) => {
             const p = one(g.person) ?? {};
             const gFirst = p.first_name ?? '';
@@ -518,10 +526,14 @@ export const studentService = {
               id: g.id,
               name: gName,
               relationship: g.relationship ?? 'Guardian',
-              phone: p.phone ?? undefined,
-              email: p.email ?? undefined,
+              ...(canViewGuardianContact
+                ? {
+                    phone: p.phone ?? undefined,
+                    email: p.email ?? undefined,
+                  }
+                : {}),
               isPrimary: Boolean(g.is_primary),
-              address: p.address ?? undefined,
+              ...(canViewGuardianContact ? { address: p.address ?? undefined } : {}),
             };
           });
         }

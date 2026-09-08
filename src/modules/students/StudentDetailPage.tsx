@@ -81,6 +81,10 @@ export const StudentDetailPage: React.FC = () => {
 
   const canManage = role === 'admin' || role === 'principal';
   const canViewFinance = role === 'admin' || role === 'principal' || role === 'bursar';
+  // Batch A Task 2 — office + emergency-only: guardian tel:/wa.me/mail/address
+  // render only for office roles (admin/principal, derived from useAuth role).
+  // Emergency contacts below always render tel: for every role.
+  const canViewGuardianContact = canManage;
 
   const loadData = async () => {
     if (!studentId) {
@@ -591,41 +595,49 @@ export const StudentDetailPage: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
-                          {g.phone && (
-                            <>
-                              <a
-                                href={`tel:${g.phone}`}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
-                              >
-                                <Phone className="w-3 h-3 text-slate-500" />
-                                <span>{g.phone}</span>
-                              </a>
-                              <a
-                                href={`https://wa.me/${cleanPhone}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors"
-                              >
-                                <MessageSquare className="w-3 h-3 text-emerald-600" />
-                                <span>WhatsApp</span>
-                              </a>
-                            </>
-                          )}
-                          {g.email && (
-                            <a
-                              href={`mailto:${g.email}`}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
-                            >
-                              <Mail className="w-3 h-3 text-slate-500" />
-                              <span>Email</span>
-                            </a>
-                          )}
-                        </div>
-                        {g.address && (
-                          <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{g.address}</span>
+                        {canViewGuardianContact ? (
+                          <>
+                            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+                              {g.phone && (
+                                <>
+                                  <a
+                                    href={`tel:${g.phone}`}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
+                                  >
+                                    <Phone className="w-3 h-3 text-slate-500" />
+                                    <span>{g.phone}</span>
+                                  </a>
+                                  <a
+                                    href={`https://wa.me/${cleanPhone}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors"
+                                  >
+                                    <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                    <span>WhatsApp</span>
+                                  </a>
+                                </>
+                              )}
+                              {g.email && (
+                                <a
+                                  href={`mailto:${g.email}`}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
+                                >
+                                  <Mail className="w-3 h-3 text-slate-500" />
+                                  <span>Email</span>
+                                </a>
+                              )}
+                            </div>
+                            {g.address && (
+                              <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>{g.address}</span>
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-100">
+                            Contact details restricted to office staff. Use emergency contacts for urgent reach.
                           </p>
                         )}
                       </div>
