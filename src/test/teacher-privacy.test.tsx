@@ -530,8 +530,8 @@ describe('D10-fix1: MyHRPage resolves the viewer’s own employee id', () => {
     await waitFor(() => {
       expect(effSpy).toHaveBeenCalledWith('school-default', 'emp-viewer-1');
     });
-    expect(reqSpy).toHaveBeenCalledWith('emp-viewer-1');
-    expect(advSpy).toHaveBeenCalledWith('emp-viewer-1');
+    expect(reqSpy).toHaveBeenCalledWith('emp-viewer-1', 'school-default');
+    expect(advSpy).toHaveBeenCalledWith('emp-viewer-1', 'school-default');
     expect(slipSpy).toHaveBeenCalledWith('emp-viewer-1', 'school-default');
     const body = document.body.textContent ?? '';
     expect(body).not.toMatch(/Sarah/);

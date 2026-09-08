@@ -43,10 +43,12 @@ describe('HR Approvals & Carried Bug Fixes (Slice 2)', () => {
     });
     b.update = vi.fn(() => b);
     b.single = vi.fn(() => {
-      const r = tableResponses[table] as { data?: unknown; error?: unknown } | undefined;
-      if (lastInserted && (!r || r.data === undefined)) {
+      // Mirror Supabase insert→select→single semantics: an insert in this
+      // chain echoes the inserted row.
+      if (lastInserted) {
         return Promise.resolve({ data: lastInserted, error: null });
       }
+      const r = tableResponses[table] as { data?: unknown; error?: unknown } | undefined;
       if (Array.isArray(r?.data)) {
         return Promise.resolve({ data: r.data[0] ?? null, error: r.error ?? null });
       }

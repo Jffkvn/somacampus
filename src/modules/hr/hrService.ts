@@ -5,6 +5,10 @@
  * 1. Leave management: policies, effective balances, half-day constraints, public holidays
  * 2. Salary Advances: 50% cap check, monthly installment amortization, and single-open-advance invariant
  * 3. Leadership approval queues for Principal and Administrator
+ *
+ * Mock Honesty: fails closed on database errors. Zero synthetic in-memory mocks.
+ * In mock environments reads resolve to honest empty states and writes throw —
+ * the live path always issues real queries.
  */
 
 import { supabase } from '../../lib/supabase';
@@ -21,136 +25,19 @@ import { buildEffectiveLeaveBalances, EffectiveLeaveBalanceItem } from './effect
 
 const isMockEnv = (): boolean => {
   const url = import.meta.env.VITE_SUPABASE_URL;
-  if (url === 'https://test.supabase.co') return false;
-  if (!url || url.includes('placeholder') || url.includes('mock')) return true;
-  if (process.env.NODE_ENV === 'test') return true;
+  // NOTE: assigning `undefined` back to import.meta.env under Vitest
+  // round-trips as the literal string "undefined" (truthy) — treat it as
+  // unset so mock-env detection stays honest in the test harness.
+  if (!url || url === 'undefined' || url.includes('placeholder') || url.includes('mock')) return true;
   return false;
 };
-
-// Seed mock leave types
-let mockLeaveTypes: LeaveType[] = [
-  {
-    id: 'lt-annual',
-    schoolId: 'school-default',
-    code: 'annual',
-    name: 'Annual Leave',
-    isPaid: true,
-    defaultEntitlementDays: 21,
-    requiresEvidence: false,
-    color: '#059669',
-    displayOrder: 1,
-  },
-  {
-    id: 'lt-sick',
-    schoolId: 'school-default',
-    code: 'sick',
-    name: 'Sick Leave',
-    isPaid: true,
-    defaultEntitlementDays: 30,
-    requiresEvidence: true,
-    color: '#dc2626',
-    displayOrder: 2,
-  },
-  {
-    id: 'lt-maternity',
-    schoolId: 'school-default',
-    code: 'maternity',
-    name: 'Maternity Leave',
-    isPaid: true,
-    defaultEntitlementDays: 60,
-    requiresEvidence: true,
-    color: '#9333ea',
-    displayOrder: 3,
-  },
-  {
-    id: 'lt-paternity',
-    schoolId: 'school-default',
-    code: 'paternity',
-    name: 'Paternity Leave',
-    isPaid: true,
-    defaultEntitlementDays: 4,
-    requiresEvidence: false,
-    color: '#2563eb',
-    displayOrder: 4,
-  },
-  {
-    id: 'lt-compassionate',
-    schoolId: 'school-default',
-    code: 'compassionate',
-    name: 'Compassionate Leave',
-    isPaid: true,
-    defaultEntitlementDays: 5,
-    requiresEvidence: false,
-    color: '#d97706',
-    displayOrder: 5,
-  },
-  {
-    id: 'lt-unpaid',
-    schoolId: 'school-default',
-    code: 'unpaid',
-    name: 'Unpaid Leave',
-    isPaid: false,
-    defaultEntitlementDays: 0,
-    requiresEvidence: false,
-    color: '#64748b',
-    displayOrder: 6,
-  },
-];
-
-let mockLeaveRequests: LeaveRequest[] = [
-  {
-    id: 'req-leave-1',
-    schoolId: 'school-default',
-    employeeId: 'emp-teacher-1',
-    employeeName: 'Sarah Nabwire',
-    leaveTypeId: 'lt-annual',
-    leaveTypeName: 'Annual Leave',
-    startDate: '2026-09-18',
-    endDate: '2026-09-18',
-    workingDays: 0.5,
-    dayPortion: 'morning',
-    reason: 'Parent-teacher conference for own child',
-    status: 'pending',
-    createdAt: '2026-09-03T10:00:00Z',
-    updatedAt: '2026-09-03T10:00:00Z',
-  },
-];
-
-let mockAdvances: StaffAdvance[] = [
-  {
-    id: 'adv-1',
-    schoolId: 'school-default',
-    employeeId: 'emp-teacher-1',
-    employeeName: 'Sarah Nabwire',
-    amount: 500000,
-    balanceRemaining: 333334,
-    monthlyDeduction: 166666,
-    numInstalments: 3,
-    reason: 'Medical treatment deposit',
-    status: 'active',
-    createdAt: '2026-08-10T14:00:00Z',
-    updatedAt: '2026-08-28T16:00:00Z',
-  },
-];
-
-let mockHolidays: PublicHoliday[] = [
-  { id: 'hol-1', holidayDate: '2026-10-09', name: 'Uganda Independence Day', isActive: true },
-  { id: 'hol-2', holidayDate: '2026-12-25', name: 'Christmas Day', isActive: true },
-];
-
-let mockLeaveEntitlements: LeaveEntitlement[] = [
-  { id: 'ent-1', schoolId: 'school-default', employeeId: 'emp-1', leaveTypeId: 'lt-annual', leaveYear: 2026, entitledDays: 21, usedDays: 3 },
-  { id: 'ent-2', schoolId: 'school-default', employeeId: 'emp-1', leaveTypeId: 'lt-sick', leaveYear: 2026, entitledDays: 30, usedDays: 1 },
-];
-
-let mockEmployeePayrollProfiles: any[] = [];
 
 export const hrService = {
   /**
    * List available leave types for the school
    */
   async getLeaveTypes(schoolId: string): Promise<LeaveType[]> {
-    if (isMockEnv()) return mockLeaveTypes;
+    if (isMockEnv()) return [];
     try {
       const { data, error } = await supabase
         .from('leave_types')
@@ -176,36 +63,42 @@ export const hrService = {
   },
 
   /**
-   * Fetch active public holidays for a school
+   * Fetch active public holidays for a school (plus national holidays, which
+   * carry a NULL school_id per the public_holidays table definition).
+   * Fails closed: any database error throws, never a fallback list.
    */
   async getSchoolHolidays(schoolId?: string): Promise<PublicHoliday[]> {
-    if (isMockEnv()) return mockHolidays;
+    if (isMockEnv()) return [];
     try {
       const { data, error } = await supabase
         .from('public_holidays')
         .select('*')
         .or(`school_id.is.null,school_id.eq.${schoolId || '00000000-0000-0000-0000-000000000000'}`)
         .eq('is_active', true);
-      if (error) return mockHolidays;
+      if (error) throw error;
       return (data || []).map((h: any) => ({
         id: h.id,
+        schoolId: h.school_id ?? null,
         holidayDate: h.holiday_date,
         name: h.name,
         isActive: h.is_active,
       }));
-    } catch {
-      return mockHolidays;
+    } catch (err) {
+      throw new Error('Failed to fetch school holidays', { cause: err });
     }
   },
 
   /**
-   * Calculate working days skipping weekends and public holidays
+   * Calculate working days skipping weekends and the given public holidays.
+   * Pure helper: callers pass the holidays explicitly (submit paths fetch them
+   * via getSchoolHolidays, which throws on DB error). Defaults to a
+   * weekends-only computation — never to a seeded mock list.
    */
   calculateWorkingDays(
     startDate: string,
     endDate: string,
     dayPortion: DayPortion = 'full',
-    customHolidays?: PublicHoliday[]
+    holidays: PublicHoliday[] = []
   ): number {
     if (dayPortion === 'morning' || dayPortion === 'afternoon') {
       return 0.5;
@@ -217,7 +110,6 @@ export const hrService = {
 
     let count = 0;
     const current = new Date(start);
-    const holidays = customHolidays || mockHolidays;
 
     while (current <= end) {
       const dayOfWeek = current.getDay();
@@ -240,22 +132,13 @@ export const hrService = {
    * Get effective leave balances for an employee
    */
   async getEffectiveBalances(schoolId: string, employeeId: string): Promise<EffectiveLeaveBalanceItem[]> {
+    if (isMockEnv()) return [];
+
     const types = await this.getLeaveTypes(schoolId);
     const requests = await this.getMyLeaveRequests(employeeId, schoolId);
 
-    if (isMockEnv()) {
-      const empEntitlements = mockLeaveEntitlements.filter(
-        (e) => e.employeeId === employeeId && e.schoolId === schoolId
-      );
-      const fallbackEntitlements: LeaveEntitlement[] = empEntitlements.length > 0 ? empEntitlements : [
-        { id: 'ent-1', schoolId, employeeId, leaveTypeId: 'lt-annual', leaveYear: 2026, entitledDays: 21, usedDays: 3 },
-        { id: 'ent-2', schoolId, employeeId, leaveTypeId: 'lt-sick', leaveYear: 2026, entitledDays: 30, usedDays: 1 },
-      ];
-      return buildEffectiveLeaveBalances(types, fallbackEntitlements, requests);
-    }
-
     try {
-      const { data: entitlements, error } = await supabase
+      const { data: rows, error } = await supabase
         .from('leave_entitlements')
         .select('*')
         .eq('employee_id', employeeId)
@@ -263,7 +146,15 @@ export const hrService = {
         .eq('leave_year', new Date().getFullYear());
       if (error) throw error;
 
-      return buildEffectiveLeaveBalances(types, entitlements || [], requests);
+      const entitlements: LeaveEntitlement[] = (rows || []).map((r: any) => ({
+        id: r.id,
+        schoolId: r.school_id,
+        employeeId: r.employee_id,
+        leaveTypeId: r.leave_type_id,
+        leaveYear: r.leave_year,
+        entitledDays: Number(r.entitled_days),
+      }));
+      return buildEffectiveLeaveBalances(types, entitlements, requests);
     } catch (err) {
       throw new Error('Failed to fetch leave entitlements', { cause: err });
     }
@@ -275,11 +166,7 @@ export const hrService = {
    * school-A employment can never satisfy a school-B row.
    */
   async getMyLeaveRequests(employeeId: string, schoolId?: string): Promise<LeaveRequest[]> {
-    if (isMockEnv()) {
-      return mockLeaveRequests.filter(
-        (r) => r.employeeId === employeeId && (!schoolId || r.schoolId === schoolId)
-      );
-    }
+    if (isMockEnv()) return [];
     try {
       let query = supabase
         .from('leave_requests')
@@ -334,38 +221,27 @@ export const hrService = {
       }
     }
 
+    // Holidays come from the live table (fails closed on DB error); the pure
+    // calculator takes them as an explicit parameter.
+    const holidays = await this.getSchoolHolidays(payload.schoolId);
     const workingDays = this.calculateWorkingDays(
       payload.startDate,
       payload.endDate,
-      payload.dayPortion
+      payload.dayPortion,
+      holidays
     );
 
     if (workingDays <= 0) {
       throw new Error('Selected dates contain zero working days (weekends or public holidays).');
     }
 
-    const leaveType = mockLeaveTypes.find((lt) => lt.id === payload.leaveTypeId);
-
     if (isMockEnv()) {
-      const newReq: LeaveRequest = {
-        id: `req-${Date.now()}`,
-        schoolId: payload.schoolId,
-        employeeId: payload.employeeId,
-        employeeName: payload.employeeName || 'Sarah Nabwire',
-        leaveTypeId: payload.leaveTypeId,
-        leaveTypeName: leaveType?.name || 'Leave',
-        startDate: payload.startDate,
-        endDate: payload.endDate,
-        workingDays,
-        dayPortion: payload.dayPortion,
-        reason: payload.reason,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      mockLeaveRequests.unshift(newReq);
-      return newReq;
+      throw new Error('hrService.submitLeaveRequest: unavailable in mock environment (no fake writes)');
     }
+
+    const leaveType = (await this.getLeaveTypes(payload.schoolId)).find(
+      (lt) => lt.id === payload.leaveTypeId
+    );
 
     const { data, error } = await supabase
       .from('leave_requests')
@@ -382,7 +258,23 @@ export const hrService = {
       .select()
       .single();
     if (error) throw error;
-    return data;
+    const r: any = data;
+    return {
+      id: r.id,
+      schoolId: r.school_id ?? payload.schoolId,
+      employeeId: r.employee_id ?? payload.employeeId,
+      employeeName: payload.employeeName,
+      leaveTypeId: r.leave_type_id ?? payload.leaveTypeId,
+      leaveTypeName: leaveType?.name,
+      startDate: r.start_date ?? payload.startDate,
+      endDate: r.end_date ?? payload.endDate,
+      workingDays: Number(r.working_days ?? workingDays),
+      dayPortion: (r.day_portion ?? payload.dayPortion) as DayPortion,
+      reason: r.reason ?? payload.reason,
+      status: (r.status ?? 'pending') as LeaveRequest['status'],
+      createdAt: r.created_at ?? new Date().toISOString(),
+      updatedAt: r.updated_at ?? new Date().toISOString(),
+    };
   },
 
   /**
@@ -391,11 +283,7 @@ export const hrService = {
    * school-A employment can never satisfy a school-B row.
    */
   async getMyAdvances(employeeId: string, schoolId?: string): Promise<StaffAdvance[]> {
-    if (isMockEnv()) {
-      return mockAdvances.filter(
-        (a) => a.employeeId === employeeId && (!schoolId || a.schoolId === schoolId)
-      );
-    }
+    if (isMockEnv()) return [];
     try {
       let query = supabase
         .from('staff_advances')
@@ -466,22 +354,7 @@ export const hrService = {
     const monthlyDeduction = Math.round(payload.amount / payload.numInstalments);
 
     if (isMockEnv()) {
-      const newAdvance: StaffAdvance = {
-        id: `adv-${Date.now()}`,
-        schoolId: payload.schoolId,
-        employeeId: payload.employeeId,
-        employeeName: payload.employeeName || 'Sarah Nabwire',
-        amount: payload.amount,
-        balanceRemaining: payload.amount,
-        monthlyDeduction,
-        numInstalments: payload.numInstalments,
-        reason: payload.reason,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      mockAdvances.unshift(newAdvance);
-      return newAdvance;
+      throw new Error('hrService.submitAdvanceRequest: unavailable in mock environment (no fake writes)');
     }
 
     const { data, error } = await supabase
@@ -498,7 +371,21 @@ export const hrService = {
       .select()
       .single();
     if (error) throw error;
-    return data;
+    const r: any = data;
+    return {
+      id: r.id,
+      schoolId: r.school_id ?? payload.schoolId,
+      employeeId: r.employee_id ?? payload.employeeId,
+      employeeName: payload.employeeName,
+      amount: Number(r.amount ?? payload.amount),
+      balanceRemaining: Number(r.balance_remaining ?? payload.amount),
+      monthlyDeduction: Number(r.monthly_deduction ?? monthlyDeduction),
+      numInstalments: r.num_instalments ?? payload.numInstalments,
+      reason: r.reason ?? payload.reason,
+      status: (r.status ?? 'pending') as StaffAdvance['status'],
+      createdAt: r.created_at ?? new Date().toISOString(),
+      updatedAt: r.updated_at ?? new Date().toISOString(),
+    };
   },
 
   /**
@@ -509,10 +396,7 @@ export const hrService = {
     advances: StaffAdvance[];
   }> {
     if (isMockEnv()) {
-      return {
-        leaveRequests: mockLeaveRequests.filter((r) => r.status === 'pending'),
-        advances: mockAdvances.filter((a) => a.status === 'pending'),
-      };
+      return { leaveRequests: [], advances: [] };
     }
     try {
       const { data: leaves, error: leavesError } = await supabase
@@ -555,18 +439,7 @@ export const hrService = {
     callerUserId?: string
   ): Promise<boolean> {
     if (isMockEnv()) {
-      const found = mockLeaveRequests.find((r) => r.id === requestId);
-      if (found) {
-        if (found.status !== 'pending') {
-          throw new Error('Invalid State: Leave request has already been decided.');
-        }
-        found.status = status;
-        found.decisionReason = reason;
-        found.decidedBy = callerUserId;
-        found.decidedAt = new Date().toISOString();
-        return true;
-      }
-      return false;
+      throw new Error('hrService.decideLeaveRequest: unavailable in mock environment (no fake writes)');
     }
     const { data: current, error: fetchErr } = await supabase
       .from('leave_requests')
@@ -609,18 +482,7 @@ export const hrService = {
     callerUserId?: string
   ): Promise<boolean> {
     if (isMockEnv()) {
-      const found = mockAdvances.find((a) => a.id === advanceId);
-      if (found) {
-        if (found.status !== 'pending') {
-          throw new Error('Invalid State: Salary advance request has already been decided.');
-        }
-        found.status = status;
-        found.decisionReason = reason;
-        found.decidedBy = callerUserId;
-        found.decidedAt = new Date().toISOString();
-        return true;
-      }
-      return false;
+      throw new Error('hrService.decideAdvanceRequest: unavailable in mock environment (no fake writes)');
     }
     const { data: current, error: fetchErr } = await supabase
       .from('staff_advances')
@@ -658,24 +520,7 @@ export const hrService = {
    */
   async saveLeaveType(payload: Partial<LeaveType> & { schoolId: string; name: string; code: string }): Promise<LeaveType> {
     if (isMockEnv()) {
-      const existing = mockLeaveTypes.find((lt) => lt.id === payload.id);
-      if (existing) {
-        Object.assign(existing, payload);
-        return existing;
-      }
-      const newLt: LeaveType = {
-        id: `lt-${Date.now()}`,
-        schoolId: payload.schoolId,
-        code: payload.code,
-        name: payload.name,
-        isPaid: payload.isPaid ?? true,
-        defaultEntitlementDays: payload.defaultEntitlementDays ?? 21,
-        requiresEvidence: payload.requiresEvidence ?? false,
-        color: payload.color ?? '#059669',
-        displayOrder: payload.displayOrder ?? mockLeaveTypes.length + 1,
-      };
-      mockLeaveTypes.push(newLt);
-      return newLt;
+      throw new Error('hrService.saveLeaveType: unavailable in mock environment (no fake writes)');
     }
     const row = {
       school_id: payload.schoolId,
@@ -731,9 +576,7 @@ export const hrService = {
    * Fetch active payroll profiles for school employees
    */
   async getEmployeePayrollProfiles(schoolId: string): Promise<any[]> {
-    if (isMockEnv()) {
-      return mockEmployeePayrollProfiles.filter((p) => p.school_id === schoolId);
-    }
+    if (isMockEnv()) return [];
     const { data, error } = await supabase
       .from('employee_payroll_profiles')
       .select('*, employee:employees(id, employee_number, role, person:people(first_name, last_name))')
@@ -762,28 +605,7 @@ export const hrService = {
     const effectiveFrom = payload.effectiveFrom || new Date().toISOString().slice(0, 10);
 
     if (isMockEnv()) {
-      // Deactivate previous
-      mockEmployeePayrollProfiles = mockEmployeePayrollProfiles.map((p) =>
-        p.employee_id === payload.employeeId && !p.effective_to
-          ? { ...p, effective_to: effectiveFrom }
-          : p
-      );
-      mockEmployeePayrollProfiles.push({
-        id: `pay-${Date.now()}`,
-        school_id: payload.schoolId,
-        employee_id: payload.employeeId,
-        effective_from: effectiveFrom,
-        effective_to: null,
-        base_salary: payload.baseSalary,
-        currency: payload.currency || 'UGX',
-        pay_basis: payload.payBasis || 'salaried',
-        payment_method: payload.paymentMethod || 'bank_transfer',
-        bank_name: payload.bankName || null,
-        bank_account_number: payload.bankAccountNumber || null,
-        bank_account_name: payload.bankAccountName || null,
-        nssf_applicable: payload.nssfApplicable ?? true,
-      });
-      return;
+      throw new Error('hrService.upsertPayrollProfile: unavailable in mock environment (no fake writes)');
     }
 
     // Close existing profile
@@ -824,29 +646,7 @@ export const hrService = {
     const leaveYear = payload.leaveYear || new Date().getFullYear();
 
     if (isMockEnv()) {
-      const idx = mockLeaveEntitlements.findIndex(
-        (e) =>
-          e.employeeId === payload.employeeId &&
-          e.leaveTypeId === payload.leaveTypeId &&
-          e.leaveYear === leaveYear
-      );
-      if (idx >= 0) {
-        mockLeaveEntitlements[idx] = {
-          ...mockLeaveEntitlements[idx],
-          entitledDays: payload.entitledDays,
-        };
-      } else {
-        mockLeaveEntitlements.push({
-          id: `ent-${Date.now()}`,
-          schoolId: payload.schoolId,
-          employeeId: payload.employeeId,
-          leaveTypeId: payload.leaveTypeId,
-          leaveYear,
-          entitledDays: payload.entitledDays,
-          usedDays: 0,
-        });
-      }
-      return;
+      throw new Error('hrService.upsertLeaveEntitlement: unavailable in mock environment (no fake writes)');
     }
 
     const { error } = await supabase

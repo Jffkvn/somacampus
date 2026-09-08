@@ -7,6 +7,7 @@ import { resolveMyEmployeeId } from '../auth/identity';
 import {
   EffectiveLeaveBalanceItem,
   LeaveRequest,
+  PublicHoliday,
   StaffAdvance,
   SchoolPayrollItem,
   DayPortion,
@@ -61,6 +62,7 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [advances, setAdvances] = useState<StaffAdvance[]>([]);
   const [payslips, setPayslips] = useState<SchoolPayrollItem[]>([]);
+  const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Leave Modal
@@ -135,16 +137,18 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   async function loadData(empId: string) {
     try {
       setIsLoading(true);
-      const [effBalances, myReqs, myAdvs, mySlips] = await Promise.all([
+      const [effBalances, myReqs, myAdvs, mySlips, schoolHolidays] = await Promise.all([
         hrService.getEffectiveBalances(schoolId, empId),
-        hrService.getMyLeaveRequests(empId),
-        hrService.getMyAdvances(empId),
+        hrService.getMyLeaveRequests(empId, schoolId),
+        hrService.getMyAdvances(empId, schoolId),
         payrollService.getMyPayslips(empId, schoolId),
+        hrService.getSchoolHolidays(schoolId).catch(() => [] as PublicHoliday[]),
       ]);
       setBalances(effBalances);
       setRequests(myReqs);
       setAdvances(myAdvs);
       setPayslips(mySlips);
+      setHolidays(schoolHolidays);
       // M2: resolve the viewer's actual basic salary for the 50% advance
       // cap; keep the documented fallback when the profile is unreadable.
       try {
@@ -222,7 +226,8 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   const calculatedWorkingDays = hrService.calculateWorkingDays(
     startDate,
     dayPortion !== 'full' ? startDate : endDate,
-    dayPortion
+    dayPortion,
+    holidays
   );
 
   if (isResolving || (isLoading && balances.length === 0 && !resolveError)) {
