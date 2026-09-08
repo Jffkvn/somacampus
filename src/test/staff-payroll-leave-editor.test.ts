@@ -53,6 +53,10 @@ describe('Staff Payroll & Leave Entitlement Editors (Plan Section 3)', () => {
   const employeeId = 'emp-test-editor-1';
 
   describe('mock env honesty (no in-memory fakes)', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_SUPABASE_URL', 'https://mock.supabase.co');
+    });
+
     it('reads resolve to empty and writes throw', async () => {
       await expect(hrService.getEmployeePayrollProfiles(schoolId)).resolves.toEqual([]);
       await expect(

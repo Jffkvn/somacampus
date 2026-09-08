@@ -37,7 +37,8 @@ export const StudentWithdrawModal: React.FC<StudentWithdrawModalProps> = ({
       setError(null);
       await studentService.withdrawStudent(dossier.studentId, role, {
         effectiveDate,
-        reason: `${reason}${notes.trim() ? `: ${notes.trim()}` : ''}`,
+        reason,
+        exitNotes: notes.trim() || undefined,
         finalStatus,
       });
       onSuccess();

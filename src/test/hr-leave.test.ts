@@ -80,6 +80,11 @@ const stubLiveEnv = () => {
   vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-key');
 };
 
+const stubMockEnv = () => {
+  vi.stubEnv('VITE_SUPABASE_URL', 'https://mock.supabase.co');
+  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'mock-key');
+};
+
 describe('HR Leave & Salary Advance Invariant Suite', () => {
   const mockLeaveTypes: LeaveType[] = [
     {
@@ -243,6 +248,7 @@ describe('HR Leave & Salary Advance Invariant Suite', () => {
     });
 
     it('mock env: writes throw instead of mutating in-memory fakes', async () => {
+      stubMockEnv();
       await expect(
         hrService.submitLeaveRequest({
           schoolId: 'school-1',
@@ -308,6 +314,10 @@ describe('HR Leave & Salary Advance Invariant Suite', () => {
   });
 
   describe('Mock-env read honesty', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_SUPABASE_URL', 'https://mock.supabase.co');
+    });
+
     it('reads resolve to empty (no seeded fakes)', async () => {
       await expect(hrService.getLeaveTypes('school-1')).resolves.toEqual([]);
       await expect(hrService.getSchoolHolidays('school-1')).resolves.toEqual([]);

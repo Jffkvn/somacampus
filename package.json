@@ -15,7 +15,11 @@
     "test:watch": "vitest",
     "seed:check": "node scripts/validate-seed.mjs",
     "seed:demo:gen": "node scripts/generate-demo-seed.mjs",
-    "seed:demo:check": "node scripts/validate-seed.mjs scripts/seed-demo-school.sql"
+    "seed:demo:check": "node scripts/validate-seed.mjs scripts/seed-demo-school.sql",
+    "verify:trust": "node .agents/skills/somacampus-verify/scripts/detect-mock-rot.mjs",
+    "verify:contracts": "node .agents/skills/somacampus-verify/scripts/audit-db-contracts.mjs",
+    "verify:migrations": "node .agents/skills/somacampus-verify/scripts/check-migration-sync.mjs",
+    "verify:all": "npm run verify:contracts && npm run verify:migrations && npm run typecheck && npm test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.0",

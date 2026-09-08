@@ -162,17 +162,23 @@ const WITHDRAW_EXIT_REASON_MAP: Record<string, string> = {
 
 /**
  * Normalizes a withdraw reason to a CHECK-safe enum before the RPC call.
- * The modal sends "category: free-text notes"; there is no notes/exit_notes
- * column on student_enrolments and the withdraw_student RPC signature is
- * fixed (p_exit_reason only), so the base category is extracted and mapped
- * and the free text is dropped at this boundary. Unknown values fall back
- * to the honest 'other' bucket; absent reason keeps the RPC default.
+ * If rawReason contains colon-separated details (category: notes), extracts
+ * the category for enum validation.
  */
 function mapWithdrawExitReason(rawReason?: string): string {
   if (!rawReason || !rawReason.trim()) return 'withdrawn';
   const base = rawReason.split(':')[0].trim().toLowerCase();
   if (ALLOWED_EXIT_REASONS.has(base)) return base;
   return WITHDRAW_EXIT_REASON_MAP[base] ?? 'other';
+}
+
+function extractExitNotes(rawReason?: string, explicitNotes?: string): string | null {
+  if (explicitNotes && explicitNotes.trim()) return explicitNotes.trim();
+  if (rawReason && rawReason.includes(':')) {
+    const extracted = rawReason.slice(rawReason.indexOf(':') + 1).trim();
+    return extracted.length > 0 ? extracted : null;
+  }
+  return null;
 }
 
 export const studentService = {
@@ -769,6 +775,7 @@ export const studentService = {
     payload: {
       effectiveDate?: string;
       reason?: string;
+      exitNotes?: string;
       finalStatus?: 'withdrawn' | 'graduated';
     }
   ): Promise<boolean> {
@@ -782,6 +789,7 @@ export const studentService = {
       p_effective_date: payload.effectiveDate ?? null,
       p_exit_reason: mapWithdrawExitReason(payload.reason),
       p_final_status: payload.finalStatus ?? 'withdrawn',
+      p_exit_notes: extractExitNotes(payload.reason, payload.exitNotes),
     });
 
     if (error) {

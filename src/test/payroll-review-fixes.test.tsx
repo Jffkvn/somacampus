@@ -48,7 +48,6 @@ import { MyHRPage } from '../modules/hr/MyHRPage';
 
 const REAL_URL = 'https://prod-real-db.supabase.co';
 const origNodeEnv = process.env.NODE_ENV;
-const origViteUrl = (import.meta.env as any).VITE_SUPABASE_URL;
 
 function forceProductionEnv() {
   process.env.NODE_ENV = 'production';
@@ -57,7 +56,7 @@ function forceProductionEnv() {
 
 function restoreMockEnv() {
   process.env.NODE_ENV = origNodeEnv;
-  (import.meta.env as any).VITE_SUPABASE_URL = origViteUrl;
+  (import.meta.env as any).VITE_SUPABASE_URL = 'https://mock.supabase.co';
 }
 
 /** Chainable supabase mock that records every chained call per table. */
@@ -215,8 +214,8 @@ describe('M2: advance cap uses the actual payroll-profile salary', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Salary Advance Policy Guidelines')).toBeInTheDocument();
+      expect(screen.getByText(/UGX 1,200,000/)).toBeInTheDocument();
     });
-    expect(screen.getByText(/UGX 1,200,000/)).toBeInTheDocument();
   });
 
   it('falls back to the documented hardcoded base ONLY when the profile is unreadable', async () => {

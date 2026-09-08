@@ -24,11 +24,17 @@
   (Two operations, one academic core; cross-tenant integrity trigger, RLS authority, classless academic support, presence duration reconnect math, single payroll engine integration)
 - [x] **Phase 9I — Advisory AI Assistance & School Timetable Engine** ✅ + Final Hardening ✅ ([plan](plans/PHASE-9-ONLINE-LEARNING-CENTRE.md))
   (Official Staff Teaching Subjects, Teaching Allocation domain, 2-step planning meeting + AI-assisted draft generator with workload limits, zero heuristic modulo fallbacks, zero mock UI fallbacks, deterministic CSP backtracking solver with clock-time break enforcement, atomic approval RPCs with compatibility projection sync, and historical sessional payroll rate precision)
+- [x] **Operational Usability & Hardening (Batch A)** ✅
+  (Withdrawal reason DB mapping, server-side guardian contact gating, end-to-end inventory requests and receipts, real leave entitlement calculation, student dossier print-all-tabs)
+- [x] **Operational Trust Gate & Integrity (Batch B)** ✅
+  (HR decision attribution and actorRole threading, single-open-advance DB invariant, real school holidays table, admissions atomicity with compensating rollback, honest E2E smoke labeling)
+- [x] **Production Trust Gate Infrastructure & Exit Notes Migration** ✅
+  (Codified 7 non-negotiable engineering rules in `.agents/rules/production-trust-gate.md`, created `.agents/skills/somacampus-verify/` with automated mock-rot, DB-contract, and migration audits, added `20260918000001_enrolment_exit_notes.sql` persisting pupil exit justification notes)
 
 ## Queued (in order)
 
 1. Tenant-isolation design (finance & online proofs complete; school-wide full read audit)
-2. CI hardening (gate `seed:check`, live-DB nightly)
+2. CI hardening (gate `verify:all` in CI pipeline, nightly live-DB probe)
 3. Phase 10 — Advanced Learning & Hybrid Education
 
 ## Standing decisions

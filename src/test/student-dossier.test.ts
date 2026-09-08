@@ -397,6 +397,7 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
       p_effective_date: '2026-09-01',
       p_exit_reason: 'other',
       p_final_status: 'withdrawn',
+      p_exit_notes: null,
     });
   });
 
@@ -466,10 +467,11 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
         p_effective_date: '2026-09-01',
         p_exit_reason: 'withdrawn',
         p_final_status: 'withdrawn',
+        p_exit_notes: null,
       });
     });
 
-    it('(i) free-text notes suffix is stripped so the CHECK-constrained enum stays valid', async () => {
+    it('(i) free-text notes suffix is stripped so the CHECK-constrained enum stays valid and saved to p_exit_notes', async () => {
       mockRpc.mockResolvedValueOnce({ data: true, error: null });
 
       const success = await studentService.withdrawStudent(STUDENT_ID, 'principal', {
@@ -484,6 +486,7 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
         p_effective_date: '2026-09-01',
         p_exit_reason: 'withdrawn',
         p_final_status: 'withdrawn',
+        p_exit_notes: "Relocated to Entebbe, admitted to St. Mary's",
       });
     });
 
@@ -518,6 +521,7 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
           p_effective_date: '2026-09-01',
           p_exit_reason: expected,
           p_final_status: 'withdrawn',
+          p_exit_notes: null,
         });
       }
     });
@@ -536,6 +540,27 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
         p_effective_date: '2026-09-01',
         p_exit_reason: 'withdrawn',
         p_final_status: 'withdrawn',
+        p_exit_notes: null,
+      });
+    });
+
+    it('(l) passes explicit exitNotes directly to p_exit_notes RPC', async () => {
+      mockRpc.mockResolvedValueOnce({ data: true, error: null });
+
+      const success = await studentService.withdrawStudent(STUDENT_ID, 'admin', {
+        effectiveDate: '2026-09-01',
+        reason: 'financial_reasons',
+        exitNotes: 'Family facing fee difficulties after relocation',
+        finalStatus: 'withdrawn',
+      });
+
+      expect(success).toBe(true);
+      expect(mockRpc).toHaveBeenCalledWith('withdraw_student', {
+        p_student_id: STUDENT_ID,
+        p_effective_date: '2026-09-01',
+        p_exit_reason: 'withdrawn',
+        p_final_status: 'withdrawn',
+        p_exit_notes: 'Family facing fee difficulties after relocation',
       });
     });
   });

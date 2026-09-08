@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { FeesPage } from '../modules/fees/FeesPage';
@@ -59,6 +59,15 @@ vi.mock('../modules/leadership/leadershipService', () => ({
 }));
 
 describe('Phase 7 UI Pages & Components Suite', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://mock.supabase.co');
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   describe('FeesPage (School Finance & Student Accounts)', () => {
     it('renders KPI stat cards and student fee accounts ledger', async () => {
       render(
