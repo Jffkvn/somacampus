@@ -495,45 +495,34 @@ export const studentService = {
         console.warn('Student enrolment history lookup fallback:', err);
       }
 
-      // 3. Guardians
+      // 3. Guardians (server-side gate — Batch A Task 2 follow-up).
+      // PII must never cross the network for unauthorized roles, so the
+      // guardian-details join is replaced by the guardian_contact_for_viewer
+      // RPC, which resolves the caller role server-side (auth.uid +
+      // user_roles for the student's school) and returns NULL contact
+      // fields for teacher/bursar/other roles. NULLs map to absent keys
+      // below, keeping the page's conditional render redacted. The
+      // callerRole param is retained for medical/finance scoping; the RPC
+      // is authoritative for guardian contact.
       let guardians: StudentGuardianRow[] = [];
       try {
-        const { data: gData } = await supabase
-          .from('student_guardians')
-          .select(`
-            id, relationship, is_primary,
-            person:people!student_guardians_guardian_person_id_fkey(
-              id, first_name, last_name, phone, email, address
-            )
-          `)
-          .eq('student_id', studentId);
+        const { data: gData, error: gErr } = await supabase.rpc('guardian_contact_for_viewer', {
+          p_student_id: studentId,
+        });
 
-        if (Array.isArray(gData)) {
-          // Batch A Task 2 — phone visibility gating (locked rule: office + emergency-only).
-          // Office roles (admin/principal) see full guardian contact; every other
-          // role (teacher, bursar, parent, ...) gets identity + relationship only.
-          // Emergency contacts are never redacted (teachers need them).
-          // Minimal decision: bursar stays redacted for guardian PII — finance
-          // access is already firewalled separately and fee collection runs
-          // through the office, not class-teacher address lists.
-          const canViewGuardianContact = callerRole === 'admin' || callerRole === 'principal';
-          guardians = gData.map((g: any) => {
-            const p = one(g.person) ?? {};
-            const gFirst = p.first_name ?? '';
-            const gLast = p.last_name ?? '';
+        if (!gErr && Array.isArray(gData)) {
+          guardians = (gData as any[]).map((g: any) => {
+            const gFirst = g.first_name ?? '';
+            const gLast = g.last_name ?? '';
             const gName = `${gFirst}${gLast ? ` ${gLast}` : ''}`.trim() || 'Guardian';
             return {
               id: g.id,
               name: gName,
               relationship: g.relationship ?? 'Guardian',
-              ...(canViewGuardianContact
-                ? {
-                    phone: p.phone ?? undefined,
-                    email: p.email ?? undefined,
-                  }
-                : {}),
+              ...(g.phone != null ? { phone: g.phone } : {}),
+              ...(g.email != null ? { email: g.email } : {}),
               isPrimary: Boolean(g.is_primary),
-              ...(canViewGuardianContact ? { address: p.address ?? undefined } : {}),
+              ...(g.address != null ? { address: g.address } : {}),
             };
           });
         }

@@ -99,6 +99,24 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
   const STUDENT_ID = 'stu-1111-1111';
   const SCHOOL_ID = 'sch-2222-2222';
 
+  /**
+   * Batch A Task 2 follow-up: guardian contact is server-gated. The service
+   * must fetch guardians via the guardian_contact_for_viewer RPC (role
+   * resolved server-side) and must NEVER run the raw student_guardians join
+   * or a direct people-table PII select on the dossier path. This helper
+   * routes the shared rpc mock by function name; every other RPC keeps the
+   * default mockResolvedValue from beforeEach.
+   */
+  const mockGuardianRpc = (rows: unknown[]) => {
+    mockRpc.mockImplementation((fn: string) =>
+      fn === 'guardian_contact_for_viewer'
+        ? Promise.resolve({ data: rows, error: null })
+        : Promise.resolve({ data: 'new-enrolment-uuid', error: null })
+    );
+  };
+  const queriedTables = (): string[] =>
+    mockFrom.mock.calls.map((c) => (c as unknown[])[0] as string);
+
   it('(a) getStudentDossier returns complete multi-domain profile for leadership', async () => {
     tableResponses['students'] = {
       data: {
@@ -141,23 +159,20 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
       error: null,
     };
 
-    tableResponses['student_guardians'] = {
-      data: [
-        {
-          id: 'sg-1',
-          relationship: 'Mother',
-          is_primary: true,
-          person: {
-            id: 'per-g1',
-            first_name: 'Sarah',
-            last_name: 'Achieng',
-            phone: '+256701234567',
-            email: 'mother@example.com',
-          },
-        },
-      ],
-      error: null,
-    };
+    // Guardians come from the server-gated RPC (flat rows, full contact for
+    // leadership callers). The raw student_guardians join is never queried.
+    mockGuardianRpc([
+      {
+        id: 'sg-1',
+        relationship: 'Mother',
+        is_primary: true,
+        first_name: 'Sarah',
+        last_name: 'Achieng',
+        phone: '+256701234567',
+        email: 'mother@example.com',
+        address: 'Plot 42 Kololo, Kampala',
+      },
+    ]);
 
     tableResponses['student_emergency_contacts'] = {
       data: [
@@ -220,6 +235,13 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
     expect(dossier?.enrolmentHistory).toHaveLength(1);
     expect(dossier?.guardians).toHaveLength(1);
     expect(dossier?.guardians[0].phone).toBe('+256701234567');
+    expect(dossier?.guardians[0].email).toBe('mother@example.com');
+    // Server-gated fetch: RPC called, raw guardian join + people PII select never run.
+    expect(mockRpc).toHaveBeenCalledWith('guardian_contact_for_viewer', {
+      p_student_id: STUDENT_ID,
+    });
+    expect(queriedTables()).not.toContain('student_guardians');
+    expect(queriedTables()).not.toContain('people');
     expect(dossier?.emergencyContacts).toHaveLength(1);
     expect(dossier?.medical.alertOnly).toBe(false);
     expect(dossier?.medical.allergies).toBe('Severe Peanut Allergy');
@@ -519,7 +541,35 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
   });
 
   describe('guardian phone visibility gating (Batch A Task 2)', () => {
-    const seedContactTables = () => {
+    // Server-gated rows: office/parent callers get full contact; the hostile
+    // teacher row carries NULL contact (what the RPC returns when the role
+    // resolves server-side to teacher/bursar/other) — PII never selected.
+    const officeGuardianRows = [
+      {
+        id: 'sg-1',
+        relationship: 'Mother',
+        is_primary: true,
+        first_name: 'Sarah',
+        last_name: 'Achieng',
+        phone: '+256701234567',
+        email: 'mother@example.com',
+        address: 'Plot 42 Kololo, Kampala',
+      },
+    ];
+    const redactedGuardianRows = [
+      {
+        id: 'sg-1',
+        relationship: 'Mother',
+        is_primary: true,
+        first_name: 'Sarah',
+        last_name: 'Achieng',
+        phone: null,
+        email: null,
+        address: null,
+      },
+    ];
+
+    const seedContactTables = (guardianRows: unknown[]) => {
       tableResponses['students'] = {
         data: {
           id: STUDENT_ID,
@@ -543,24 +593,7 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
         ],
         error: null,
       };
-      tableResponses['student_guardians'] = {
-        data: [
-          {
-            id: 'sg-1',
-            relationship: 'Mother',
-            is_primary: true,
-            person: {
-              id: 'per-g1',
-              first_name: 'Sarah',
-              last_name: 'Achieng',
-              phone: '+256701234567',
-              email: 'mother@example.com',
-              address: 'Plot 42 Kololo, Kampala',
-            },
-          },
-        ],
-        error: null,
-      };
+      mockGuardianRpc(guardianRows);
       tableResponses['student_emergency_contacts'] = {
         data: [
           {
@@ -595,7 +628,10 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
     };
 
     it('(l) teacher-role projection contains NO guardian phone/email/address, DOES contain emergency contact', async () => {
-      seedContactTables();
+      // Hostile client: even though the caller passes 'teacher', the RPC is
+      // the authority — it returns NULL contact and the service must emit
+      // absent keys without ever running the raw join / people PII select.
+      seedContactTables(redactedGuardianRows);
       const dossier = await studentService.getStudentDossier(STUDENT_ID, SCHOOL_ID, 'teacher');
       expect(dossier).not.toBeNull();
       expect(dossier?.guardians).toHaveLength(1);
@@ -604,6 +640,11 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
       expect('phone' in (dossier?.guardians[0] as object)).toBe(false);
       expect('email' in (dossier?.guardians[0] as object)).toBe(false);
       expect('address' in (dossier?.guardians[0] as object)).toBe(false);
+      expect(mockRpc).toHaveBeenCalledWith('guardian_contact_for_viewer', {
+        p_student_id: STUDENT_ID,
+      });
+      expect(queriedTables()).not.toContain('student_guardians');
+      expect(queriedTables()).not.toContain('people');
       expect(dossier?.emergencyContacts).toHaveLength(1);
       expect(dossier?.emergencyContacts[0]).toMatchObject({
         name: 'Uncle David',
@@ -614,13 +655,18 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
 
     it('(m) admin/principal projection keeps full guardian + emergency fields', async () => {
       for (const officeRole of ['admin', 'principal']) {
-        seedContactTables();
+        seedContactTables(officeGuardianRows);
         captured = [];
         const dossier = await studentService.getStudentDossier(STUDENT_ID, SCHOOL_ID, officeRole);
         expect(dossier).not.toBeNull();
         expect(dossier?.guardians[0].phone).toBe('+256701234567');
         expect(dossier?.guardians[0].email).toBe('mother@example.com');
         expect(dossier?.guardians[0].address).toBe('Plot 42 Kololo, Kampala');
+        expect(mockRpc).toHaveBeenCalledWith('guardian_contact_for_viewer', {
+          p_student_id: STUDENT_ID,
+        });
+        expect(queriedTables()).not.toContain('student_guardians');
+        expect(queriedTables()).not.toContain('people');
         expect(dossier?.emergencyContacts[0].phone).toBe('+256772987654');
       }
     });
