@@ -23,7 +23,7 @@ export const StaffPayrollEditModal: React.FC<StaffPayrollEditModalProps> = ({
   dossier,
   onSuccess,
 }) => {
-  const { schoolId } = useAuth();
+  const { role, schoolId } = useAuth();
   const activeSchoolId = schoolId || dossier.schoolId;
 
   const currentPay = dossier.payrollSummary;
@@ -83,6 +83,7 @@ export const StaffPayrollEditModal: React.FC<StaffPayrollEditModalProps> = ({
         bankAccountName: bankAccountName.trim() || undefined,
         nssfApplicable,
         effectiveFrom,
+        actorRole: role,
       });
 
       setIsSuccess(true);

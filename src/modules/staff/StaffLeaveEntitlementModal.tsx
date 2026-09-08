@@ -23,7 +23,7 @@ export const StaffLeaveEntitlementModal: React.FC<StaffLeaveEntitlementModalProp
   dossier,
   onSuccess,
 }) => {
-  const { schoolId } = useAuth();
+  const { role, schoolId } = useAuth();
   const activeSchoolId = schoolId || dossier.schoolId;
 
   const currentYear = new Date().getFullYear();
@@ -96,6 +96,7 @@ export const StaffLeaveEntitlementModal: React.FC<StaffLeaveEntitlementModalProp
         leaveTypeId: selectedTypeId,
         leaveYear,
         entitledDays: days,
+        actorRole: role,
       });
 
       setIsSuccess(true);
