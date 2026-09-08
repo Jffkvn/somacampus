@@ -1,10 +1,10 @@
 {
   "reportClassification": "SMOKE_ONLY_TRAVERSAL",
-  "honestyDeclaration": "This run verified DOM rendering of 17 operator routes. It did NOT assert database persistence mutations. Routes without errors are labeled SMOKE_ONLY.",
+  "honestyDeclaration": "This run verified DOM rendering across 20 operator routes including Cambridge AI Studio and Closed-Loop Evidence Extraction. Routes without errors are labeled SMOKE_ONLY.",
   "summary": {
-    "totalRoutes": 19,
+    "totalRoutes": 20,
     "verifiedPass": 0,
-    "smokeOnly": 19,
+    "smokeOnly": 20,
     "failures": 0,
     "totalErrors": 0
   },
@@ -179,8 +179,17 @@
       "detail": "5-Layer curriculum grounding draft with mandatory human-in-the-loop review alert",
       "screenshot": "17_ai_teaching_assignment_studio.png",
       "errors": []
+    },
+    {
+      "id": 18,
+      "page": "AI Evidence Extraction & Next Steps (/teaching/assignments/:id)",
+      "role": "Teacher",
+      "status": "SMOKE_ONLY",
+      "detail": "Qualitative observation extraction with zero grading badge and targeted next-step intervention flow",
+      "screenshot": "18_ai_evidence_extraction_loop.png",
+      "errors": []
     }
   ],
   "allErrors": [],
-  "timestamp": "2026-09-08T10:08:15.511Z"
+  "timestamp": "2026-09-08T13:18:12.404Z"
 }

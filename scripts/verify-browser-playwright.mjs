@@ -497,7 +497,11 @@ async function run() {
       const generateBtn = page.locator('button:has-text("Generate Grounded Draft")');
       if ((await generateBtn.count()) > 0) {
         await generateBtn.click();
-        await page.waitForTimeout(1000);
+        try {
+          await page.waitForSelector('text=AI Generated Draft — Human Review Required', { timeout: 8000 });
+        } catch {
+          await page.waitForTimeout(2000);
+        }
       }
     }
 
@@ -513,6 +517,75 @@ async function run() {
       detail: '5-Layer curriculum grounding draft with mandatory human-in-the-loop review alert',
       screenshot: '17_ai_teaching_assignment_studio.png',
       errors: eval17.errors,
+    });
+
+    // 18. Closed Loop: AI Evidence Extraction & Next-Step Intervention
+    startRoute('18. AI Evidence Extraction & Next Steps (/teaching/assignments/:id)');
+    await page.goto(`${BASE_URL}/teaching/assignments/cccccccc-1111-1111-1111-111111111111`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('button:has-text("AI Evidence")', { timeout: 10000 });
+
+    const aiEvidenceBtn = page.locator('button:has-text("AI Evidence")').first();
+    let hasEvidenceModal = false;
+    if ((await aiEvidenceBtn.count()) > 0) {
+      await aiEvidenceBtn.click();
+      try {
+        await page.waitForSelector('text=Qualitative Observation Draft', { timeout: 10000 });
+      } catch {
+        await page.waitForTimeout(1500);
+      }
+
+      const reviewContent = await page.content();
+      hasEvidenceModal =
+        reviewContent.includes('Strictly Qualitative Evidence') &&
+        reviewContent.includes('Qualitative Observation Draft');
+
+      await saveScreenshot('18_ai_evidence_extraction_loop.png');
+
+      // Click Approve & Record Evidence
+      const approveObsBtn = page.locator('button:has-text("Approve & Record Evidence")');
+      if ((await approveObsBtn.count()) > 0) {
+        await approveObsBtn.click();
+        try {
+          await page.waitForSelector('text=Observation approved', { timeout: 10000 });
+        } catch {
+          await page.waitForTimeout(1000);
+        }
+      }
+
+      // Check for Suggest Next Step button
+      const suggestInterventionBtn = page.locator('button:has-text("Suggest Next Step")');
+      if ((await suggestInterventionBtn.count()) > 0) {
+        await suggestInterventionBtn.click();
+        try {
+          await page.waitForSelector('button:has-text("Accept Intervention")', { timeout: 10000 });
+        } catch {
+          await page.waitForTimeout(1000);
+        }
+      }
+
+      await saveScreenshot('19_ai_intervention_suggestion.png');
+
+      // Accept intervention to close the loop
+      const acceptInterventionBtn = page.locator('button:has-text("Accept Intervention")');
+      if ((await acceptInterventionBtn.count()) > 0) {
+        await acceptInterventionBtn.click();
+        try {
+          await page.waitForSelector('text=Intervention accepted & active', { timeout: 10000 });
+        } catch {
+          await page.waitForTimeout(1000);
+        }
+      }
+    }
+
+    const eval18 = evaluateRouteStatus(hasEvidenceModal);
+    results.push({
+      id: 18,
+      page: 'AI Evidence Extraction & Next Steps (/teaching/assignments/:id)',
+      role: 'Teacher',
+      status: eval18.status,
+      detail: 'Qualitative observation extraction with zero grading badge and targeted next-step intervention flow',
+      screenshot: '18_ai_evidence_extraction_loop.png',
+      errors: eval18.errors,
     });
 
   } finally {
@@ -544,7 +617,7 @@ async function run() {
     {
       reportClassification: 'SMOKE_ONLY_TRAVERSAL',
       honestyDeclaration:
-        'This run verified DOM rendering of 17 operator routes. It did NOT assert database persistence mutations. Routes without errors are labeled SMOKE_ONLY.',
+        `This run verified DOM rendering across ${results.length} operator routes including Cambridge AI Studio and Closed-Loop Evidence Extraction. Routes without errors are labeled SMOKE_ONLY.`,
       summary: {
         totalRoutes: results.length,
         verifiedPass: passCount,

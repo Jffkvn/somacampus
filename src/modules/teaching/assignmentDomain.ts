@@ -20,6 +20,15 @@ export interface CreateAssignmentPayload {
   submissionType: SubmissionType;
   evidenceTrack: EvidenceTrack;
   maxScore?: number | null;
+  status?: 'draft' | 'published' | 'closed' | 'archived';
+  isAiDrafted?: boolean;
+  requiresHumanApproval?: boolean;
+  approvalState?: 'unreviewed' | 'approved' | 'rejected';
+  aiDraftApprovedBy?: string | null;
+  aiDraftApprovedAt?: string | null;
+  curriculumObjectiveCode?: string;
+  curriculumObjectiveTitle?: string;
+  resourceIdUsed?: string;
 }
 
 export function validateAssignmentPayload(payload: Partial<CreateAssignmentPayload>): {
@@ -60,6 +69,14 @@ export function validateAssignmentPayload(payload: Partial<CreateAssignmentPaylo
   if (payload.evidenceTrack === 'formal_graded') {
     if (payload.maxScore === undefined || payload.maxScore === null || payload.maxScore <= 0) {
       errors.push('Formal graded assignments must have a maximum score greater than 0');
+    }
+  }
+
+  // Publication invariant: AI draft cannot be published without verified human approval
+  const status = payload.status || 'published';
+  if (status === 'published' && payload.isAiDrafted && payload.requiresHumanApproval) {
+    if (payload.approvalState !== 'approved' || !payload.aiDraftApprovedBy) {
+      errors.push('AI-drafted assignments cannot be published without verified human approval');
     }
   }
 

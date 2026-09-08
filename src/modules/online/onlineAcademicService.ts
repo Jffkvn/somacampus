@@ -359,7 +359,7 @@ export const onlineAcademicService = {
         max_score: input.maxScore ?? null,
         status: 'published',
       })
-      .select('*, classes(name), streams(name), subjects(name), teacher:employees(people(first_name, last_name))')
+      .select('*, classes(name), streams(name), subjects(name), teacher:employees!assignments_teacher_id_fkey(people(first_name, last_name))')
       .single();
     if (assignErr || !assignmentRow) {
       throw new Error(`Failed to create session assignment: ${assignErr?.message ?? 'Unknown error'}`);

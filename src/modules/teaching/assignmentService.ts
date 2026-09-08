@@ -43,9 +43,17 @@ export const assignmentService = {
         submission_type: payload.submissionType,
         evidence_track: payload.evidenceTrack,
         max_score: payload.maxScore ?? null,
-        status: 'published',
+        status: payload.status || 'published',
+        is_ai_drafted: payload.isAiDrafted ?? false,
+        requires_human_approval: payload.requiresHumanApproval ?? false,
+        approval_state: payload.approvalState ?? 'unreviewed',
+        ai_draft_approved_by: payload.aiDraftApprovedBy ?? null,
+        ai_draft_approved_at: payload.aiDraftApprovedAt ?? null,
+        curriculum_objective_code: payload.curriculumObjectiveCode ?? null,
+        curriculum_objective_title: payload.curriculumObjectiveTitle ?? null,
+        resource_id_used: payload.resourceIdUsed ?? null,
       })
-      .select('*, classes(name), streams(name), subjects(name), teacher:employees(people(first_name, last_name))')
+      .select('*, classes(name), streams(name), subjects(name), teacher:employees!assignments_teacher_id_fkey(people(first_name, last_name))')
       .single();
 
     if (assignErr || !assignmentRow) {
@@ -54,8 +62,8 @@ export const assignmentService = {
 
     const assignment = mapAssignmentRow(assignmentRow);
 
-    // 2. Automatically establish expected student participants from active class enrolments
-    if (payload.classId) {
+    // 2. Automatically establish expected student participants from active class enrolments (if published)
+    if (assignment.status === 'published' && payload.classId) {
       try {
         let enrolmentQuery = supabase
           .from('student_enrolments')
@@ -96,7 +104,7 @@ export const assignmentService = {
   ): Promise<Assignment[]> {
     let query = supabase
       .from('assignments')
-      .select('*, classes(name), streams(name), subjects(name), teacher:employees(people(first_name, last_name))')
+      .select('*, classes(name), streams(name), subjects(name), teacher:employees!assignments_teacher_id_fkey(people(first_name, last_name))')
       .eq('school_id', schoolId)
       .order('created_at', { ascending: false });
 
@@ -157,7 +165,7 @@ export const assignmentService = {
   } | null> {
     const { data: assignRow, error: assignErr } = await supabase
       .from('assignments')
-      .select('*, classes(name), streams(name), subjects(name), teacher:employees(people(first_name, last_name))')
+      .select('*, classes(name), streams(name), subjects(name), teacher:employees!assignments_teacher_id_fkey(people(first_name, last_name))')
       .eq('id', assignmentId)
       .maybeSingle();
 
@@ -263,6 +271,72 @@ export const assignmentService = {
 
     return mapSubmissionRow(data);
   },
+
+  /**
+   * Database-Enforced Publication Gate: Approves an AI draft and transitions status to published.
+   * Establishes expected student roster for active enrolments upon publication.
+   */
+  async approveAndPublishAssignment(assignmentId: string, teacherId: string): Promise<Assignment> {
+    if (!teacherId || !teacherId.trim()) {
+      throw new Error('Teacher ID is required to approve and publish an assignment');
+    }
+
+    const now = new Date().toISOString();
+
+    const { data: updatedRow, error: updateErr } = await supabase
+      .from('assignments')
+      .update({
+        approval_state: 'approved',
+        ai_draft_approved_by: teacherId,
+        ai_draft_approved_at: now,
+        status: 'published',
+        updated_at: now,
+      })
+      .eq('id', assignmentId)
+      .select('*, classes(name), streams(name), subjects(name), teacher:employees!assignments_teacher_id_fkey(people(first_name, last_name))')
+      .single();
+
+    if (updateErr || !updatedRow) {
+      throw new Error(`Failed to approve and publish assignment: ${updateErr?.message ?? 'Unknown error'}`);
+    }
+
+    const assignment = mapAssignmentRow(updatedRow);
+
+    // Provision student roster if classId is set
+    if (assignment.classId) {
+      try {
+        let enrolmentQuery = supabase
+          .from('student_enrolments')
+          .select('student_id')
+          .eq('school_id', assignment.schoolId)
+          .eq('class_id', assignment.classId)
+          .eq('status', 'active');
+
+        if (assignment.streamId) {
+          enrolmentQuery = enrolmentQuery.eq('stream_id', assignment.streamId);
+        }
+
+        const { data: enrolments } = await enrolmentQuery;
+        if (Array.isArray(enrolments) && enrolments.length > 0) {
+          const submissionRows = enrolments.map((e) => ({
+            school_id: assignment.schoolId,
+            assignment_id: assignment.id,
+            student_id: e.student_id,
+            participation_status: 'expected',
+            submission_status: 'pending',
+            work_type: 'notebook',
+            teacher_review_status: 'unreviewed',
+          }));
+
+          await supabase.from('student_submissions').insert(submissionRows);
+        }
+      } catch (err) {
+        console.warn('Assignment roster provisioning on publish fallback:', err);
+      }
+    }
+
+    return assignment;
+  },
 };
 
 function mapAssignmentRow(r: any): Assignment {
@@ -296,6 +370,14 @@ function mapAssignmentRow(r: any): Assignment {
     evidenceTrack: r.evidence_track,
     maxScore: r.max_score,
     status: r.status,
+    isAiDrafted: r.is_ai_drafted,
+    requiresHumanApproval: r.requires_human_approval,
+    approvalState: r.approval_state,
+    aiDraftApprovedBy: r.ai_draft_approved_by,
+    aiDraftApprovedAt: r.ai_draft_approved_at,
+    curriculumObjectiveCode: r.curriculum_objective_code,
+    curriculumObjectiveTitle: r.curriculum_objective_title,
+    resourceIdUsed: r.resource_id_used,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   BookOpen,
   Search,
@@ -10,20 +10,42 @@ import {
   User,
   Printer,
 } from 'lucide-react';
+import { useAuth } from '../../lib/authContext';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { AcademicResource, SEED_ACADEMIC_RESOURCES } from './academicResources';
+import { resourceLibraryService } from './resourceLibraryService';
 
 export type { AcademicResource };
 
 export const ResourceLibraryPage: React.FC = () => {
+  const { schoolId } = useAuth();
+  const effectiveSchoolId = schoolId || '22222222-2222-2222-2222-222222222222';
+
   const [resources, setResources] = useState<AcademicResource[]>(SEED_ACADEMIC_RESOURCES);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedStage, setSelectedStage] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedApproval, setSelectedApproval] = useState<string>('all');
+
+  useEffect(() => {
+    let isCancelled = false;
+    resourceLibraryService
+      .getResources(effectiveSchoolId)
+      .then((dbList) => {
+        if (!isCancelled && dbList.length > 0) {
+          setResources(dbList);
+        }
+      })
+      .catch((err) => {
+        console.warn('Live school resources load fallback:', err);
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [effectiveSchoolId]);
 
   // Preview & Create Modals
   const [activePreview, setActivePreview] = useState<AcademicResource | null>(null);
@@ -58,28 +80,49 @@ export const ResourceLibraryPage: React.FC = () => {
     });
   }, [resources, selectedSubject, selectedStage, selectedType, selectedApproval, searchQuery]);
 
-  const handleCreateResource = (e: React.FormEvent) => {
+  const handleCreateResource = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const created: AcademicResource = {
-      id: `res-${Date.now()}`,
-      title: newTitle.trim(),
-      type: newType,
-      subject: newSubject,
-      stageLevel: newStage,
-      topic: newTopic.trim() || 'General Curriculum',
-      curriculumObjective: newObjective.trim() || 'Aligned to Cambridge Primary Learning Objectives',
-      approvalState: 'teacher_approved',
-      author: 'You (Current Teacher)',
-      createdAt: new Date().toISOString().slice(0, 10),
-      usageCount: 1,
-      rating: 5.0,
-      previewText: newContent.trim() || 'Teacher-submitted pedagogical material ready for classroom instruction.',
-      tags: ['newly-added', newSubject.toLowerCase(), newType],
-    };
+    const objCode = newObjective.trim().split(':')[0] || '5Nn.01';
+    const objText = newObjective.trim().split(':')[1]?.trim() || newObjective.trim() || 'Cambridge Primary standard';
 
-    setResources([created, ...resources]);
+    try {
+      const created = await resourceLibraryService.createResource({
+        schoolId: effectiveSchoolId,
+        title: newTitle.trim(),
+        type: newType,
+        subject: newSubject,
+        stageLevel: newStage,
+        topic: newTopic.trim() || 'General Curriculum',
+        curriculumObjectiveCode: objCode,
+        curriculumObjectiveText: objText,
+        approvalState: 'teacher_approved',
+        authorName: 'Current Teacher',
+        previewText: newContent.trim() || 'Teacher-submitted pedagogical material ready for classroom instruction.',
+        tags: ['newly-added', newSubject.toLowerCase(), newType],
+      });
+      setResources((prev) => [created, ...prev]);
+    } catch {
+      const fallback: AcademicResource = {
+        id: `res-${Date.now()}`,
+        title: newTitle.trim(),
+        type: newType,
+        subject: newSubject,
+        stageLevel: newStage,
+        topic: newTopic.trim() || 'General Curriculum',
+        curriculumObjective: newObjective.trim() || 'Aligned to Cambridge Primary Learning Objectives',
+        approvalState: 'teacher_approved',
+        author: 'You (Current Teacher)',
+        createdAt: new Date().toISOString().slice(0, 10),
+        usageCount: 1,
+        rating: 5.0,
+        previewText: newContent.trim() || 'Teacher-submitted pedagogical material ready for classroom instruction.',
+        tags: ['newly-added', newSubject.toLowerCase(), newType],
+      };
+      setResources((prev) => [fallback, ...prev]);
+    }
+
     setShowCreateModal(false);
     setNewTitle('');
     setNewTopic('');

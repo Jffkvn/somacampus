@@ -2,16 +2,32 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { assignmentService } from './assignmentService';
 import { observationService } from './observationService';
+import {
+  teachingAiService,
+  type GroundedObservationDraft,
+  type GroundedInterventionDraft,
+} from './teachingAiService';
+import { learningIntelligenceService } from '../intelligence/learningIntelligenceService';
 import type {
   Assignment,
   StudentSubmission,
   ParticipationStatus,
   SubmissionStatus,
   ObservationType,
+  WorkType,
 } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { LoadingState } from '../../components/ui/LoadingState';
+import {
+  Sparkles,
+  AlertTriangle,
+  CheckCircle2,
+  Lightbulb,
+  X,
+  BookOpen,
+  ShieldCheck,
+} from 'lucide-react';
 
 const DEFAULT_TEACHER_ID = '99999999-9999-9999-9999-999999999992'; // David Musoke
 
@@ -29,6 +45,22 @@ export const AssignmentReviewPage: React.FC = () => {
   const [obsText, setObsText] = useState('');
   const [isSavingObs, setIsSavingObs] = useState(false);
   const [obsSuccessMsg, setObsSuccessMsg] = useState<string | null>(null);
+
+  // AI Evidence Extraction & Next-Step Intervention state
+  const [aiExtractSubmission, setAiExtractSubmission] = useState<StudentSubmission | null>(null);
+  const [isExtractingAi, setIsExtractingAi] = useState(false);
+  const [extractedObsDraft, setExtractedObsDraft] = useState<GroundedObservationDraft | null>(null);
+  const [aiDraftObsType, setAiDraftObsType] = useState<ObservationType>('misconception');
+  const [aiDraftObsText, setAiDraftObsText] = useState('');
+  const [aiDraftFollowup, setAiDraftFollowup] = useState('');
+  const [isApprovingObs, setIsApprovingObs] = useState(false);
+  const [obsApprovedSuccess, setObsApprovedSuccess] = useState(false);
+
+  // Intervention suggestion state
+  const [isSuggestingIntervention, setIsSuggestingIntervention] = useState(false);
+  const [interventionDraft, setInterventionDraft] = useState<GroundedInterventionDraft | null>(null);
+  const [isAcceptingIntervention, setIsAcceptingIntervention] = useState(false);
+  const [interventionSuccessMsg, setInterventionSuccessMsg] = useState<string | null>(null);
 
   const loadData = async () => {
     if (!assignmentId) return;
@@ -112,6 +144,109 @@ export const AssignmentReviewPage: React.FC = () => {
     } catch (err: any) {
       setIsSavingObs(false);
       alert(err.message ?? 'Failed to record observation');
+    }
+  };
+
+  const handleOpenAiExtract = async (sub: StudentSubmission) => {
+    if (!assignment) return;
+    setAiExtractSubmission(sub);
+    setIsExtractingAi(true);
+    setObsApprovedSuccess(false);
+    setInterventionDraft(null);
+    setInterventionSuccessMsg(null);
+
+    try {
+      const draft = await teachingAiService.extractObservationDraftFromWork({
+        assignmentTitle: assignment.title,
+        objectiveCode: assignment.curriculumObjectiveCode || '5Nn.01',
+        objectiveDescription: assignment.curriculumObjectiveTitle || 'Cambridge Primary standard',
+        workType: sub.workType || 'notebook',
+        workSummary:
+          sub.workSummary ||
+          (sub.teacherFeedback ? `Work notes: ${sub.teacherFeedback}` : 'Student completed workbook exercises with step-by-step working.'),
+      });
+
+      setExtractedObsDraft(draft);
+      setAiDraftObsType(draft.observationType);
+      setAiDraftObsText(draft.observationText);
+      setAiDraftFollowup(draft.suggestedFollowupFocus || '');
+    } catch (err: any) {
+      alert(err?.message ?? 'Failed to extract observation draft');
+    } finally {
+      setIsExtractingAi(false);
+    }
+  };
+
+  const handleApproveObservation = async () => {
+    if (!aiExtractSubmission || !assignment || !aiDraftObsText.trim()) return;
+
+    try {
+      setIsApprovingObs(true);
+      await observationService.createObservation({
+        schoolId: assignment.schoolId,
+        studentId: aiExtractSubmission.studentId,
+        teacherId: DEFAULT_TEACHER_ID,
+        classId: assignment.classId,
+        streamId: assignment.streamId,
+        subjectId: assignment.subjectId,
+        assignmentId: assignment.id,
+        observationType: aiDraftObsType,
+        observationText: aiDraftObsText.trim(),
+      });
+
+      setObsApprovedSuccess(true);
+    } catch (err: any) {
+      alert(err?.message ?? 'Failed to record approved observation');
+    } finally {
+      setIsApprovingObs(false);
+    }
+  };
+
+  const handleRequestInterventionSuggestion = async () => {
+    if (!aiExtractSubmission || !assignment) return;
+    try {
+      setIsSuggestingIntervention(true);
+      const draft = await teachingAiService.suggestInterventionFromEvidence({
+        studentId: aiExtractSubmission.studentId,
+        curriculumObjective: assignment.curriculumObjectiveCode || '5Nn.01',
+        approvedObservationSnippets: [aiDraftObsText],
+      });
+      setInterventionDraft(draft);
+    } catch (err: any) {
+      alert(err?.message ?? 'Failed to suggest intervention');
+    } finally {
+      setIsSuggestingIntervention(false);
+    }
+  };
+
+  const handleAcceptIntervention = async () => {
+    if (!aiExtractSubmission || !assignment || !interventionDraft) return;
+    try {
+      setIsAcceptingIntervention(true);
+      const targetDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      await learningIntelligenceService.createIntervention(
+        {
+          schoolId: assignment.schoolId,
+          studentId: aiExtractSubmission.studentId,
+          teacherId: DEFAULT_TEACHER_ID,
+          classId: assignment.classId!,
+          streamId: assignment.streamId,
+          subjectId: assignment.subjectId!,
+          learningArea: interventionDraft.learningArea,
+          topicName: interventionDraft.topicName,
+          reason: interventionDraft.reason,
+          strategyAction: interventionDraft.strategyAction,
+          targetOutcome: interventionDraft.targetOutcome,
+          targetDate,
+          status: 'active', // Explicit teacher approval gate
+        },
+        [{ type: 'submission', id: aiExtractSubmission.id }]
+      );
+      setInterventionSuccessMsg('Intervention accepted & active! Grounded evidence will appear in your next Lesson Cockpit briefing.');
+    } catch (err: any) {
+      alert(err?.message ?? 'Failed to accept intervention');
+    } finally {
+      setIsAcceptingIntervention(false);
     }
   };
 
@@ -286,7 +421,22 @@ export const AssignmentReviewPage: React.FC = () => {
                       </td>
 
                       {/* Work Reference */}
-                      <td className="py-3 px-3 max-w-xs">
+                      <td className="py-3 px-3 max-w-xs space-y-1">
+                        <select
+                          value={sub.workType || 'notebook'}
+                          onChange={(e) => {
+                            const val = e.target.value as WorkType;
+                            setSubmissions((prev) =>
+                              prev.map((s) => (s.id === sub.id ? { ...s, workType: val } : s))
+                            );
+                          }}
+                          className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[11px] bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                        >
+                          <option value="notebook">Physical Notebook</option>
+                          <option value="written">Written Sheet</option>
+                          <option value="photo_reference">Photo Reference</option>
+                          <option value="file_reference">File / Document</option>
+                        </select>
                         <input
                           type="text"
                           value={sub.workSummary ?? ''}
@@ -296,7 +446,7 @@ export const AssignmentReviewPage: React.FC = () => {
                               prev.map((s) => (s.id === sub.id ? { ...s, workSummary: val } : s))
                             );
                           }}
-                          placeholder="e.g. Workbook Page 42"
+                          placeholder="e.g. Workbook Page 42, fraction diagrams"
                           className="w-full px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-teal-600"
                         />
                       </td>
@@ -343,14 +493,14 @@ export const AssignmentReviewPage: React.FC = () => {
 
                       {/* Actions */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleSaveReview(sub)}
                             className="text-[11px] h-7 px-2"
                           >
-                            Save Review
+                            Save
                           </Button>
                           <Button
                             variant="ghost"
@@ -359,9 +509,18 @@ export const AssignmentReviewPage: React.FC = () => {
                               setActiveObsStudent(sub);
                               setObsText('');
                             }}
-                            className="text-[11px] h-7 px-2 text-teal-700 hover:bg-teal-50"
+                            className="text-[11px] h-7 px-2 text-slate-700 hover:bg-slate-100"
                           >
-                            + Observe
+                            + Obs
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleOpenAiExtract(sub)}
+                            className="text-[11px] h-7 px-2 border-teal-600 text-teal-800 bg-teal-50 hover:bg-teal-100 flex items-center gap-1 font-semibold"
+                          >
+                            <Sparkles className="w-3 h-3 text-teal-600 shrink-0" />
+                            AI Evidence
                           </Button>
                         </div>
                       </td>
@@ -374,10 +533,10 @@ export const AssignmentReviewPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Observation Modal Drawer */}
+      {/* Manual Quick Observation Modal Drawer */}
       {activeObsStudent && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200 animate-in fade-in zoom-in-95">
             <div>
               <p className="text-xs font-semibold text-teal-700 uppercase tracking-wider">
                 Capture Classroom Evidence
@@ -449,6 +608,230 @@ export const AssignmentReviewPage: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI Evidence Extraction & Next-Step Intervention Modal */}
+      {aiExtractSubmission && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-teal-800 to-teal-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-teal-300 shrink-0" />
+                <div>
+                  <h3 className="text-base font-bold">AI Evidence Extraction & Next Steps</h3>
+                  <p className="text-[11px] text-teal-200">
+                    Student: {aiExtractSubmission.studentName} ({aiExtractSubmission.admissionNumber})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAiExtractSubmission(null)}
+                className="text-teal-200 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto text-xs flex-1">
+              {/* Mandatory Inviolable Governance Banner */}
+              <div className="p-2.5 bg-purple-50 border border-purple-200 rounded-lg flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-purple-700 shrink-0" />
+                <span className="text-[11px] font-semibold text-purple-900">
+                  Strictly Qualitative Evidence &bull; No AI Grading, Marks, or Diagnostic Labels
+                </span>
+              </div>
+
+              {/* Context Summary */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1 text-slate-700">
+                <p>
+                  <strong>Curriculum Objective:</strong>{' '}
+                  <span className="font-mono text-teal-800 font-bold">
+                    {assignment.curriculumObjectiveCode || '5Nn.01'}
+                  </span>{' '}
+                  — {assignment.curriculumObjectiveTitle || 'Cambridge Primary Standard'}
+                </p>
+                <p>
+                  <strong>Student Work Reference:</strong>{' '}
+                  <span className="text-slate-900 font-medium">
+                    {aiExtractSubmission.workType} &bull; {aiExtractSubmission.workSummary || 'Workbook exercises completed'}
+                  </span>
+                </p>
+              </div>
+
+              {/* Extraction State */}
+              {isExtractingAi ? (
+                <div className="p-8 text-center space-y-2">
+                  <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-slate-600 font-medium">
+                    Extracting qualitative observations against Cambridge standard...
+                  </p>
+                </div>
+              ) : extractedObsDraft ? (
+                <div className="space-y-3">
+                  {/* Observation Draft Form */}
+                  <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-amber-900 font-bold">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Qualitative Observation Draft (Teacher Controlled)</span>
+                      </div>
+                      <span className="text-[10px] uppercase font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                        Requires Approval
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Observation Classification
+                      </label>
+                      <select
+                        value={aiDraftObsType}
+                        onChange={(e) => setAiDraftObsType(e.target.value as ObservationType)}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-600"
+                      >
+                        <option value="misconception">Misconception / Conceptual Friction</option>
+                        <option value="learning_progress">Learning Progress / Mastery</option>
+                        <option value="strength">Notable Mathematical Insight</option>
+                        <option value="support_need">Scaffolding / Support Need</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Observation Text (Edit freely before approving)
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={aiDraftObsText}
+                        onChange={(e) => setAiDraftObsText(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-600 font-normal leading-relaxed"
+                      />
+                    </div>
+
+                    {aiDraftFollowup && (
+                      <div className="p-2 bg-white/80 border border-amber-200/80 rounded-lg flex items-start gap-2 text-slate-700">
+                        <Lightbulb className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-slate-900">Suggested Retrieval Focus:</strong>
+                          <p className="text-[11px] text-slate-600">{aiDraftFollowup}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {obsApprovedSuccess ? (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg flex items-center gap-2 font-medium">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Observation approved & recorded in student&apos;s longitudinal profile!</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          disabled={isApprovingObs || !aiDraftObsText.trim()}
+                          onClick={handleApproveObservation}
+                          className="bg-teal-700 hover:bg-teal-800 text-white font-medium"
+                        >
+                          {isApprovingObs ? 'Recording...' : 'Approve & Record Evidence'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* AI Next-Step Intervention Loop (Appears when misconception or friction identified) */}
+                  {(aiDraftObsType === 'misconception' || aiDraftObsType === 'support_need' || obsApprovedSuccess) && (
+                    <div className="p-3.5 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-indigo-950 font-bold">
+                          <BookOpen className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <span>AI-Suggested Targeted Next Step</span>
+                        </div>
+                        {!interventionDraft && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={isSuggestingIntervention}
+                            onClick={handleRequestInterventionSuggestion}
+                            className="text-[11px] h-7 px-2.5 border-indigo-300 text-indigo-800 bg-white hover:bg-indigo-50"
+                          >
+                            <Sparkles className="w-3 h-3 text-indigo-600 mr-1" />
+                            {isSuggestingIntervention ? 'Analyzing...' : 'Suggest Next Step'}
+                          </Button>
+                        )}
+                      </div>
+
+                      {interventionSuccessMsg && (
+                        <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg flex items-center gap-2 font-medium">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>{interventionSuccessMsg}</span>
+                        </div>
+                      )}
+
+                      {interventionDraft && !interventionSuccessMsg && (
+                        <div className="p-3 bg-white rounded-lg border border-indigo-200 space-y-2.5">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Strategy Action</span>
+                            <textarea
+                              rows={2}
+                              value={interventionDraft.strategyAction}
+                              onChange={(e) =>
+                                setInterventionDraft({ ...interventionDraft, strategyAction: e.target.value })
+                              }
+                              className="w-full mt-0.5 px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-600"
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Target Outcome</span>
+                            <input
+                              type="text"
+                              value={interventionDraft.targetOutcome}
+                              onChange={(e) =>
+                                setInterventionDraft({ ...interventionDraft, targetOutcome: e.target.value })
+                              }
+                              className="w-full mt-0.5 px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-600"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[11px] text-slate-500 italic">
+                              Status: Draft &bull; 14-day duration
+                            </span>
+                            <Button
+                              type="button"
+                              variant="primary"
+                              size="sm"
+                              disabled={isAcceptingIntervention}
+                              onClick={handleAcceptIntervention}
+                              className="bg-indigo-700 hover:bg-indigo-800 text-white font-medium"
+                            >
+                              {isAcceptingIntervention ? 'Accepting...' : 'Accept Intervention'}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setAiExtractSubmission(null)}
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}

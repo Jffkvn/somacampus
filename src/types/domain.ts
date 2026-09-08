@@ -271,6 +271,14 @@ export interface Assignment {
   evidenceTrack: EvidenceTrack;
   maxScore?: number | null;
   status: AssignmentStatus;
+  isAiDrafted?: boolean;
+  requiresHumanApproval?: boolean;
+  approvalState?: 'unreviewed' | 'approved' | 'rejected';
+  aiDraftApprovedBy?: string | null;
+  aiDraftApprovedAt?: string | null;
+  curriculumObjectiveCode?: string;
+  curriculumObjectiveTitle?: string;
+  resourceIdUsed?: string;
   expectedCount?: number;
   submittedCount?: number;
   missingCount?: number;

@@ -1,10 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useAuth } from '../../lib/authContext';
 import { assignmentService } from './assignmentService';
 import {
   teachingAiService,
   type GroundedAssignmentDraft,
 } from './teachingAiService';
+import {
+  resourceLibraryService,
+  type AcademicResource,
+} from './resourceLibraryService';
 import type { EvidenceTrack, SubmissionType } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
@@ -24,6 +29,8 @@ const DEFAULT_TEACHER_ID = '99999999-9999-9999-9999-999999999992'; // David Muso
 export const AssignmentCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { schoolId } = useAuth();
+  const effectiveSchoolId = schoolId || DEFAULT_SCHOOL_ID;
 
   const prefillLessonId = searchParams.get('lessonId') || undefined;
   const prefillClassId = searchParams.get('classId') || '55555555-5555-5555-5555-555555555551'; // Stage 5
@@ -52,15 +59,48 @@ export const AssignmentCreatePage: React.FC = () => {
   const [groundedDraft, setGroundedDraft] = useState<GroundedAssignmentDraft | null>(null);
   const [isAiApproved, setIsAiApproved] = useState(false);
 
+  // Layer 4 Resource Library Search-Before-Generate State
+  const [matchingResources, setMatchingResources] = useState<AcademicResource[]>([]);
+  const [isLoadingResources, setIsLoadingResources] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Query live school resources when objective changes in modal
+  useEffect(() => {
+    if (!isAiModalOpen) return;
+    let isCancelled = false;
+    setIsLoadingResources(true);
+    resourceLibraryService
+      .findMatchingResources(effectiveSchoolId, selectedObjectiveCode)
+      .then((res) => {
+        if (!isCancelled) setMatchingResources(res);
+      })
+      .catch(() => {
+        if (!isCancelled) setMatchingResources([]);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingResources(false);
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [isAiModalOpen, selectedObjectiveCode, effectiveSchoolId]);
 
   // Available Cambridge objectives for Stage 5 Mathematics
   const availableObjectives = useMemo(() => {
     return teachingAiService.getAvailableCambridgeObjectives('mathematics', 5);
   }, []);
 
-  const handleGenerateAiDraft = async () => {
+  const handleUseExistingResource = (res: AcademicResource) => {
+    setTitle(res.title);
+    setInstructions(`### Vetted Resource: ${res.title}\n\n${res.previewText}\n\n### Required Work:\nComplete all questions with step-by-step mathematical reasoning.`);
+    setSubmissionType(res.type === 'worksheet' ? 'worksheet' : 'homework');
+    setGroundedDraft(null); // Pure school resource, not an unapproved AI draft
+    setIsAiModalOpen(false);
+  };
+
+  const handleGenerateAiDraft = async (adaptedResource?: AcademicResource) => {
     try {
       setIsGeneratingAi(true);
       setErrorMessage(null);
@@ -69,8 +109,9 @@ export const AssignmentCreatePage: React.FC = () => {
         objectiveCode: selectedObjectiveCode,
         subjectName: 'Mathematics',
         stageNumber: 5,
+        adaptedResource,
         lessonContext: {
-          schoolId: DEFAULT_SCHOOL_ID,
+          schoolId: effectiveSchoolId,
           teacherId: DEFAULT_TEACHER_ID,
           classId: prefillClassId,
           className: 'Stage 5 Blue',
@@ -130,7 +171,7 @@ export const AssignmentCreatePage: React.FC = () => {
       setErrorMessage(null);
 
       const created = await assignmentService.createAssignment({
-        schoolId: DEFAULT_SCHOOL_ID,
+        schoolId: effectiveSchoolId,
         teacherId: DEFAULT_TEACHER_ID,
         classId: prefillClassId,
         streamId: prefillStreamId,
@@ -143,6 +184,14 @@ export const AssignmentCreatePage: React.FC = () => {
         submissionType,
         evidenceTrack,
         maxScore: evidenceTrack === 'formal_graded' ? Number(maxScore) : null,
+        isAiDrafted: groundedDraft ? true : false,
+        requiresHumanApproval: groundedDraft ? true : false,
+        approvalState: isAiApproved ? 'approved' : 'unreviewed',
+        aiDraftApprovedBy: isAiApproved ? DEFAULT_TEACHER_ID : undefined,
+        aiDraftApprovedAt: isAiApproved ? new Date().toISOString() : undefined,
+        curriculumObjectiveCode: groundedDraft?.grounding?.curriculumObjective?.code || selectedObjectiveCode,
+        curriculumObjectiveTitle: groundedDraft?.grounding?.curriculumObjective?.title,
+        resourceIdUsed: groundedDraft?.resourceIdUsed,
       });
 
       navigate(`/teaching/assignments/${created.id}`);
@@ -472,35 +521,103 @@ export const AssignmentCreatePage: React.FC = () => {
                 </p>
               </div>
 
-              {/* Layer 4 Search-Before-Generate notice */}
-              <div className="p-2.5 bg-teal-50 border border-teal-200/80 rounded-lg flex items-center gap-2 text-teal-900">
-                <FileText className="w-4 h-4 text-teal-700 shrink-0" />
-                <span className="text-[11px]">
-                  <strong>Search-before-generate (Layer 4):</strong> Vetted school resources matching this objective will be referenced in the instructions.
-                </span>
+              {/* Layer 4 Search-Before-Generate: Live School Resources */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-semibold text-slate-700">
+                    3. School Resource Library (Layer 4 — Search-Before-Generate)
+                  </label>
+                  {matchingResources.length > 0 && (
+                    <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                      {matchingResources.length} Matched Materials
+                    </span>
+                  )}
+                </div>
+
+                {isLoadingResources ? (
+                  <p className="text-[11px] text-slate-400 italic p-2.5 bg-slate-50 rounded border border-slate-200">
+                    Searching library for approved {selectedObjectiveCode} materials...
+                  </p>
+                ) : matchingResources.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {matchingResources.map((res) => (
+                      <div
+                        key={res.id}
+                        className="p-2.5 bg-white rounded-lg border border-teal-200/80 shadow-sm space-y-1.5 hover:border-teal-400 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-900 text-xs truncate">{res.title}</p>
+                            <p className="text-[10px] text-slate-500 truncate">{res.curriculumObjective}</p>
+                          </div>
+                          <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 shrink-0">
+                            {res.type}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed bg-slate-50/70 p-1.5 rounded">
+                          {res.previewText}
+                        </p>
+                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUseExistingResource(res)}
+                            className="text-[10px] h-6 px-2 text-slate-700 border-slate-300 hover:bg-slate-50"
+                          >
+                            Use As-Is
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={isGeneratingAi}
+                            onClick={() => handleGenerateAiDraft(res)}
+                            className="text-[10px] h-6 px-2 border-teal-600 text-teal-800 bg-teal-50 hover:bg-teal-100 flex items-center gap-1 font-semibold"
+                          >
+                            <Sparkles className="w-3 h-3 text-teal-600" />
+                            Adapt with AI
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-teal-50/60 border border-teal-200/80 rounded-lg flex items-center gap-2 text-teal-900">
+                    <FileText className="w-4 h-4 text-teal-700 shrink-0" />
+                    <span className="text-[11px]">
+                      No custom worksheets found for <strong>{selectedObjectiveCode}</strong>. The engine will synthesize a fresh assignment grounded directly in the Cambridge standard.
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsAiModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                disabled={isGeneratingAi}
-                onClick={handleGenerateAiDraft}
-                className="bg-teal-700 hover:bg-teal-800 text-white flex items-center gap-1.5"
-              >
-                <Sparkles className="w-4 h-4" />
-                {isGeneratingAi ? 'Synthesizing 5 Layers...' : 'Generate Grounded Draft'}
-              </Button>
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-500">
+                {matchingResources.length > 0 ? 'Or generate a new draft:' : 'All 5 layers ready'}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsAiModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={isGeneratingAi}
+                  onClick={() => handleGenerateAiDraft()}
+                  className="bg-teal-700 hover:bg-teal-800 text-white flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isGeneratingAi ? 'Synthesizing 5 Layers...' : 'Generate Grounded Draft'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
