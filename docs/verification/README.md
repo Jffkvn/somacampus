@@ -28,6 +28,10 @@ Report Data: [`docs/verification/browser_test_report.json`](./browser_test_repor
 | 14 | `/teacher/today` | Teacher | Rapid Morning Briefing, Clock-In Status & Schedule | **PASS** | [14_teacher_today.png](./screenshots/14_teacher_today.png) |
 | 15 | `/teaching/classes/:id/attendance` | Teacher | Morning Class Register with One-Click Mark All Present | **PASS** | [15_bulk_attendance_register.png](./screenshots/15_bulk_attendance_register.png) |
 | 16 | `/teaching/resources` | Teacher | Approved Resource Library 3-Column Responsive Cards | **PASS** | [16_resource_library.png](./screenshots/16_resource_library.png) |
+| 17 | `/teaching/assignments/new` | Teacher | Cambridge Primary AI Assignment Studio (5-Layer Grounding & Human Gate) | **PASS** | [17_ai_teaching_assignment_studio.png](./screenshots/17_ai_teaching_assignment_studio.png) |
+| 18 | `/teaching/assignments/:id` | Teacher | Closed-Loop Evidence Extraction (Zero AI Grading) & Next-Step Intervention | **PASS** | [18_ai_evidence_extraction_loop.png](./screenshots/18_ai_evidence_extraction_loop.png) |
+
+👉 **For the complete architecture, live schema contracts, and governance walkthrough, see: [AI_TEACHING_LOOP_WALKTHROUGH.md](./AI_TEACHING_LOOP_WALKTHROUGH.md)**
 
 ---
 
@@ -83,3 +87,12 @@ Report Data: [`docs/verification/browser_test_report.json`](./browser_test_repor
 
 ### 16. Approved Resource Library (`/teaching/resources`)
 ![Resource Library](./screenshots/16_resource_library.png)
+
+### 17. Cambridge AI Teaching Assignment Studio (`/teaching/assignments/new`)
+![AI Teaching Assignment Studio](./screenshots/17_ai_teaching_assignment_studio.png)
+
+### 18. Qualitative Evidence Extraction Modal (`/teaching/assignments/:id`)
+![AI Evidence Extraction](./screenshots/18_ai_evidence_extraction_loop.png)
+
+### 19. AI Targeted Next-Step Intervention Flow
+![AI Intervention Suggestion](./screenshots/19_ai_intervention_suggestion.png)

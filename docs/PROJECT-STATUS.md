@@ -30,6 +30,8 @@
   (HR decision attribution and actorRole threading, single-open-advance DB invariant, real school holidays table, admissions atomicity with compensating rollback, honest E2E smoke labeling)
 - [x] **Production Trust Gate Infrastructure & Exit Notes Migration** ✅
   (Codified 7 non-negotiable engineering rules in `.agents/rules/production-trust-gate.md`, created `.agents/skills/somacampus-verify/` with automated mock-rot, DB-contract, and migration audits, added `20260918000001_enrolment_exit_notes.sql` persisting pupil exit justification notes)
+- [x] **Closed Operational AI Teaching Loop & Zero AI Grading (Cambridge Primary 5Nn.01)** ✅ ([walkthrough](verification/AI_TEACHING_LOOP_WALKTHROUGH.md))
+  (Complete closed loop: Cambridge 5Nn.01 standard grounding → school Resource Library search-before-generate → server-side Edge Function boundary → database trigger/CHECK publication gate → physical/digital student work capture → strictly qualitative AI evidence extraction with zero AI grading → educator approval into longitudinal profile → AI next-step intervention with teacher acceptance gate → pre-lesson briefing integration)
 
 ## Queued (in order)
 
