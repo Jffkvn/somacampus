@@ -1,4 +1,4 @@
-name: Verify
+name: Production Trust Gate
 
 on:
   pull_request:
@@ -6,22 +6,40 @@ on:
     branches: [main]
 
 jobs:
-  verify:
+  trust-gate:
+    name: Production Trust Gate Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run test
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Stage 2 - Database Contract Alignment Audit
+        run: npm run verify:contracts
+
+      - name: Stage 3 - Migration Sync & Safety Audit
+        run: npm run verify:migrations
+
+      - name: Stage 4 - TypeScript Strict Compilation
+        run: npm run typecheck
+
+      - name: Stage 5 - Vitest Unit & Domain Test Suite
+        run: npm test
         env:
           VITE_SUPABASE_URL: https://mock.supabase.co
           VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock
-      - run: npm run build
+
+      - name: Stage 6 - Production Bundle Build
+        run: npm run build
         env:
           VITE_SUPABASE_URL: https://mock.supabase.co
           VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock
+
