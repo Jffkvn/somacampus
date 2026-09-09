@@ -433,7 +433,22 @@ export const teachingAiService = {
         const { data, error } = await supabase.functions.invoke('ai-teaching-assistant', {
           body: {
             action: 'extract_work_observation',
-            payload: params,
+            payload: {
+              // Phase A2 tenant grounding (edge verifies each ID belongs to caller's school)
+              schoolId: params.schoolId ?? null,
+              teacherId: params.teacherId ?? null,
+              classId: params.classId ?? null,
+              streamId: params.streamId ?? null,
+              subjectId: params.subjectId ?? null,
+              studentId: params.studentId ?? null,
+              resourceIds: params.resourceIds ?? [],
+              assignmentTitle: params.assignmentTitle,
+              objectiveCode: params.objectiveCode,
+              objectiveDescription: params.objectiveDescription,
+              workType: params.workType,
+              workSummary: params.workSummary,
+              photoLocation: params.photoLocation,
+            },
           },
         });
 
@@ -484,7 +499,18 @@ export const teachingAiService = {
         const { data, error } = await supabase.functions.invoke('ai-teaching-assistant', {
           body: {
             action: 'suggest_intervention',
-            payload: params,
+            payload: {
+              // Phase A2 tenant grounding (edge verifies each ID belongs to caller's school)
+              schoolId: params.schoolId ?? null,
+              teacherId: params.teacherId ?? null,
+              classId: params.classId ?? null,
+              streamId: params.streamId ?? null,
+              subjectId: params.subjectId ?? null,
+              studentId: params.studentId,
+              resourceIds: params.resourceIds ?? [],
+              curriculumObjective: params.curriculumObjective,
+              approvedObservationSnippets: params.approvedObservationSnippets,
+            },
           },
         });
 

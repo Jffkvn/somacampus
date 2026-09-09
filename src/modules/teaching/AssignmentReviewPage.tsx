@@ -164,6 +164,14 @@ export const AssignmentReviewPage: React.FC = () => {
         workSummary:
           sub.workSummary ||
           (sub.teacherFeedback ? `Work notes: ${sub.teacherFeedback}` : 'Student completed workbook exercises with step-by-step working.'),
+        // Phase A2 tenant grounding: edge requires + validates each ID against caller's school.
+        schoolId: assignment.schoolId,
+        teacherId: DEFAULT_TEACHER_ID,
+        classId: assignment.classId ?? null,
+        streamId: assignment.streamId ?? null,
+        subjectId: assignment.subjectId,
+        studentId: sub.studentId,
+        resourceIds: assignment.resourceIdUsed ? [assignment.resourceIdUsed] : [],
       });
 
       setExtractedObsDraft(draft);
@@ -210,6 +218,13 @@ export const AssignmentReviewPage: React.FC = () => {
         studentId: aiExtractSubmission.studentId,
         curriculumObjective: assignment.curriculumObjectiveCode || '5Nn.01',
         approvedObservationSnippets: [aiDraftObsText],
+        // Phase A2 tenant grounding: edge requires + validates each ID against caller's school.
+        schoolId: assignment.schoolId,
+        teacherId: DEFAULT_TEACHER_ID,
+        classId: assignment.classId ?? null,
+        streamId: assignment.streamId ?? null,
+        subjectId: assignment.subjectId,
+        resourceIds: assignment.resourceIdUsed ? [assignment.resourceIdUsed] : [],
       });
       setInterventionDraft(draft);
     } catch (err: any) {
