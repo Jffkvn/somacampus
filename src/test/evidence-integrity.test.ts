@@ -129,8 +129,10 @@ describe('Phase C: intervention lifecycle — draft default', () => {
     ).rejects.toThrow(/observation/i);
   });
 
-  it('createIntervention with explicit active + observation evidence succeeds', async () => {
-    createFakeDb();
+  it('createIntervention with explicit active + observation evidence + owning caller succeeds', async () => {
+    const db = createFakeDb();
+    db.responders.people = () => ({ data: { id: 'person-1' }, error: null });
+    db.responders.employees = () => ({ data: { id: 'teacher-1' }, error: null });
     const res = await learningIntelligenceService.createIntervention(
       { ...BASE_INTERVENTION_INPUT, status: 'active' },
       [
@@ -139,6 +141,19 @@ describe('Phase C: intervention lifecycle — draft default', () => {
       ],
     );
     expect(res.interventionId).toBeTruthy();
+  });
+
+  it('createIntervention with explicit active rejects when caller is not the intervention teacher', async () => {
+    const db = createFakeDb();
+    db.responders.people = () => ({ data: { id: 'person-1' }, error: null });
+    db.responders.employees = () => ({ data: { id: 'teacher-other' }, error: null });
+    await expect(
+      learningIntelligenceService.createIntervention(
+        { ...BASE_INTERVENTION_INPUT, status: 'active' },
+        [{ type: 'observation', id: 'obs-1' }],
+      ),
+    ).rejects.toThrow(/activate|draft|owner|teacher/i);
+    expect(db.inserts.length).toBe(0);
   });
 });
 
@@ -210,11 +225,20 @@ describe('Phase C: intervention status transitions', () => {
     };
   };
 
-  it('allows draft → active', async () => {
+  it('rejects draft → active here (single activation path is activateIntervention)', async () => {
     const db = createFakeDb();
     mockCurrent(db, 'draft');
-    await learningIntelligenceService.updateInterventionStatus('iv-1', 'active');
-    expect(db.updates.some((u) => u.payload.status === 'active')).toBe(true);
+    await expect(learningIntelligenceService.updateInterventionStatus('iv-1', 'active')).rejects.toThrow(
+      /activateIntervention/i,
+    );
+    expect(db.updates.length).toBe(0);
+  });
+
+  it('allows draft → abandoned', async () => {
+    const db = createFakeDb();
+    mockCurrent(db, 'draft');
+    await learningIntelligenceService.updateInterventionStatus('iv-1', 'abandoned');
+    expect(db.updates.some((u) => u.payload.status === 'abandoned')).toBe(true);
   });
 
   it('allows active → completed and active → abandoned', async () => {
@@ -453,7 +477,7 @@ describe('Phase C: privacy + archive regression', () => {
     });
     await learningIntelligenceService.createIntervention({ ...BASE_INTERVENTION_INPUT });
     await learningIntelligenceService.activateIntervention('iv-1', 'teacher-1');
-    await learningIntelligenceService.updateInterventionStatus('iv-1', 'active');
+    await learningIntelligenceService.updateInterventionStatus('iv-1', 'abandoned');
     expect(db.deletes).toEqual([]);
     const src = fs.readFileSync(
       path.resolve(process.cwd(), 'src/modules/intelligence/learningIntelligenceService.ts'),

@@ -35,16 +35,43 @@ export const HEURISTIC_MIN_STRENGTH_OBSERVATIONS = 2;
 export const HEURISTIC_OBSERVATION_LOOKBACK_DAYS = 30;
 
 /**
- * Legal intervention lifecycle transitions (draft → active → completed/abandoned).
- * Rejected pairs (notably active → draft, completed → active) throw instead of
- * writing, so status history stays monotonic and auditable.
+ * Legal intervention lifecycle transitions.
+ * draft → active is EXCLUDED by design: activation runs exclusively through
+ * activateIntervention (ownership + observation linkage), so this map only
+ * carries the non-activating edges. updateInterventionStatus rejects
+ * draft → active explicitly and directs callers to the single path.
+ * Rejected pairs (notably active → draft, completed → active) throw instead
+ * of writing, so status history stays monotonic and auditable.
  */
 const LEGAL_INTERVENTION_TRANSITIONS: Record<InterventionStatus, InterventionStatus[]> = {
-  draft: ['active', 'abandoned'],
+  draft: ['abandoned'],
   active: ['completed', 'abandoned'],
   completed: [],
   abandoned: [],
 };
+
+/**
+ * Resolves the authenticated caller's employee id within a school
+ * (people.auth_user_id → employees.person_id + school_id). Returns null
+ * when the caller has no staff identity in that school.
+ */
+async function resolveCallerEmployeeId(schoolId: string, userId?: string | null): Promise<string | null> {
+  if (!userId) return null;
+  const { data: person } = await supabase
+    .from('people')
+    .select('id')
+    .eq('auth_user_id', userId)
+    .maybeSingle();
+  const personId = (person as any)?.id;
+  if (!personId) return null;
+  const { data: emp } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('person_id', personId)
+    .eq('school_id', schoolId)
+    .maybeSingle();
+  return (emp as any)?.id ?? null;
+}
 
 
 function one<T>(val: T | T[] | null | undefined): T | null {
@@ -900,10 +927,11 @@ export const learningIntelligenceService = {
 
   /**
    * Creates a targeted teacher intervention.
-   * Defaults to 'draft': only an explicit teacher activation (via
-   * activateIntervention) may move it to 'active'. Requesting 'active' up
-   * front additionally requires observation-type evidence in the payload —
-   * activation without a grounding observation is rejected.
+   * Defaults to 'draft'. Requesting 'active' up front is a privileged
+   * single-path exception: it requires BOTH observation-type evidence in the
+   * payload AND caller ownership (authenticated caller resolves to the
+   * intervention teacher in this school). Anything else must create a draft
+   * and activate via activateIntervention.
    * Inserts canonical relational links into intervention_evidence.
    */
   async createIntervention(
@@ -916,10 +944,18 @@ export const learningIntelligenceService = {
     // AI or automated systems can ONLY create 'draft'. Teacher approval required for 'active'.
     const status = input.status ?? 'draft';
 
-    if (status === 'active' && !evidenceItems.some((ev) => ev.type === 'observation')) {
-      throw new Error(
-        'Active interventions require linked observation evidence: approve the grounding observation first, then activate.',
-      );
+    if (status === 'active') {
+      if (!evidenceItems.some((ev) => ev.type === 'observation')) {
+        throw new Error(
+          'Active interventions require linked observation evidence: approve the grounding observation first, then activate.',
+        );
+      }
+      const callerTeacherId = await resolveCallerEmployeeId(input.schoolId, userId);
+      if (!callerTeacherId || callerTeacherId !== input.teacherId) {
+        throw new Error(
+          'Direct creation of active interventions is not permitted for this caller: create a draft, then activate via activateIntervention.',
+        );
+      }
     }
 
     const { data, error } = await supabase
@@ -1023,9 +1059,11 @@ export const learningIntelligenceService = {
 
   /**
    * Updates intervention status. Enforces the legal lifecycle
-   * (draft → active → completed/abandoned):
-   * rejects active → draft, completed → active, and any other
-   * non-monotonic transition instead of writing it.
+   * (draft → abandoned, active → completed/abandoned):
+   * draft → active is REJECTED here — activation runs exclusively through
+   * activateIntervention (ownership + observation linkage). Rejects
+   * active → draft, completed → active, and any other non-monotonic
+   * transition instead of writing it.
    * DB trigger automatically records state change in intervention_audit_logs.
    */
   async updateInterventionStatus(
@@ -1044,6 +1082,11 @@ export const learningIntelligenceService = {
     }
 
     const current = (row as any).status as InterventionStatus;
+    if (current === 'draft' && newStatus === 'active') {
+      throw new Error(
+        'Direct draft → active transition is not permitted here: use activateIntervention (ownership + observation linkage required).',
+      );
+    }
     if (current !== newStatus && !LEGAL_INTERVENTION_TRANSITIONS[current]?.includes(newStatus)) {
       throw new Error(`Illegal intervention status transition: ${current} → ${newStatus}.`);
     }
