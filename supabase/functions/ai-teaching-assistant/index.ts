@@ -139,6 +139,22 @@ function buildStore(): GroundingStore {
         .maybeSingle();
       return (data?.school_id as string | undefined) ?? null;
     },
+    async getEmployeeIdForAuthUser(userId: string, schoolId: string) {
+      const { data: person } = await admin
+        .from("people")
+        .select("id")
+        .eq("auth_user_id", userId)
+        .maybeSingle();
+      if (!person?.id) return null;
+      const { data: employment } = await admin
+        .from("employees")
+        .select("id")
+        .eq("person_id", person.id)
+        .eq("school_id", schoolId)
+        .limit(1)
+        .maybeSingle();
+      return (employment?.id as string | undefined) ?? null;
+    },
     async isStudentInSchool(studentId: string, schoolId: string) {
       const { data } = await admin
         .from("student_enrolments")

@@ -6,6 +6,10 @@
  *    with per-mutation DB assertions, steps 1–21. Runs ONLY when
  *    TEST_LIVE_DB=true with live anon + service-role creds. In this
  *    environment (no creds) it SKIPS cleanly with an explicit reason.
+ *    SCOPE HONESTY: LIVE-GATED is a **DB transactional fixture/invariant**
+ *    test (service-role mutations). It does NOT prove teacher JWT → RLS →
+ *    Edge authz → Gemini → app persistence. Production-path UI/auth E2E
+ *    is a separate manual/browser track.
  *  - MOCKED-LOOP (always runs): all 21 steps against a mocked supabase
  *    client, asserting persisted payloads, provenance fields, gate
  *    rejections, and end-to-end op sequencing. AI drafts come from the
