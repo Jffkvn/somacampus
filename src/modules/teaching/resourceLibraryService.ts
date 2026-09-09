@@ -80,6 +80,9 @@ export const resourceLibraryService = {
     }
     if (filter?.approvalState && filter.approvalState !== 'all') {
       query = query.eq('approval_state', filter.approvalState);
+    } else {
+      // Default tenant-safe scope: exclude drafts unless explicitly requested.
+      query = query.in('approval_state', ['school_approved', 'teacher_approved']);
     }
     if (filter?.searchQuery && filter.searchQuery.trim()) {
       const q = filter.searchQuery.trim();
@@ -112,19 +115,62 @@ export const resourceLibraryService = {
       .order('usage_count', { ascending: false });
 
     if (error) {
-      console.warn('findMatchingResources failed closed:', error.message);
-      return [];
+      console.error('resourceLibraryService.findMatchingResources error:', error);
+      throw new Error(`Failed to load school resources: ${error.message}`);
     }
 
     return (data || []).map(mapResourceRow);
   },
 
   /**
+   * Fetches a single school-scoped resource. Returns null when the row does not
+   * exist in the caller's school (fail-closed: cross-tenant reads resolve null).
+   * Throws on database errors.
+   */
+  async getResourceById(schoolId: string, resourceId: string): Promise<AcademicResource | null> {
+    if (isMockEnv()) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('school_resources')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('id', resourceId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('resourceLibraryService.getResourceById error:', error);
+      throw new Error(`Failed to load school resource: ${error.message}`);
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return mapResourceRow(data);
+  },
+
+  /**
    * Creates a new verified curriculum resource in the school's library.
+   * Tenant enforcement is RLS-reliant (service role never used client-side).
    */
   async createResource(payload: CreateResourceInput): Promise<AcademicResource> {
     if (isMockEnv()) {
       throw new Error('Database write unavailable in mock environment');
+    }
+
+    if (!payload.schoolId || !payload.schoolId.trim()) {
+      throw new Error('A valid school scope is required to create a school resource');
+    }
+    if (!payload.title || !payload.title.trim()) {
+      throw new Error('Resource title is required');
+    }
+    if (!payload.curriculumObjectiveCode || !payload.curriculumObjectiveCode.trim()) {
+      throw new Error('Curriculum objective code is required');
+    }
+    if (!payload.authorName || !payload.authorName.trim()) {
+      throw new Error('Author name is required');
     }
 
     const { data, error } = await supabase

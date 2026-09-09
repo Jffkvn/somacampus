@@ -14,16 +14,18 @@ import { useAuth } from '../../lib/authContext';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
-import { AcademicResource, SEED_ACADEMIC_RESOURCES } from './academicResources';
+import type { AcademicResource } from './academicResources';
 import { resourceLibraryService } from './resourceLibraryService';
 
 export type { AcademicResource };
 
 export const ResourceLibraryPage: React.FC = () => {
-  const { schoolId } = useAuth();
-  const effectiveSchoolId = schoolId || '22222222-2222-2222-2222-222222222222';
+  const { schoolId, fullName } = useAuth();
 
-  const [resources, setResources] = useState<AcademicResource[]>(SEED_ACADEMIC_RESOURCES);
+  const [resources, setResources] = useState<AcademicResource[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedStage, setSelectedStage] = useState<string>('all');
@@ -31,21 +33,47 @@ export const ResourceLibraryPage: React.FC = () => {
   const [selectedApproval, setSelectedApproval] = useState<string>('all');
 
   useEffect(() => {
+    if (!schoolId) {
+      setIsLoading(false);
+      return;
+    }
     let isCancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
     resourceLibraryService
-      .getResources(effectiveSchoolId)
+      .getResources(schoolId)
       .then((dbList) => {
-        if (!isCancelled && dbList.length > 0) {
+        if (!isCancelled) {
           setResources(dbList);
+          setIsLoading(false);
         }
       })
       .catch((err) => {
-        console.warn('Live school resources load fallback:', err);
+        if (!isCancelled) {
+          setLoadError(err.message ?? 'Failed to load school resources');
+          setResources([]);
+          setIsLoading(false);
+        }
       });
     return () => {
       isCancelled = true;
     };
-  }, [effectiveSchoolId]);
+  }, [schoolId]);
+
+  // Fail-closed tenant gate: never query a demo school when unauthenticated.
+  if (!schoolId) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <Card className="p-12 text-center space-y-3">
+          <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
+          <h3 className="text-base font-bold text-slate-800">Sign in to view your school&apos;s resource library</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Curriculum materials are scoped to your school. Please sign in to continue.
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   // Preview & Create Modals
   const [activePreview, setActivePreview] = useState<AcademicResource | null>(null);
@@ -83,13 +111,18 @@ export const ResourceLibraryPage: React.FC = () => {
   const handleCreateResource = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
+    if (!schoolId) {
+      setCreateError('Sign in to submit resources to your school library.');
+      return;
+    }
 
     const objCode = newObjective.trim().split(':')[0] || '5Nn.01';
     const objText = newObjective.trim().split(':')[1]?.trim() || newObjective.trim() || 'Cambridge Primary standard';
 
     try {
+      setCreateError(null);
       const created = await resourceLibraryService.createResource({
-        schoolId: effectiveSchoolId,
+        schoolId,
         title: newTitle.trim(),
         type: newType,
         subject: newSubject,
@@ -98,36 +131,20 @@ export const ResourceLibraryPage: React.FC = () => {
         curriculumObjectiveCode: objCode,
         curriculumObjectiveText: objText,
         approvalState: 'teacher_approved',
-        authorName: 'Current Teacher',
+        authorName: fullName || 'Current Teacher',
         previewText: newContent.trim() || 'Teacher-submitted pedagogical material ready for classroom instruction.',
         tags: ['newly-added', newSubject.toLowerCase(), newType],
       });
       setResources((prev) => [created, ...prev]);
-    } catch {
-      const fallback: AcademicResource = {
-        id: `res-${Date.now()}`,
-        title: newTitle.trim(),
-        type: newType,
-        subject: newSubject,
-        stageLevel: newStage,
-        topic: newTopic.trim() || 'General Curriculum',
-        curriculumObjective: newObjective.trim() || 'Aligned to Cambridge Primary Learning Objectives',
-        approvalState: 'teacher_approved',
-        author: 'You (Current Teacher)',
-        createdAt: new Date().toISOString().slice(0, 10),
-        usageCount: 1,
-        rating: 5.0,
-        previewText: newContent.trim() || 'Teacher-submitted pedagogical material ready for classroom instruction.',
-        tags: ['newly-added', newSubject.toLowerCase(), newType],
-      };
-      setResources((prev) => [fallback, ...prev]);
+      setShowCreateModal(false);
+      setNewTitle('');
+      setNewTopic('');
+      setNewObjective('');
+      setNewContent('');
+    } catch (err: any) {
+      // Fail closed: surface the DB error, never insert a local phantom row.
+      setCreateError(err.message ?? 'Failed to save resource to your school library.');
     }
-
-    setShowCreateModal(false);
-    setNewTitle('');
-    setNewTopic('');
-    setNewObjective('');
-    setNewContent('');
   };
 
   const handleAdaptResource = (res: AcademicResource) => {
@@ -184,6 +201,16 @@ export const ResourceLibraryPage: React.FC = () => {
             <span>{adaptSuccessMsg}</span>
           </div>
           <button onClick={() => setAdaptSuccessMsg(null)} className="text-emerald-500 hover:text-emerald-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Error Banner */}
+      {loadError && (
+        <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 font-bold flex items-center justify-between shadow-xs">
+          <span>{loadError}</span>
+          <button onClick={() => setLoadError(null)} className="text-red-400 hover:text-red-700">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -292,7 +319,12 @@ export const ResourceLibraryPage: React.FC = () => {
       </Card>
 
       {/* Resources Grid */}
-      {filteredResources.length === 0 ? (
+      {isLoading ? (
+        <Card className="p-12 text-center space-y-3">
+          <BookOpen className="w-10 h-10 text-slate-200 mx-auto animate-pulse" />
+          <h3 className="text-base font-bold text-slate-800">Loading your school&apos;s resources...</h3>
+        </Card>
+      ) : filteredResources.length === 0 ? (
         <Card className="p-12 text-center space-y-3">
           <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
           <h3 className="text-base font-bold text-slate-800">No resources match your filters</h3>
@@ -533,6 +565,11 @@ export const ResourceLibraryPage: React.FC = () => {
             </div>
 
             <div className="space-y-3">
+              {createError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg font-semibold">
+                  {createError}
+                </div>
+              )}
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Resource Title *</label>
                 <input

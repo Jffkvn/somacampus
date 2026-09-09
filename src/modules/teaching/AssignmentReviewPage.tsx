@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '../../lib/authContext';
+import { resolveMyEmployeeId } from '../auth/identity';
 import { assignmentService } from './assignmentService';
 import { observationService } from './observationService';
 import {
@@ -29,10 +31,9 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-const DEFAULT_TEACHER_ID = '99999999-9999-9999-9999-999999999992'; // David Musoke
-
 export const AssignmentReviewPage: React.FC = () => {
   const { assignmentId } = useParams<{ assignmentId: string }>();
+  const { schoolId } = useAuth();
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
@@ -61,6 +62,14 @@ export const AssignmentReviewPage: React.FC = () => {
   const [interventionDraft, setInterventionDraft] = useState<GroundedInterventionDraft | null>(null);
   const [isAcceptingIntervention, setIsAcceptingIntervention] = useState(false);
   const [interventionSuccessMsg, setInterventionSuccessMsg] = useState<string | null>(null);
+  // Phase C provenance: id of the teacher-approved observation grounding the
+  // intervention accept path (linked as observation-type evidence).
+  const [approvedObsId, setApprovedObsId] = useState<string | null>(null);
+
+  // Authenticated teacher identity — resolved per school, never a demo constant.
+  // Review, observation and intervention writes stay disabled until it resolves.
+  const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
+  const [isResolvingIdentity, setIsResolvingIdentity] = useState(false);
 
   const loadData = async () => {
     if (!assignmentId) return;
@@ -85,7 +94,33 @@ export const AssignmentReviewPage: React.FC = () => {
     loadData();
   }, [assignmentId]);
 
+  useEffect(() => {
+    const scopeSchoolId = assignment?.schoolId ?? schoolId;
+    if (!scopeSchoolId) {
+      setMyTeacherId(null);
+      return;
+    }
+    let cancelled = false;
+    setIsResolvingIdentity(true);
+    resolveMyEmployeeId(scopeSchoolId)
+      .then((id) => {
+        if (!cancelled) setMyTeacherId(id);
+      })
+      .catch(() => {
+        if (!cancelled) setMyTeacherId(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsResolvingIdentity(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assignment?.schoolId, schoolId]);
+
+  const writesBlocked = isResolvingIdentity || !myTeacherId;
+
   const handleUpdateParticipation = async (subId: string, partStatus: ParticipationStatus) => {
+    if (!myTeacherId) return;
     try {
       const updated = await assignmentService.updateSubmission(subId, { participationStatus: partStatus });
       setSubmissions((prev) => prev.map((s) => (s.id === subId ? updated : s)));
@@ -95,6 +130,7 @@ export const AssignmentReviewPage: React.FC = () => {
   };
 
   const handleUpdateSubmissionStatus = async (subId: string, subStatus: SubmissionStatus) => {
+    if (!myTeacherId) return;
     try {
       const updated = await assignmentService.updateSubmission(subId, { submissionStatus: subStatus });
       setSubmissions((prev) => prev.map((s) => (s.id === subId ? updated : s)));
@@ -104,12 +140,13 @@ export const AssignmentReviewPage: React.FC = () => {
   };
 
   const handleSaveReview = async (sub: StudentSubmission) => {
+    if (!myTeacherId) return;
     try {
       const updated = await assignmentService.reviewSubmission(sub.id, {
         reviewStatus: 'reviewed',
         feedback: sub.teacherFeedback ?? undefined,
         score: sub.score,
-        teacherId: DEFAULT_TEACHER_ID,
+        teacherId: myTeacherId,
       });
       setSubmissions((prev) => prev.map((s) => (s.id === sub.id ? updated : s)));
     } catch (err: any) {
@@ -120,13 +157,14 @@ export const AssignmentReviewPage: React.FC = () => {
   const handleCreateObservation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeObsStudent || !assignment || !obsText.trim()) return;
+    if (!myTeacherId) return;
 
     try {
       setIsSavingObs(true);
       await observationService.createObservation({
         schoolId: assignment.schoolId,
         studentId: activeObsStudent.studentId,
-        teacherId: DEFAULT_TEACHER_ID,
+        teacherId: myTeacherId,
         classId: assignment.classId,
         streamId: assignment.streamId,
         subjectId: assignment.subjectId,
@@ -148,10 +186,11 @@ export const AssignmentReviewPage: React.FC = () => {
   };
 
   const handleOpenAiExtract = async (sub: StudentSubmission) => {
-    if (!assignment) return;
+    if (!assignment || !myTeacherId) return;
     setAiExtractSubmission(sub);
     setIsExtractingAi(true);
     setObsApprovedSuccess(false);
+    setApprovedObsId(null);
     setInterventionDraft(null);
     setInterventionSuccessMsg(null);
 
@@ -164,6 +203,14 @@ export const AssignmentReviewPage: React.FC = () => {
         workSummary:
           sub.workSummary ||
           (sub.teacherFeedback ? `Work notes: ${sub.teacherFeedback}` : 'Student completed workbook exercises with step-by-step working.'),
+        // Phase A2 tenant grounding: edge requires + validates each ID against caller's school.
+        schoolId: assignment.schoolId,
+        teacherId: myTeacherId,
+        classId: assignment.classId ?? null,
+        streamId: assignment.streamId ?? null,
+        subjectId: assignment.subjectId,
+        studentId: sub.studentId,
+        resourceIds: assignment.resourceIdUsed ? [assignment.resourceIdUsed] : [],
       });
 
       setExtractedObsDraft(draft);
@@ -179,13 +226,14 @@ export const AssignmentReviewPage: React.FC = () => {
 
   const handleApproveObservation = async () => {
     if (!aiExtractSubmission || !assignment || !aiDraftObsText.trim()) return;
+    if (!myTeacherId) return;
 
     try {
       setIsApprovingObs(true);
-      await observationService.createObservation({
+      const savedObs = await observationService.createObservation({
         schoolId: assignment.schoolId,
         studentId: aiExtractSubmission.studentId,
-        teacherId: DEFAULT_TEACHER_ID,
+        teacherId: myTeacherId,
         classId: assignment.classId,
         streamId: assignment.streamId,
         subjectId: assignment.subjectId,
@@ -194,6 +242,9 @@ export const AssignmentReviewPage: React.FC = () => {
         observationText: aiDraftObsText.trim(),
       });
 
+      // Phase C provenance: capture the saved observation id so the
+      // intervention accept path links [{observation: obsId}, {submission}].
+      setApprovedObsId(savedObs.id);
       setObsApprovedSuccess(true);
     } catch (err: any) {
       alert(err?.message ?? 'Failed to record approved observation');
@@ -203,13 +254,20 @@ export const AssignmentReviewPage: React.FC = () => {
   };
 
   const handleRequestInterventionSuggestion = async () => {
-    if (!aiExtractSubmission || !assignment) return;
+    if (!aiExtractSubmission || !assignment || !myTeacherId) return;
     try {
       setIsSuggestingIntervention(true);
       const draft = await teachingAiService.suggestInterventionFromEvidence({
         studentId: aiExtractSubmission.studentId,
         curriculumObjective: assignment.curriculumObjectiveCode || '5Nn.01',
         approvedObservationSnippets: [aiDraftObsText],
+        // Phase A2 tenant grounding: edge requires + validates each ID against caller's school.
+        schoolId: assignment.schoolId,
+        teacherId: myTeacherId,
+        classId: assignment.classId ?? null,
+        streamId: assignment.streamId ?? null,
+        subjectId: assignment.subjectId,
+        resourceIds: assignment.resourceIdUsed ? [assignment.resourceIdUsed] : [],
       });
       setInterventionDraft(draft);
     } catch (err: any) {
@@ -220,15 +278,23 @@ export const AssignmentReviewPage: React.FC = () => {
   };
 
   const handleAcceptIntervention = async () => {
-    if (!aiExtractSubmission || !assignment || !interventionDraft) return;
+    if (!aiExtractSubmission || !assignment || !interventionDraft || !myTeacherId) return;
     try {
       setIsAcceptingIntervention(true);
       const targetDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      await learningIntelligenceService.createIntervention(
+      // Phase C provenance: link the approved observation (when present) plus
+      // the grounding submission. Created as draft, then explicitly activated
+      // — never a direct status:'active' create.
+      const evidence: Array<{ type: 'observation' | 'submission'; id: string }> = [];
+      if (approvedObsId) {
+        evidence.push({ type: 'observation', id: approvedObsId });
+      }
+      evidence.push({ type: 'submission', id: aiExtractSubmission.id });
+      const { interventionId } = await learningIntelligenceService.createIntervention(
         {
           schoolId: assignment.schoolId,
           studentId: aiExtractSubmission.studentId,
-          teacherId: DEFAULT_TEACHER_ID,
+          teacherId: myTeacherId,
           classId: assignment.classId!,
           streamId: assignment.streamId,
           subjectId: assignment.subjectId!,
@@ -238,10 +304,11 @@ export const AssignmentReviewPage: React.FC = () => {
           strategyAction: interventionDraft.strategyAction,
           targetOutcome: interventionDraft.targetOutcome,
           targetDate,
-          status: 'active', // Explicit teacher approval gate
+          status: 'draft', // Explicit teacher approval gate below
         },
-        [{ type: 'submission', id: aiExtractSubmission.id }]
+        evidence
       );
+      await learningIntelligenceService.activateIntervention(interventionId, myTeacherId);
       setInterventionSuccessMsg('Intervention accepted & active! Grounded evidence will appear in your next Lesson Cockpit briefing.');
     } catch (err: any) {
       alert(err?.message ?? 'Failed to accept intervention');
@@ -279,6 +346,20 @@ export const AssignmentReviewPage: React.FC = () => {
         <span>&bull;</span>
         <span className="text-slate-800 font-medium">{assignment.title}</span>
       </div>
+
+      {/* Fail-closed identity gate: writes disabled until the teacher id resolves. */}
+      {isResolvingIdentity && (
+        <div className="p-3 bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg">
+          Resolving your teacher identity for this school...
+        </div>
+      )}
+      {!isResolvingIdentity && !myTeacherId && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">
+          <span className="font-bold">Sign in / resolve identity to review work.</span>{' '}
+          Your teacher identity could not be resolved for this school, so reviews, observations
+          and interventions are disabled. No demo teacher is assumed.
+        </div>
+      )}
 
       {/* Header Card */}
       <Card>
@@ -393,6 +474,7 @@ export const AssignmentReviewPage: React.FC = () => {
                       <td className="py-3 px-3">
                         <select
                           value={sub.participationStatus}
+                          disabled={writesBlocked}
                           onChange={(e) =>
                             handleUpdateParticipation(sub.id, e.target.value as ParticipationStatus)
                           }
@@ -408,6 +490,7 @@ export const AssignmentReviewPage: React.FC = () => {
                       <td className="py-3 px-3">
                         <select
                           value={sub.submissionStatus}
+                          disabled={writesBlocked}
                           onChange={(e) =>
                             handleUpdateSubmissionStatus(sub.id, e.target.value as SubmissionStatus)
                           }
@@ -498,6 +581,7 @@ export const AssignmentReviewPage: React.FC = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleSaveReview(sub)}
+                            disabled={writesBlocked}
                             className="text-[11px] h-7 px-2"
                           >
                             Save
@@ -509,6 +593,7 @@ export const AssignmentReviewPage: React.FC = () => {
                               setActiveObsStudent(sub);
                               setObsText('');
                             }}
+                            disabled={writesBlocked}
                             className="text-[11px] h-7 px-2 text-slate-700 hover:bg-slate-100"
                           >
                             + Obs
@@ -517,6 +602,7 @@ export const AssignmentReviewPage: React.FC = () => {
                             variant="secondary"
                             size="sm"
                             onClick={() => handleOpenAiExtract(sub)}
+                            disabled={writesBlocked}
                             className="text-[11px] h-7 px-2 border-teal-600 text-teal-800 bg-teal-50 hover:bg-teal-100 flex items-center gap-1 font-semibold"
                           >
                             <Sparkles className="w-3 h-3 text-teal-600 shrink-0" />
@@ -601,7 +687,7 @@ export const AssignmentReviewPage: React.FC = () => {
                   type="submit"
                   variant="primary"
                   size="sm"
-                  disabled={isSavingObs}
+                  disabled={isSavingObs || writesBlocked}
                   className="bg-teal-700 hover:bg-teal-800 text-white"
                 >
                   {isSavingObs ? 'Saving...' : 'Save Observation'}
@@ -661,6 +747,9 @@ export const AssignmentReviewPage: React.FC = () => {
                     {aiExtractSubmission.workType} &bull; {aiExtractSubmission.workSummary || 'Workbook exercises completed'}
                   </span>
                 </p>
+                <p className="text-[11px] text-slate-500">
+                  Based on teacher-entered work summary (text only — no photo or vision analysis).
+                </p>
               </div>
 
               {/* Extraction State */}
@@ -668,7 +757,7 @@ export const AssignmentReviewPage: React.FC = () => {
                 <div className="p-8 text-center space-y-2">
                   <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto" />
                   <p className="text-slate-600 font-medium">
-                    Extracting qualitative observations against Cambridge standard...
+                    Extracting qualitative observations from the teacher-entered work summary...
                   </p>
                 </div>
               ) : extractedObsDraft ? (
@@ -734,7 +823,7 @@ export const AssignmentReviewPage: React.FC = () => {
                           type="button"
                           variant="primary"
                           size="sm"
-                          disabled={isApprovingObs || !aiDraftObsText.trim()}
+                          disabled={isApprovingObs || !aiDraftObsText.trim() || writesBlocked}
                           onClick={handleApproveObservation}
                           className="bg-teal-700 hover:bg-teal-800 text-white font-medium"
                         >
@@ -757,7 +846,7 @@ export const AssignmentReviewPage: React.FC = () => {
                             type="button"
                             variant="secondary"
                             size="sm"
-                            disabled={isSuggestingIntervention}
+                            disabled={isSuggestingIntervention || writesBlocked}
                             onClick={handleRequestInterventionSuggestion}
                             className="text-[11px] h-7 px-2.5 border-indigo-300 text-indigo-800 bg-white hover:bg-indigo-50"
                           >
@@ -806,7 +895,7 @@ export const AssignmentReviewPage: React.FC = () => {
                               type="button"
                               variant="primary"
                               size="sm"
-                              disabled={isAcceptingIntervention}
+                              disabled={isAcceptingIntervention || writesBlocked}
                               onClick={handleAcceptIntervention}
                               className="bg-indigo-700 hover:bg-indigo-800 text-white font-medium"
                             >

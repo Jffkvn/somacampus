@@ -35,7 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     return 'Dr. Florence Namugga';
   });
-  const [schoolId, setSchoolId] = useState<string | null>('22222222-2222-2222-2222-222222222222');
+  const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -107,6 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+    setSchoolId(null);
     setRole('teacher');
   };
 

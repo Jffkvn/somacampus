@@ -40,6 +40,27 @@ describe('Intervention Service Unit Tests', () => {
       if (table === 'intervention_evidence') {
         return { insert: mockInsertEvidence };
       }
+      // Direct-active create ownership check: caller resolves to teacher-1.
+      if (table === 'people') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'person-1' }, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'employees') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'teacher-1' }, error: null }),
+              }),
+            }),
+          }),
+        };
+      }
       return {};
     });
 
@@ -95,7 +116,17 @@ describe('Intervention Service Unit Tests', () => {
 
     (supabase.from as any).mockImplementation((table: string) => {
       if (table === 'interventions') {
-        return { update: mockUpdate };
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { id: 'intervention-1', status: 'active' },
+                error: null,
+              }),
+            }),
+          }),
+          update: mockUpdate,
+        };
       }
       return {};
     });

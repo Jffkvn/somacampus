@@ -1,8 +1,30 @@
 // Deno / Supabase Edge Function: ai-teaching-assistant
 // Production Trust Gate: Zero provider API keys in browser; server-side boundary only.
 // Inviolable Rule: ABSOLUTELY ZERO AI GRADING. Qualitative observations only.
+//
+// Phase A2: Authenticate caller (Authorization Bearer -> auth.getUser via anon
+// client carrying the user JWT) and verify tenant grounding server-side.
+// Service-role client is used ONLY for ownership lookups, never for getUser.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  authorizeAndValidate,
+  extractBearerToken,
+  type GroundingStore,
+  HttpError,
+} from "./guard.ts";
+import {
+  resolveProviderConfig,
+  geminiTransportError,
+  invalidAiOutputError,
+  type ProviderConfig,
+} from "./provider.ts";
+import {
+  AssignmentDraftEdgeSchema,
+  ObservationDraftEdgeSchema,
+  InterventionDraftEdgeSchema,
+} from "./aiSchemas.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,91 +36,190 @@ interface RequestPayload {
   payload: Record<string, any>;
 }
 
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Call Gemini generateContent and return the parsed JSON payload.
+ * Transport failures -> 500 AI_PROVIDER_ERROR; malformed JSON -> 500 AI_INVALID_OUTPUT.
+ */
+async function callGeminiJson(cfg: ProviderConfig, prompt: string): Promise<unknown> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent?key=${cfg.apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+        }),
+      }
+    );
+  } catch (e) {
+    throw geminiTransportError(e instanceof Error ? e.message : "network failure");
+  }
+
+  if (!response.ok) {
+    throw geminiTransportError(`HTTP ${response.status} ${response.statusText}`);
+  }
+
+  let resJson: any;
+  try {
+    resJson = await response.json();
+  } catch {
+    throw invalidAiOutputError("provider response was not valid JSON");
+  }
+  const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof rawText !== "string" || !rawText.trim()) {
+    throw invalidAiOutputError("provider returned no content text");
+  }
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    throw invalidAiOutputError("provider content was not valid JSON");
+  }
+}
+
+function supabaseUrl(): string {
+  return Deno.env.get("SUPABASE_URL") ?? "";
+}
+
+function anonKey(): string {
+  return Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+}
+
+function serviceRoleKey(): string {
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+}
+
+function buildStore(): GroundingStore {
+  const admin = createClient(supabaseUrl(), serviceRoleKey());
+  return {
+    async getUserRoles(userId: string) {
+      const { data, error } = await admin
+        .from("user_roles")
+        .select("school_id, role_id")
+        .eq("user_id", userId);
+      if (error) throw new HttpError(403, "TENANT_FORBIDDEN", "Unable to resolve caller roles.");
+      return (data ?? []) as { school_id: string; role_id: string }[];
+    },
+    async getClassSchool(classId: string) {
+      const { data } = await admin.from("classes").select("school_id").eq("id", classId).maybeSingle();
+      return (data?.school_id as string | undefined) ?? null;
+    },
+    async getStreamSchool(streamId: string) {
+      const { data: stream } = await admin
+        .from("streams")
+        .select("class_id")
+        .eq("id", streamId)
+        .maybeSingle();
+      if (!stream?.class_id) return null;
+      const { data: cls } = await admin
+        .from("classes")
+        .select("school_id")
+        .eq("id", stream.class_id)
+        .maybeSingle();
+      return (cls?.school_id as string | undefined) ?? null;
+    },
+    async getSubjectSchool(subjectId: string) {
+      const { data } = await admin.from("subjects").select("school_id").eq("id", subjectId).maybeSingle();
+      return (data?.school_id as string | undefined) ?? null;
+    },
+    async getEmployeeSchool(employeeId: string) {
+      const { data } = await admin
+        .from("employees")
+        .select("school_id")
+        .eq("id", employeeId)
+        .maybeSingle();
+      return (data?.school_id as string | undefined) ?? null;
+    },
+    async isStudentInSchool(studentId: string, schoolId: string) {
+      const { data } = await admin
+        .from("student_enrolments")
+        .select("id")
+        .eq("student_id", studentId)
+        .eq("school_id", schoolId)
+        .limit(1);
+      return Array.isArray(data) && data.length > 0;
+    },
+    async getResourceSchool(resourceId: string) {
+      const { data } = await admin
+        .from("school_resources")
+        .select("school_id")
+        .eq("id", resourceId)
+        .maybeSingle();
+      return (data?.school_id as string | undefined) ?? null;
+    },
+    async objectiveExists(code: string) {
+      const { data } = await admin
+        .from("learning_objectives")
+        .select("id")
+        .eq("code", code)
+        .limit(1);
+      return Array.isArray(data) && data.length > 0;
+    },
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const apiKey = Deno.env.get("GEMINI_API_KEY");
-    const model = Deno.env.get("GEMINI_MODEL") || "gemini-2.0-flash";
+    // --- Phase A2 gate: authenticate caller ---
+    const token = extractBearerToken(req.headers.get("Authorization"));
+    if (!token) {
+      return json({ error: "UNAUTHORIZED", message: "Missing Authorization Bearer token." }, 401);
+    }
+
+    // Validate the user JWT via the anon client carrying the caller's token.
+    // Service-role is NEVER used for getUser — only for ownership lookups below.
+    const userClient = createClient(supabaseUrl(), anonKey(), {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const {
+      data: { user },
+      error: userError,
+    } = await userClient.auth.getUser();
+    if (userError || !user) {
+      return json({ error: "UNAUTHORIZED", message: "Invalid or expired token." }, 401);
+    }
+
     const { action, payload }: RequestPayload = await req.json();
 
-    if (!apiKey) {
-      if (action === "generate_assignment" || action === "generate_assignment_draft") {
-        const topic = payload.topic || payload.objectiveTitle || "Fractions & Decimals";
-        const struggling = payload.strugglingConcept || payload.evidenceContext?.strugglingConcept;
-        let instructions = `### Learning Goal (${payload.objectiveCode})\n${payload.objectiveDescription}\n\n`;
-        instructions += `### Instructions\n1. Complete all exercises with step-by-step mathematical reasoning.\n2. Use visual tape diagrams to show equivalent fractions.\n\n`;
-        instructions += `### Student Tasks\n`;
-        instructions += `#### Part A: Core Concepts & Fluency\n1. Complete questions 1-4 on finding equivalent values using visual models.\n\n`;
-        instructions += `#### Part B: Guided Application & Scaffolding\n2. Solve questions 5-8 showing full step-by-step working and conversion logic.\n`;
-        instructions += `3. Explain in two sentences how a tape diagram proves equivalence for unequal denominators.\n`;
-        if (struggling) {
-          instructions += `\n### Scaffolded Support & Hint Box\n`;
-          instructions += `> **💡 Scaffolding Hint:** For ${struggling}, draw a 10-segment fraction strip before calculating.\n`;
-        }
-
-        return new Response(
-          JSON.stringify({
-            title: `Stage 5 ${payload.subjectName || "Mathematics"}: ${topic} Practice`,
-            instructions,
-            rubric: [
-              { criterion: `${payload.objectiveCode} Conceptual Accuracy`, points: 20, descriptors: "Demonstrates clear understanding of equivalences." },
-              { criterion: "Step-by-Step Mathematical Working", points: 15, descriptors: "Shows clear fraction diagrams." },
-              { criterion: "Applied Word Problem Resolution", points: 10, descriptors: "Sets up and calculates real-world questions." },
-              { criterion: "Neatness & Unit Notation", points: 5, descriptors: "Clear layout and units." },
-            ],
-            maxScore: 50,
-            isAiDrafted: true,
-            requiresHumanApproval: true,
-            status: "draft",
-            approvalState: "unreviewed",
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    // --- Phase A2 gate: tenant grounding + objective authority ---
+    try {
+      await authorizeAndValidate(buildStore(), user.id, action, payload ?? {});
+    } catch (e) {
+      if (e instanceof HttpError) {
+        return json({ error: e.code, message: e.message }, e.status);
       }
+      throw e;
+    }
 
-      if (action === "extract_work_observation") {
-        const isFriction =
-          (payload.workSummary || "").toLowerCase().includes("struggl") ||
-          (payload.workSummary || "").toLowerCase().includes("confus") ||
-          (payload.workSummary || "").toLowerCase().includes("unlike") ||
-          (payload.workSummary || "").toLowerCase().includes("error");
-
-        return new Response(
-          JSON.stringify({
-            observationType: isFriction ? "misconception" : "learning_progress",
-            observationText: isFriction
-              ? `Learner demonstrates understanding of common denominator fractions, but showed friction converting unlike denominators in: "${payload.workSummary}".`
-              : `Learner successfully demonstrated skill for ${payload.objectiveCode} with clear mathematical working in: "${payload.workSummary}".`,
-            suggestedFollowupFocus: isFriction ? "10-minute visual fraction strip retrieval" : "Independent extension problems",
-            isAiDrafted: true,
-            requiresHumanApproval: true,
-            isGradingForbidden: true,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    // --- Phase B gate: explicit provider seam (no silent fallbacks) ---
+    // AI_PROVIDER selects the backend (default 'gemini'; interface extensible,
+    // only gemini implemented). Missing key -> 503; missing model -> 500.
+    // There is NO canned deterministic synthesis in production Edge.
+    let provider: ProviderConfig;
+    try {
+      provider = resolveProviderConfig({
+        AI_PROVIDER: Deno.env.get("AI_PROVIDER"),
+        GEMINI_API_KEY: Deno.env.get("GEMINI_API_KEY"),
+        GEMINI_MODEL: Deno.env.get("GEMINI_MODEL"),
+      });
+    } catch (e) {
+      if (e instanceof HttpError) {
+        return json({ error: e.code, message: e.message }, e.status);
       }
-
-      if (action === "suggest_intervention") {
-        return new Response(
-          JSON.stringify({
-            studentId: payload.studentId,
-            learningArea: "Mathematics",
-            topicName: "Fractions & Decimals",
-            reason: `Approved observations cite friction with ${payload.curriculumObjective}: ${
-              payload.approvedObservationSnippets?.[0] || "struggle with unlike denominators"
-            }`,
-            strategyAction: "Conduct structured 15-minute small-group retrieval practice with concrete fraction strips twice weekly.",
-            targetOutcome: "Student independently identifies and converts fractions with unlike denominators with at least 80% accuracy.",
-            suggestedDurationDays: 14,
-            status: "draft",
-            isAiSuggested: true,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      throw e;
     }
 
     if (action === "generate_assignment" || action === "generate_assignment_draft") {
@@ -127,31 +248,27 @@ Requirements:
 }
 `;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
-          }),
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = AssignmentDraftEdgeSchema.safeParse(parsed);
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.statusText}`);
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
       }
 
-      const resJson = await response.json();
-      const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
-      const parsed = JSON.parse(rawText);
-
       const result = {
-        title: parsed.title,
-        instructions: parsed.instructions,
-        rubric: parsed.rubric,
-        maxScore: parsed.maxScore || 20,
+        provider: provider.provider,
+        title: validated.title,
+        instructions: validated.instructions,
+        rubric: validated.rubric,
+        maxScore: validated.maxScore,
         isAiDrafted: true,
         requiresHumanApproval: true,
         status: "draft",
@@ -166,12 +283,15 @@ Requirements:
     if (action === "extract_work_observation") {
       // INVIOLABLE RULE: ABSOLUTELY ZERO AI GRADING.
       // Must extract qualitative observations of misconceptions or progress only.
+      // CAPABILITY HONESTY: text-only extraction. The prompt carries ONLY the
+      // teacher-entered workSummary string; no image, photo, or vision input is
+      // ever sent to the provider (photoLocation is declared but never populated).
       const prompt = `
 You are an expert Cambridge Primary educator reviewing a student's completed learning work.
 Assignment: ${payload.assignmentTitle}
 Curriculum Standard: ${payload.objectiveCode} - ${payload.objectiveDescription}
 Work Type: ${payload.workType}
-Summary of Student's Work / Evidence: ${payload.workSummary}
+Summary of Student's Work / Evidence (teacher-entered text only; no images are analysed): ${payload.workSummary}
 
 CRITICAL INSTRUCTION:
 - You must NEVER assign a score, numeric mark, percentage, or grade.
@@ -186,30 +306,26 @@ Output strictly valid JSON matching this schema:
 }
 `;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
-          }),
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = ObservationDraftEdgeSchema.safeParse(parsed);
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.statusText}`);
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
       }
 
-      const resJson = await response.json();
-      const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
-      const parsed = JSON.parse(rawText);
-
       const result = {
-        observationType: parsed.observationType === "misconception" ? "misconception" : "learning_progress",
-        observationText: parsed.observationText,
-        suggestedFollowupFocus: parsed.suggestedFollowupFocus,
+        provider: provider.provider,
+        observationType: validated.observationType,
+        observationText: validated.observationText,
+        suggestedFollowupFocus: validated.suggestedFollowupFocus,
         isAiDrafted: true,
         requiresHumanApproval: true,
         isGradingForbidden: true,
@@ -240,34 +356,30 @@ Output strictly valid JSON:
 }
 `;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
-          }),
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = InterventionDraftEdgeSchema.safeParse(parsed);
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.statusText}`);
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
       }
 
-      const resJson = await response.json();
-      const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
-      const parsed = JSON.parse(rawText);
-
       const result = {
+        provider: provider.provider,
         studentId: payload.studentId,
-        learningArea: parsed.learningArea || "Mathematics",
-        topicName: parsed.topicName || "Fractions & Decimals",
-        reason: parsed.reason,
-        strategyAction: parsed.strategyAction,
-        targetOutcome: parsed.targetOutcome,
-        suggestedDurationDays: parsed.suggestedDurationDays || 14,
+        learningArea: validated.learningArea,
+        topicName: validated.topicName,
+        reason: validated.reason,
+        strategyAction: validated.strategyAction,
+        targetOutcome: validated.targetOutcome,
+        suggestedDurationDays: validated.suggestedDurationDays,
         status: "draft",
         isAiSuggested: true,
       };
@@ -282,6 +394,9 @@ Output strictly valid JSON:
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
+    if (err instanceof HttpError) {
+      return json({ error: err.code, message: err.message }, err.status);
+    }
     return new Response(
       JSON.stringify({
         error: "INTERNAL_ERROR",

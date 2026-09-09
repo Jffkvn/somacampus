@@ -137,6 +137,12 @@ describe('Assignment & Observation Services Suite (Phase 4)', () => {
       error: null,
     };
 
+    // Gradebook guard lookup: formal_graded track permits the score.
+    tableResponses.assignments = {
+      data: { id: 'assign-1', evidence_track: 'formal_graded' },
+      error: null,
+    };
+
     const reviewed = await assignmentService.reviewSubmission('sub-1', {
       reviewStatus: 'reviewed',
       feedback: 'Well reasoned solutions.',

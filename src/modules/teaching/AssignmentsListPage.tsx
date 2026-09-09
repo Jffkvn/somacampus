@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../lib/authContext';
 import { assignmentService } from './assignmentService';
 import type { Assignment, EvidenceTrack } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
@@ -8,21 +9,24 @@ import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
 
-const DEFAULT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
-
 export const AssignmentsListPage: React.FC = () => {
+  const { schoolId } = useAuth();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trackFilter, setTrackFilter] = useState<'all' | EvidenceTrack>('all');
 
   useEffect(() => {
+    if (!schoolId) {
+      setIsLoading(false);
+      return;
+    }
     let isMounted = true;
     setIsLoading(true);
     setError(null);
 
     assignmentService
-      .getAssignments(DEFAULT_SCHOOL_ID)
+      .getAssignments(schoolId)
       .then((data) => {
         if (isMounted) {
           setAssignments(data);
@@ -39,12 +43,28 @@ export const AssignmentsListPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [schoolId]);
 
   const filtered = assignments.filter((a) => {
     if (trackFilter === 'all') return true;
     return a.evidenceTrack === trackFilter;
   });
+
+  // Fail-closed tenant gate: never fall back to a demo school when unauthenticated.
+  if (!schoolId) {
+    return (
+      <div className="space-y-6 max-w-6xl mx-auto px-4 py-6">
+        <Card>
+          <CardContent>
+            <p className="text-sm font-bold text-slate-800">Sign in to view your school&apos;s assignments</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Assignments are scoped to your school. Please sign in to continue.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto px-4 py-6">

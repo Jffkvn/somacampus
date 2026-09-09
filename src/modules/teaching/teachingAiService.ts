@@ -19,12 +19,52 @@ import { CAMBRIDGE_PRIMARY_PACK } from '../../curriculum/packs/cambridge_primary
 import { resourceLibraryService } from './resourceLibraryService';
 import { SEED_ACADEMIC_RESOURCES, type AcademicResource } from './academicResources';
 import type { SubmissionType, EvidenceTrack, ObservationType } from '../../types/domain';
+import {
+  AssignmentDraftAiSchema,
+  ObservationDraftAiSchema,
+  InterventionDraftAiSchema,
+} from './teachingAiSchema';
 
-const isMockEnv = (): boolean =>
-  !import.meta.env.VITE_SUPABASE_URL ||
-  import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co' ||
-  !import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  import.meta.env.VITE_SUPABASE_ANON_KEY === 'placeholder-anon-key';
+/**
+ * Explicit AI service failure carrying provider + action context.
+ * Thrown (never swallowed) whenever the Edge provider call fails or returns
+ * an invalid payload outside the test-mode synthesis seam, so UI callers can
+ * surface an honest error banner instead of a silent synthetic draft.
+ */
+export class AiServiceError extends Error {
+  provider: string;
+  action: string;
+  constructor(provider: string, action: string, message: string) {
+    super(`AI ${provider} (${action}) unavailable: ${message}`);
+    this.name = 'AiServiceError';
+    this.provider = provider;
+    this.action = action;
+  }
+}
+
+let testSeamOverride: boolean | null = null;
+
+/**
+ * Test-only override for the deterministic synthesis gate below.
+ * No-op unless the bundle runs in test mode, so a production console can
+ * never re-enable the synthetic seam by calling this hook.
+ */
+export function __setTeachingAiTestSeamOverride(value: boolean | null): void {
+  if (import.meta.env.MODE !== 'test') return;
+  testSeamOverride = value;
+}
+
+/**
+ * Phase B gate: deterministic synthesis runs ONLY in test mode
+ * (import.meta.env.MODE === 'test'). Every other environment throws
+ * AiServiceError on provider failure — no silent synthetic drafts, even if
+ * the test-only override was somehow set.
+ */
+function isTestSeamAllowed(): boolean {
+  if (import.meta.env.MODE !== 'test') return false;
+  if (testSeamOverride !== null) return testSeamOverride;
+  return true;
+}
 
 export interface CurriculumObjectiveGrounding {
   code: string;
@@ -73,9 +113,9 @@ export interface MatchedResourceRef {
 }
 
 export interface GroundedRubricCriterion {
-  criterion: string;
-  points: number;
-  descriptors: string;
+  criteria: string;
+  maxPoints: number;
+  guidance: string;
 }
 
 export interface GroundedAssignmentDraft {
@@ -99,6 +139,8 @@ export interface GroundedAssignmentDraft {
   approvalState: 'unreviewed' | 'approved' | 'rejected';
   approvedBy?: string;
   approvedAt?: string;
+  /** Provenance label: Edge provider name, or 'synthetic-test' for the test-mode seam. */
+  provider?: string;
 }
 
 export interface GroundedObservationDraft {
@@ -108,6 +150,8 @@ export interface GroundedObservationDraft {
   isAiDrafted: true;
   requiresHumanApproval: true;
   isGradingForbidden: true;
+  /** Provenance label: Edge provider name, or 'synthetic-test' for the test-mode seam. */
+  provider?: string;
 }
 
 export interface GroundedInterventionDraft {
@@ -120,6 +164,8 @@ export interface GroundedInterventionDraft {
   suggestedDurationDays: number;
   status: 'draft';
   isAiSuggested: true;
+  /** Provenance label: Edge provider name, or 'synthetic-test' for the test-mode seam. */
+  provider?: string;
 }
 
 export interface GenerateDraftRequest {
@@ -139,13 +185,34 @@ export interface ExtractObservationParams {
   objectiveDescription: string;
   workType: string;
   workSummary: string;
+  /**
+   * Declared for API compatibility but NEVER populated or sent.
+   * The extractor is text-only (teacher-entered workSummary); no photo bytes
+   * and no vision analysis exist on this path. Capability honesty (Phase B).
+   * @deprecated Never set — always omit.
+   */
   photoLocation?: string;
+  // Phase A2 tenant grounding: edge validates each supplied ID against caller's school.
+  schoolId?: string | null;
+  teacherId?: string | null;
+  classId?: string | null;
+  streamId?: string | null;
+  subjectId?: string | null;
+  studentId?: string | null;
+  resourceIds?: string[];
 }
 
 export interface SuggestInterventionParams {
   studentId: string;
   curriculumObjective: string;
   approvedObservationSnippets: string[];
+  // Phase A2 tenant grounding: edge validates each supplied ID against caller's school.
+  schoolId?: string | null;
+  teacherId?: string | null;
+  classId?: string | null;
+  streamId?: string | null;
+  subjectId?: string | null;
+  resourceIds?: string[];
 }
 
 /**
@@ -295,59 +362,101 @@ export const teachingAiService = {
       matchedResources = searchLibraryBeforeGenerate(objective, ctx.topic);
     }
 
-    // Check if server-side Edge Function is available
-    if (!isMockEnv()) {
-      try {
-        const { data, error } = await supabase.functions.invoke('ai-teaching-assistant', {
-          body: {
-            action: 'generate_assignment',
-            payload: {
-              objectiveCode: objective.code,
-              objectiveTitle: objective.title,
-              objectiveDescription: objective.description,
-              className: ctx.className,
-              subjectName: ctx.subjectName,
-              topic: ctx.topic || objective.title,
-              resourceContent: request.adaptedResource?.previewText,
-              strugglingConcept: request.evidenceContext?.strugglingConcept,
-            },
+    // Server Edge Function provider call (Phase B: explicit errors, validated output).
+    // Any transport failure throws AiServiceError outside test mode; the
+    // deterministic synthesis seam below runs ONLY when isTestSeamAllowed().
+    let edgeData: unknown = null;
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-teaching-assistant', {
+        body: {
+          action: 'generate_assignment',
+          payload: {
+            // Phase A2 tenant grounding (edge verifies each ID belongs to caller's school)
+            schoolId: ctx.schoolId,
+            teacherId: ctx.teacherId,
+            classId: ctx.classId ?? null,
+            streamId: ctx.streamId ?? null,
+            subjectId: ctx.subjectId,
+            resourceIds: request.adaptedResource?.id ? [request.adaptedResource.id] : [],
+            objectiveCode: objective.code,
+            objectiveTitle: objective.title,
+            objectiveDescription: objective.description,
+            className: ctx.className,
+            subjectName: ctx.subjectName,
+            topic: ctx.topic || objective.title,
+            resourceContent: request.adaptedResource?.previewText,
+            strugglingConcept: request.evidenceContext?.strugglingConcept,
           },
-        });
+        },
+      });
 
-        if (!error && data?.title && data?.instructions) {
-          return {
-            title: data.title,
-            instructions: data.instructions,
-            submissionType: request.preferredSubmissionType || 'homework',
-            evidenceTrack: request.preferredEvidenceTrack || 'diagnostic_evidence',
-            maxScore: data.maxScore || 50,
-            rubric: data.rubric || [
-              { criterion: `${objective.code} Conceptual Accuracy`, points: 20, descriptors: 'Demonstrates clear understanding of equivalent quantities and core conversions.' },
-              { criterion: 'Step-by-Step Mathematical Reasoning', points: 15, descriptors: 'Shows full working, bar models, or fraction diagrams.' },
-              { criterion: 'Applied Word Problem Resolution', points: 10, descriptors: 'Correctly sets up and executes real-world scenario calculations.' },
-              { criterion: 'Neatness & Mathematical Notation', points: 5, descriptors: 'Clear layout, labeled units, and legible number sentences.' },
-            ],
-            grounding: {
-              curriculumObjective: objective,
-              lessonContext: ctx,
-              classEvidenceSummary: request.evidenceContext?.strugglingConcept
-                ? `Scaffolding active: ${request.evidenceContext.strugglingStudentCount ?? 4} learners identified with friction in ${request.evidenceContext.strugglingConcept}`
-                : 'Standard cohort pacing. No active diagnostic anomalies recorded.',
-              matchedResources,
-            },
-            resourceIdUsed: request.adaptedResource?.id,
-            isAiDrafted: true,
-            requiresHumanApproval: true,
-            status: 'draft',
-            approvalState: 'unreviewed',
-          };
-        }
-      } catch (err) {
-        console.warn('Server AI provider call failed, using deterministic test synthesis seam:', err);
+      if (error) {
+        throw new AiServiceError(
+          'edge',
+          'generate_assignment',
+          error.message ?? 'Edge function returned an error.'
+        );
       }
+      edgeData = data;
+    } catch (err) {
+      if (!isTestSeamAllowed()) {
+        if (err instanceof AiServiceError) throw err;
+        throw new AiServiceError(
+          'edge',
+          'generate_assignment',
+          err instanceof Error ? err.message : 'Unknown provider failure.'
+        );
+      }
+      edgeData = null;
     }
 
-    // High-precision deterministic synthesis seam (test & offline resilience)
+    if (edgeData !== null && edgeData !== undefined) {
+      const checked = AssignmentDraftAiSchema.safeParse(edgeData);
+      if (!checked.success) {
+        throw new AiServiceError(
+          'edge',
+          'generate_assignment',
+          `Edge response failed validation: ${checked.error.issues.map((i) => i.message).join('; ')}`
+        );
+      }
+      const valid = checked.data;
+      return {
+        title: valid.title,
+        instructions: valid.instructions,
+        submissionType: request.preferredSubmissionType || 'homework',
+        evidenceTrack: request.preferredEvidenceTrack || 'diagnostic_evidence',
+        maxScore: valid.maxScore,
+        rubric: valid.rubric.map((r) => ({
+          criteria: r.criteria,
+          maxPoints: r.maxPoints,
+          guidance: r.guidance,
+        })),
+        grounding: {
+          curriculumObjective: objective,
+          lessonContext: ctx,
+          classEvidenceSummary: request.evidenceContext?.strugglingConcept
+            ? `Scaffolding active: ${request.evidenceContext.strugglingStudentCount ?? 4} learners identified with friction in ${request.evidenceContext.strugglingConcept}`
+            : 'Standard cohort pacing. No active diagnostic anomalies recorded.',
+          matchedResources,
+        },
+        resourceIdUsed: request.adaptedResource?.id,
+        isAiDrafted: true,
+        requiresHumanApproval: true,
+        status: 'draft',
+        approvalState: 'unreviewed',
+        provider: valid.provider ?? 'edge',
+      };
+    }
+
+    if (!isTestSeamAllowed()) {
+      throw new AiServiceError(
+        'edge',
+        'generate_assignment',
+        'AI provider unavailable and test synthesis is disabled outside test mode.'
+      );
+    }
+
+    // High-precision deterministic synthesis seam (TEST MODE ONLY, labelled synthetic)
     const topicName = ctx.topic || objective.title;
     const title = `${objective.stageLevel} ${ctx.subjectName}: ${topicName} Practice`;
 
@@ -371,10 +480,10 @@ export const teachingAiService = {
     }
 
     const rubric: GroundedRubricCriterion[] = [
-      { criterion: `${objective.code} Conceptual Accuracy`, points: 20, descriptors: 'Demonstrates clear understanding of equivalent quantities and core conversions.' },
-      { criterion: 'Step-by-Step Mathematical Reasoning', points: 15, descriptors: 'Shows full working, bar models, or fraction diagrams.' },
-      { criterion: 'Applied Word Problem Resolution', points: 10, descriptors: 'Correctly sets up and executes real-world scenario calculations.' },
-      { criterion: 'Neatness & Mathematical Notation', points: 5, descriptors: 'Clear layout, labeled units, and legible number sentences.' },
+      { criteria: `${objective.code} Conceptual Accuracy`, maxPoints: 20, guidance: 'Demonstrates clear understanding of equivalent quantities and core conversions.' },
+      { criteria: 'Step-by-Step Mathematical Reasoning', maxPoints: 15, guidance: 'Shows full working, bar models, or fraction diagrams.' },
+      { criteria: 'Applied Word Problem Resolution', maxPoints: 10, guidance: 'Correctly sets up and executes real-world scenario calculations.' },
+      { criteria: 'Neatness & Mathematical Notation', maxPoints: 5, guidance: 'Clear layout, labeled units, and legible number sentences.' },
     ];
 
     return {
@@ -397,6 +506,7 @@ export const teachingAiService = {
       requiresHumanApproval: true,
       status: 'draft',
       approvalState: 'unreviewed',
+      provider: 'synthetic-test',
     };
   },
 
@@ -406,31 +516,83 @@ export const teachingAiService = {
    * Extracts qualitative observations of misconceptions or progress only.
    */
   async extractObservationDraftFromWork(params: ExtractObservationParams): Promise<GroundedObservationDraft> {
-    if (!isMockEnv()) {
-      try {
-        const { data, error } = await supabase.functions.invoke('ai-teaching-assistant', {
-          body: {
-            action: 'extract_work_observation',
-            payload: params,
+    // CAPABILITY HONESTY (Phase B): text-only extraction. Only the
+    // teacher-entered workSummary string is sent to the Edge provider — no
+    // image/photo bytes and no vision analysis exist on this path
+    // (photoLocation is declared but never populated or transmitted).
+    let edgeData: unknown = null;
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-teaching-assistant', {
+        body: {
+          action: 'extract_work_observation',
+          payload: {
+            // Phase A2 tenant grounding (edge verifies each ID belongs to caller's school)
+            schoolId: params.schoolId ?? null,
+            teacherId: params.teacherId ?? null,
+            classId: params.classId ?? null,
+            streamId: params.streamId ?? null,
+            subjectId: params.subjectId ?? null,
+            studentId: params.studentId ?? null,
+            resourceIds: params.resourceIds ?? [],
+            assignmentTitle: params.assignmentTitle,
+            objectiveCode: params.objectiveCode,
+            objectiveDescription: params.objectiveDescription,
+            workType: params.workType,
+            workSummary: params.workSummary,
           },
-        });
+        },
+      });
 
-        if (!error && data?.observationText) {
-          return {
-            observationType: data.observationType === 'misconception' ? 'misconception' : 'learning_progress',
-            observationText: data.observationText,
-            suggestedFollowupFocus: data.suggestedFollowupFocus,
-            isAiDrafted: true,
-            requiresHumanApproval: true,
-            isGradingForbidden: true,
-          };
-        }
-      } catch (err) {
-        console.warn('Server AI provider observation extraction failed, using test seam:', err);
+      if (error) {
+        throw new AiServiceError(
+          'edge',
+          'extract_work_observation',
+          error.message ?? 'Edge function returned an error.'
+        );
       }
+      edgeData = data;
+    } catch (err) {
+      if (!isTestSeamAllowed()) {
+        if (err instanceof AiServiceError) throw err;
+        throw new AiServiceError(
+          'edge',
+          'extract_work_observation',
+          err instanceof Error ? err.message : 'Unknown provider failure.'
+        );
+      }
+      edgeData = null;
     }
 
-    // Deterministic qualitative observation extraction seam
+    if (edgeData !== null && edgeData !== undefined) {
+      const checked = ObservationDraftAiSchema.safeParse(edgeData);
+      if (!checked.success) {
+        throw new AiServiceError(
+          'edge',
+          'extract_work_observation',
+          `Edge response failed validation: ${checked.error.issues.map((i) => i.message).join('; ')}`
+        );
+      }
+      const valid = checked.data;
+      return {
+        observationType: valid.observationType,
+        observationText: valid.observationText,
+        suggestedFollowupFocus: valid.suggestedFollowupFocus,
+        isAiDrafted: true,
+        requiresHumanApproval: true,
+        isGradingForbidden: true,
+        provider: valid.provider ?? 'edge',
+      };
+    }
+
+    if (!isTestSeamAllowed()) {
+      throw new AiServiceError(
+        'edge',
+        'extract_work_observation',
+        'AI provider unavailable and test synthesis is disabled outside test mode.'
+      );
+    }
+
+    // Deterministic qualitative observation extraction seam (TEST MODE ONLY, labelled synthetic)
     const isFriction =
       params.workSummary.toLowerCase().includes('struggl') ||
       params.workSummary.toLowerCase().includes('confus') ||
@@ -449,6 +611,7 @@ export const teachingAiService = {
       isAiDrafted: true,
       requiresHumanApproval: true,
       isGradingForbidden: true,
+      provider: 'synthetic-test',
     };
   },
 
@@ -457,33 +620,80 @@ export const teachingAiService = {
    * Status is strictly forced to 'draft'.
    */
   async suggestInterventionFromEvidence(params: SuggestInterventionParams): Promise<GroundedInterventionDraft> {
-    if (!isMockEnv()) {
-      try {
-        const { data, error } = await supabase.functions.invoke('ai-teaching-assistant', {
-          body: {
-            action: 'suggest_intervention',
-            payload: params,
-          },
-        });
-
-        if (!error && data?.strategyAction) {
-          return {
+    let edgeData: unknown = null;
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-teaching-assistant', {
+        body: {
+          action: 'suggest_intervention',
+          payload: {
+            // Phase A2 tenant grounding (edge verifies each ID belongs to caller's school)
+            schoolId: params.schoolId ?? null,
+            teacherId: params.teacherId ?? null,
+            classId: params.classId ?? null,
+            streamId: params.streamId ?? null,
+            subjectId: params.subjectId ?? null,
             studentId: params.studentId,
-            learningArea: data.learningArea || 'Mathematics',
-            topicName: data.topicName || 'Fractions & Decimals',
-            reason: data.reason,
-            strategyAction: data.strategyAction,
-            targetOutcome: data.targetOutcome,
-            suggestedDurationDays: data.suggestedDurationDays || 14,
-            status: 'draft',
-            isAiSuggested: true,
-          };
-        }
-      } catch (err) {
-        console.warn('Server AI provider intervention suggestion failed, using test seam:', err);
+            resourceIds: params.resourceIds ?? [],
+            curriculumObjective: params.curriculumObjective,
+            approvedObservationSnippets: params.approvedObservationSnippets,
+          },
+        },
+      });
+
+      if (error) {
+        throw new AiServiceError(
+          'edge',
+          'suggest_intervention',
+          error.message ?? 'Edge function returned an error.'
+        );
       }
+      edgeData = data;
+    } catch (err) {
+      if (!isTestSeamAllowed()) {
+        if (err instanceof AiServiceError) throw err;
+        throw new AiServiceError(
+          'edge',
+          'suggest_intervention',
+          err instanceof Error ? err.message : 'Unknown provider failure.'
+        );
+      }
+      edgeData = null;
     }
 
+    if (edgeData !== null && edgeData !== undefined) {
+      // Status is forced to draft by the schema: anything else is rejected, never coerced.
+      const checked = InterventionDraftAiSchema.safeParse(edgeData);
+      if (!checked.success) {
+        throw new AiServiceError(
+          'edge',
+          'suggest_intervention',
+          `Edge response failed validation: ${checked.error.issues.map((i) => i.message).join('; ')}`
+        );
+      }
+      const valid = checked.data;
+      return {
+        studentId: params.studentId,
+        learningArea: valid.learningArea,
+        topicName: valid.topicName,
+        reason: valid.reason,
+        strategyAction: valid.strategyAction,
+        targetOutcome: valid.targetOutcome,
+        suggestedDurationDays: valid.suggestedDurationDays,
+        status: 'draft',
+        isAiSuggested: true,
+        provider: valid.provider ?? 'edge',
+      };
+    }
+
+    if (!isTestSeamAllowed()) {
+      throw new AiServiceError(
+        'edge',
+        'suggest_intervention',
+        'AI provider unavailable and test synthesis is disabled outside test mode.'
+      );
+    }
+
+    // Deterministic intervention synthesis seam (TEST MODE ONLY, labelled synthetic)
     return {
       studentId: params.studentId,
       learningArea: 'Mathematics',
@@ -494,6 +704,7 @@ export const teachingAiService = {
       suggestedDurationDays: 14,
       status: 'draft',
       isAiSuggested: true,
+      provider: 'synthetic-test',
     };
   },
 
