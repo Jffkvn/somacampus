@@ -222,7 +222,8 @@ describe.skipIf(!liveReady)(`LIVE-GATED loop E2E — ${LIVE_SKIP_REASON}`, () =>
       .limit(10);
     expect((briefingObs as unknown[]).length).toBeGreaterThan(0);
     expect(JSON.stringify(briefingIvs)).toContain(runTag);
-  });
+    // Live network round-trips routinely exceed vitest's 5s default.
+  }, 60_000);
 });
 
 // ---------------------------------------------------------------------------
