@@ -69,7 +69,13 @@ function rejectGradingKeys(obj: Record<string, unknown>, ctx: z.RefinementCtx) {
   }
 }
 
-const NO_GRADE_TEXT = /(\d+\s*%)|(\bmarks?\s*[:=]?\s*\d+)|(\bgrade\s+[A-F]\b)/i;
+// Explicit grading-prose list: score(s)/scored, ranking/ranked, marks,
+// percentage/percent/%, grade(d)/grading. Word-boundaried to stay tight
+// (e.g. "classroom" or "disagreement" never match), at the accepted cost that
+// phrases like "graded evidence" are rejected — any grading language keeps
+// the draft out, by design.
+const NO_GRADE_TEXT =
+  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrades?\b|\bgraded\b|\bgrading\b)/i;
 
 export const ObservationDraftAiSchema = z
   .object({

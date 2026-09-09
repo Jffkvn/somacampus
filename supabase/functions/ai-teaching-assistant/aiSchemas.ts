@@ -36,6 +36,13 @@ export const AssignmentDraftEdgeSchema = z
     instructions: z.string().min(1),
     rubric: z.array(RubricCriterionEdgeSchema).min(1),
     maxScore: z.number().positive(),
+    // Known governance envelope passthroughs (optional): model outputs that
+    // echo these fields must still validate; anything else is rejected.
+    provider: z.string().optional(),
+    isAiDrafted: z.literal(true).optional(),
+    requiresHumanApproval: z.literal(true).optional(),
+    status: z.literal("draft").optional(),
+    approvalState: z.string().optional(),
   })
   .strict();
 
@@ -50,11 +57,25 @@ const gradingKeyRefinement = (obj: Record<string, unknown>, ctx: z.RefinementCtx
   }
 };
 
+const NO_GRADE_TEXT_EDGE =
+  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrades?\b|\bgraded\b|\bgrading\b)/i;
+
 export const ObservationDraftEdgeSchema = z
   .object({
     observationType: z.enum(["learning_progress", "misconception"]),
-    observationText: z.string().min(1),
+    observationText: z
+      .string()
+      .min(1)
+      .refine((t) => !NO_GRADE_TEXT_EDGE.test(t), {
+        message: "Observation text must not contain scores, percentages, marks, or grades.",
+      }),
     suggestedFollowupFocus: z.string().min(1).optional(),
+    // Known governance envelope passthroughs (optional): model outputs that
+    // echo these fields must still validate; anything else is rejected.
+    provider: z.string().optional(),
+    isAiDrafted: z.literal(true).optional(),
+    requiresHumanApproval: z.literal(true).optional(),
+    isGradingForbidden: z.literal(true).optional(),
   })
   .strict()
   .superRefine(gradingKeyRefinement);
@@ -67,5 +88,13 @@ export const InterventionDraftEdgeSchema = z
     strategyAction: z.string().min(1),
     targetOutcome: z.string().min(1),
     suggestedDurationDays: z.number().int().positive(),
+    // Status is forced to draft when present (the prompt does not request it,
+    // but model outputs that echo status:'draft' must still validate).
+    // Anything else is rejected, never coerced.
+    status: z.literal("draft").optional(),
+    // Known governance envelope passthroughs (optional).
+    provider: z.string().optional(),
+    studentId: z.string().optional(),
+    isAiSuggested: z.literal(true).optional(),
   })
   .strict();

@@ -46,20 +46,24 @@ let testSeamOverride: boolean | null = null;
 
 /**
  * Test-only override for the deterministic synthesis gate below.
- * Production behaviour always derives from import.meta.env.MODE.
+ * No-op unless the bundle runs in test mode, so a production console can
+ * never re-enable the synthetic seam by calling this hook.
  */
 export function __setTeachingAiTestSeamOverride(value: boolean | null): void {
+  if (import.meta.env.MODE !== 'test') return;
   testSeamOverride = value;
 }
 
 /**
  * Phase B gate: deterministic synthesis runs ONLY in test mode
  * (import.meta.env.MODE === 'test'). Every other environment throws
- * AiServiceError on provider failure — no silent synthetic drafts.
+ * AiServiceError on provider failure — no silent synthetic drafts, even if
+ * the test-only override was somehow set.
  */
 function isTestSeamAllowed(): boolean {
+  if (import.meta.env.MODE !== 'test') return false;
   if (testSeamOverride !== null) return testSeamOverride;
-  return import.meta.env.MODE === 'test';
+  return true;
 }
 
 export interface CurriculumObjectiveGrounding {

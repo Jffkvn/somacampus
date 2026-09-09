@@ -140,6 +140,92 @@ describe('Phase B: teaching AI output schemas', () => {
     expect(InterventionDraftAiSchema.safeParse(base).success).toBe(false);
     expect(InterventionDraftAiSchema.safeParse({ ...base, status: 'draft' }).success).toBe(true);
   });
+
+  it('accepts valid model output echoing the known governance envelope', () => {
+    // Assignment: full Edge-decorated shape passes strict validation.
+    expect(
+      AssignmentDraftAiSchema.safeParse({
+        title: 'T',
+        instructions: 'I',
+        rubric: [{ criteria: 'Conceptual Accuracy', maxPoints: 20, guidance: 'Shows understanding.' }],
+        maxScore: 50,
+        provider: 'gemini',
+        isAiDrafted: true,
+        requiresHumanApproval: true,
+        status: 'draft',
+        approvalState: 'unreviewed',
+      }).success
+    ).toBe(true);
+    // Observation: envelope echo passes; unknown keys still rejected.
+    expect(
+      ObservationDraftAiSchema.safeParse({
+        observationType: 'misconception',
+        observationText: 'friction with unlike denominators',
+        suggestedFollowupFocus: 'retrieval',
+        provider: 'gemini',
+        isAiDrafted: true,
+        requiresHumanApproval: true,
+        isGradingForbidden: true,
+      }).success
+    ).toBe(true);
+    expect(
+      ObservationDraftAiSchema.safeParse({
+        observationType: 'misconception',
+        observationText: 'friction with unlike denominators',
+        someUnknownField: 1,
+      }).success
+    ).toBe(false);
+    // Intervention: Edge-decorated shape (status draft + envelope) passes.
+    expect(
+      InterventionDraftAiSchema.safeParse({
+        learningArea: 'Mathematics',
+        topicName: 'Fractions',
+        reason: 'r',
+        strategyAction: 'a',
+        targetOutcome: 'o',
+        suggestedDurationDays: 14,
+        status: 'draft',
+        provider: 'gemini',
+        studentId: 's-1',
+        isAiSuggested: true,
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects grading prose and accepts legitimate qualitative text', () => {
+    const base = { observationType: 'misconception' as const };
+    const rejects = [
+      'learner score 5 in fractions',
+      'scored 8 out of 10',
+      'low class ranking overall',
+      'ranked second in the stream',
+      'lost too many marks',
+      'finished with 75% correct',
+      '82 percent accuracy',
+      'a high percentage of errors',
+      'deserves grade B',
+      'the work was graded yesterday',
+      'grading is now complete',
+    ];
+    for (const observationText of rejects) {
+      expect(
+        ObservationDraftAiSchema.safeParse({ ...base, observationText }).success,
+        `expected rejection of "${observationText}"`
+      ).toBe(false);
+    }
+    const accepts = [
+      'Learner showed friction converting unlike denominators.',
+      'Drew clear tape diagrams showing equivalent values.',
+      'Successfully demonstrated skill for 5Nn.01 with clear mathematical notation.',
+      'Needs guided retrieval on common denominators before extension problems.',
+    ];
+    for (const observationText of accepts) {
+      expect(
+        ObservationDraftAiSchema.safeParse({ ...base, observationText }).success,
+        `expected acceptance of "${observationText}"`
+      ).toBe(true);
+    }
+  });
 });
 
 describe('Phase B: Edge schema mirror parity (text-level invariant check)', () => {
@@ -166,6 +252,27 @@ describe('Phase B: Edge schema mirror parity (text-level invariant check)', () =
     expect(edgeMirror).toContain('guidance');
     expect(edgeMirror).not.toContain('criterion');
   });
+
+  it('edge mirror passes through the known governance envelope (strictness parity)', () => {
+    for (const token of [
+      'provider',
+      'isAiDrafted',
+      'requiresHumanApproval',
+      'isGradingForbidden',
+      'isAiSuggested',
+      'approvalState',
+      'studentId',
+      'status',
+    ]) {
+      expect(edgeMirror, `edge mirror must passthrough "${token}"`).toContain(token);
+    }
+  });
+
+  it('edge mirror enforces the same grade-text guard', () => {
+    for (const token of ['scored', 'ranked', 'graded', 'grading', 'percentage', 'percent']) {
+      expect(edgeMirror, `edge mirror must guard "${token}"`).toContain(token);
+    }
+  });
 });
 
 describe('Phase B: client fallback behaviour (throw in prod, synthetic in test)', () => {
@@ -184,8 +291,19 @@ describe('Phase B: client fallback behaviour (throw in prod, synthetic in test)'
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     __setTeachingAiTestSeamOverride(null);
     vi.clearAllMocks();
+  });
+
+  it('prod bundle: test-seam override is ignored (synthetic can never be re-enabled)', async () => {
+    vi.stubEnv('MODE', 'production');
+    // Even an explicit opt-in is a no-op outside test mode.
+    __setTeachingAiTestSeamOverride(true);
+    mockInvoke.mockResolvedValue({ data: null, error: new Error('boom') });
+    await expect(
+      teachingAiService.generateAssignmentDraft({ objectiveCode: '5Nn.01', lessonContext })
+    ).rejects.toBeInstanceOf(AiServiceError);
   });
 
   it('prod mode: functions.invoke error -> throws AiServiceError (no silent synthetic)', async () => {
