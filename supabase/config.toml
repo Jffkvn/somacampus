@@ -412,3 +412,9 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Phase A2: require a valid caller JWT on the ai-teaching-assistant boundary.
+# The function additionally verifies Bearer -> auth.getUser and tenant grounding server-side.
+[functions.ai-teaching-assistant]
+enabled = true
+verify_jwt = true

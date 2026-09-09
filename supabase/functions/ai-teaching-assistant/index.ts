@@ -1,8 +1,19 @@
 // Deno / Supabase Edge Function: ai-teaching-assistant
 // Production Trust Gate: Zero provider API keys in browser; server-side boundary only.
 // Inviolable Rule: ABSOLUTELY ZERO AI GRADING. Qualitative observations only.
+//
+// Phase A2: Authenticate caller (Authorization Bearer -> auth.getUser via anon
+// client carrying the user JWT) and verify tenant grounding server-side.
+// Service-role client is used ONLY for ownership lookups, never for getUser.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  authorizeAndValidate,
+  extractBearerToken,
+  type GroundingStore,
+  HttpError,
+} from "./guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,15 +25,132 @@ interface RequestPayload {
   payload: Record<string, any>;
 }
 
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function supabaseUrl(): string {
+  return Deno.env.get("SUPABASE_URL") ?? "";
+}
+
+function anonKey(): string {
+  return Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+}
+
+function serviceRoleKey(): string {
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+}
+
+function buildStore(): GroundingStore {
+  const admin = createClient(supabaseUrl(), serviceRoleKey());
+  return {
+    async getUserRoles(userId: string) {
+      const { data, error } = await admin
+        .from("user_roles")
+        .select("school_id, role_id")
+        .eq("user_id", userId);
+      if (error) throw new HttpError(403, "TENANT_FORBIDDEN", "Unable to resolve caller roles.");
+      return (data ?? []) as { school_id: string; role_id: string }[];
+    },
+    async getClassSchool(classId: string) {
+      const { data } = await admin.from("classes").select("school_id").eq("id", classId).maybeSingle();
+      return (data?.school_id as string | undefined) ?? null;
+    },
+    async getStreamSchool(streamId: string) {
+      const { data: stream } = await admin
+        .from("streams")
+        .select("class_id")
+        .eq("id", streamId)
+        .maybeSingle();
+      if (!stream?.class_id) return null;
+      const { data: cls } = await admin
+        .from("classes")
+        .select("school_id")
+        .eq("id", stream.class_id)
+        .maybeSingle();
+      return (cls?.school_id as string | undefined) ?? null;
+    },
+    async getSubjectSchool(subjectId: string) {
+      const { data } = await admin.from("subjects").select("school_id").eq("id", subjectId).maybeSingle();
+      return (data?.school_id as string | undefined) ?? null;
+    },
+    async getEmployeeSchool(employeeId: string) {
+      const { data } = await admin
+        .from("employees")
+        .select("school_id")
+        .eq("id", employeeId)
+        .maybeSingle();
+      return (data?.school_id as string | undefined) ?? null;
+    },
+    async isStudentInSchool(studentId: string, schoolId: string) {
+      const { data } = await admin
+        .from("student_enrolments")
+        .select("id")
+        .eq("student_id", studentId)
+        .eq("school_id", schoolId)
+        .limit(1);
+      return Array.isArray(data) && data.length > 0;
+    },
+    async getResourceSchool(resourceId: string) {
+      const { data } = await admin
+        .from("school_resources")
+        .select("school_id")
+        .eq("id", resourceId)
+        .maybeSingle();
+      return (data?.school_id as string | undefined) ?? null;
+    },
+    async objectiveExists(code: string) {
+      const { data } = await admin
+        .from("learning_objectives")
+        .select("id")
+        .eq("code", code)
+        .limit(1);
+      return Array.isArray(data) && data.length > 0;
+    },
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
+    // --- Phase A2 gate: authenticate caller ---
+    const token = extractBearerToken(req.headers.get("Authorization"));
+    if (!token) {
+      return json({ error: "UNAUTHORIZED", message: "Missing Authorization Bearer token." }, 401);
+    }
+
+    // Validate the user JWT via the anon client carrying the caller's token.
+    // Service-role is NEVER used for getUser — only for ownership lookups below.
+    const userClient = createClient(supabaseUrl(), anonKey(), {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const {
+      data: { user },
+      error: userError,
+    } = await userClient.auth.getUser();
+    if (userError || !user) {
+      return json({ error: "UNAUTHORIZED", message: "Invalid or expired token." }, 401);
+    }
+
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     const model = Deno.env.get("GEMINI_MODEL") || "gemini-2.0-flash";
     const { action, payload }: RequestPayload = await req.json();
+
+    // --- Phase A2 gate: tenant grounding + objective authority ---
+    try {
+      await authorizeAndValidate(buildStore(), user.id, action, payload ?? {});
+    } catch (e) {
+      if (e instanceof HttpError) {
+        return json({ error: e.code, message: e.message }, e.status);
+      }
+      throw e;
+    }
 
     if (!apiKey) {
       if (action === "generate_assignment" || action === "generate_assignment_draft") {

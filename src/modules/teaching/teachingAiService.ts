@@ -140,12 +140,27 @@ export interface ExtractObservationParams {
   workType: string;
   workSummary: string;
   photoLocation?: string;
+  // Phase A2 tenant grounding: edge validates each supplied ID against caller's school.
+  schoolId?: string | null;
+  teacherId?: string | null;
+  classId?: string | null;
+  streamId?: string | null;
+  subjectId?: string | null;
+  studentId?: string | null;
+  resourceIds?: string[];
 }
 
 export interface SuggestInterventionParams {
   studentId: string;
   curriculumObjective: string;
   approvedObservationSnippets: string[];
+  // Phase A2 tenant grounding: edge validates each supplied ID against caller's school.
+  schoolId?: string | null;
+  teacherId?: string | null;
+  classId?: string | null;
+  streamId?: string | null;
+  subjectId?: string | null;
+  resourceIds?: string[];
 }
 
 /**
@@ -302,6 +317,13 @@ export const teachingAiService = {
           body: {
             action: 'generate_assignment',
             payload: {
+              // Phase A2 tenant grounding (edge verifies each ID belongs to caller's school)
+              schoolId: ctx.schoolId,
+              teacherId: ctx.teacherId,
+              classId: ctx.classId ?? null,
+              streamId: ctx.streamId ?? null,
+              subjectId: ctx.subjectId,
+              resourceIds: request.adaptedResource?.id ? [request.adaptedResource.id] : [],
               objectiveCode: objective.code,
               objectiveTitle: objective.title,
               objectiveDescription: objective.description,
