@@ -8,8 +8,9 @@ const supabaseAuth = vi.hoisted(() => ({
   signOut: vi.fn(),
   onAuthStateChange: vi.fn(),
 }));
+const supabaseRpc = vi.hoisted(() => vi.fn());
 vi.mock('../lib/supabase', () => ({
-  supabase: { auth: supabaseAuth },
+  supabase: { auth: supabaseAuth, rpc: supabaseRpc },
 }));
 
 import { AuthProvider, useAuth } from '../lib/authContext';
@@ -36,6 +37,10 @@ describe('authContext signOut scope reset', () => {
           },
         },
       },
+    });
+    supabaseRpc.mockResolvedValue({
+      data: [{ school_id: 'school-1', role_id: 'teacher' }],
+      error: null,
     });
     supabaseAuth.onAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn() } },
