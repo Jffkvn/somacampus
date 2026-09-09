@@ -4,11 +4,13 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   trust-gate:
     name: Production Trust Gate Verification
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -37,6 +39,9 @@ jobs:
       - name: Stage 5 - Vitest Unit & Domain Test Suite
         run: npm test
         env:
+          # Non-resolving placeholder: unit tests must mock the client.
+          # setup.ts fail-fast fetch rejects accidental supabase/network calls
+          # instead of hanging on DNS until the vitest timeout.
           VITE_SUPABASE_URL: https://mock.supabase.co
           VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock
 
@@ -45,3 +50,4 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://mock.supabase.co
           VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock
+
