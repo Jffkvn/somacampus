@@ -37,12 +37,17 @@ const mocks = vi.hoisted(() => ({
   findMatchingResources: vi.fn(),
 }));
 
+const eqCalls = vi.hoisted(() => ({ calls: [] as Array<{ table: string; col: string; val: unknown }> }));
 vi.mock('../lib/supabase', () => {
-  const makeBuilder = () => {
+  const makeBuilder = (table: string) => {
     const b: any = {};
-    for (const m of ['select', 'eq', 'order', 'or', 'in', 'limit']) {
+    for (const m of ['select', 'order', 'or', 'in', 'limit']) {
       b[m] = () => b;
     }
+    b.eq = (col: string, val: unknown) => {
+      eqCalls.calls.push({ table, col, val });
+      return b;
+    };
     b.maybeSingle = () => Promise.resolve({ data: null, error: null });
     b.single = () => Promise.resolve({ data: null, error: null });
     b.insert = () => b;
@@ -54,7 +59,7 @@ vi.mock('../lib/supabase', () => {
     supabase: {
       from: (...args: any[]) => {
         mocks.mockFrom(...args);
-        return makeBuilder();
+        return makeBuilder(String(args[0]));
       },
       functions: { invoke: vi.fn() },
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) },
@@ -123,6 +128,10 @@ import { getLessonContext } from '../modules/teaching/lessonService';
 
 const srcFile = (rel: string) =>
   fs.readFileSync(path.resolve(process.cwd(), rel), 'utf8');
+
+beforeEach(() => {
+  eqCalls.calls = [];
+});
 
 describe('A3 static CI guard: no demo identity literals in teaching scope', () => {
   it('AssignmentCreatePage has no demo teacher/class/stream/subject identity', () => {
@@ -285,6 +294,20 @@ describe('A3 AssignmentCreatePage identity resolution', () => {
     expect(mocks.createAssignment).not.toHaveBeenCalled();
   });
 
+  it('scopes class/subject display lookups to the signed-in school', async () => {
+    render(
+      <MemoryRouter initialEntries={[entry]}>
+        <AssignmentCreatePage />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(mocks.mockResolve).toHaveBeenCalledWith(SCHOOL_ID));
+    await waitFor(() => expect(eqCalls.calls.length).toBeGreaterThan(0));
+    expect(eqCalls.calls).toContainEqual({ table: 'classes', col: 'school_id', val: SCHOOL_ID });
+    expect(eqCalls.calls).toContainEqual({ table: 'classes', col: 'id', val: CLASS_ID });
+    expect(eqCalls.calls).toContainEqual({ table: 'subjects', col: 'school_id', val: SCHOOL_ID });
+    expect(eqCalls.calls).toContainEqual({ table: 'subjects', col: 'id', val: SUBJECT_ID });
+  });
+
   it('requires explicit class/subject context — no silent demo prefill', async () => {
     render(
       <MemoryRouter initialEntries={['/teaching/assignments/new']}>
@@ -426,6 +449,25 @@ describe('A3 AssignmentReviewPage identity resolution', () => {
     expect(mocks.reviewSubmission).not.toHaveBeenCalled();
     expect(mocks.createObservation).not.toHaveBeenCalled();
     expect(mocks.createIntervention).not.toHaveBeenCalled();
+  });
+
+  it('blocks participation/submission status writes when identity is unresolvable', async () => {
+    mocks.mockResolve.mockResolvedValue(null);
+    renderReview();
+    await screen.findByText('Amina Kato');
+    await waitFor(() =>
+      expect(screen.getAllByText(/sign in \/ resolve identity|resolve.*identity|sign in to resolve/i).length).toBeGreaterThan(0)
+    );
+    const [partSelect, statusSelect] = screen.getAllByRole('combobox') as HTMLSelectElement[];
+    expect(partSelect.value).toBe('expected');
+    expect(statusSelect.value).toBe('submitted');
+    expect(partSelect).toBeDisabled();
+    expect(statusSelect).toBeDisabled();
+    // Even if a change event is forced through, the handler guard blocks the write.
+    fireEvent.change(partSelect, { target: { value: 'excused' } });
+    fireEvent.change(statusSelect, { target: { value: 'missing' } });
+    await waitFor(() => expect(mocks.mockResolve).toHaveBeenCalled());
+    expect(mocks.updateSubmission).not.toHaveBeenCalled();
   });
 });
 

@@ -117,6 +117,7 @@ export const AssignmentReviewPage: React.FC = () => {
   const writesBlocked = isResolvingIdentity || !myTeacherId;
 
   const handleUpdateParticipation = async (subId: string, partStatus: ParticipationStatus) => {
+    if (!myTeacherId) return;
     try {
       const updated = await assignmentService.updateSubmission(subId, { participationStatus: partStatus });
       setSubmissions((prev) => prev.map((s) => (s.id === subId ? updated : s)));
@@ -126,6 +127,7 @@ export const AssignmentReviewPage: React.FC = () => {
   };
 
   const handleUpdateSubmissionStatus = async (subId: string, subStatus: SubmissionStatus) => {
+    if (!myTeacherId) return;
     try {
       const updated = await assignmentService.updateSubmission(subId, { submissionStatus: subStatus });
       setSubmissions((prev) => prev.map((s) => (s.id === subId ? updated : s)));
@@ -456,6 +458,7 @@ export const AssignmentReviewPage: React.FC = () => {
                       <td className="py-3 px-3">
                         <select
                           value={sub.participationStatus}
+                          disabled={writesBlocked}
                           onChange={(e) =>
                             handleUpdateParticipation(sub.id, e.target.value as ParticipationStatus)
                           }
@@ -471,6 +474,7 @@ export const AssignmentReviewPage: React.FC = () => {
                       <td className="py-3 px-3">
                         <select
                           value={sub.submissionStatus}
+                          disabled={writesBlocked}
                           onChange={(e) =>
                             handleUpdateSubmissionStatus(sub.id, e.target.value as SubmissionStatus)
                           }

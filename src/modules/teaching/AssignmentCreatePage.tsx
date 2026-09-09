@@ -74,9 +74,14 @@ export const AssignmentCreatePage: React.FC = () => {
   const streamDisplayName = searchParams.get('streamName') || '';
   useEffect(() => {
     let cancelled = false;
+    if (!schoolId) {
+      return () => {
+        cancelled = true;
+      };
+    }
     if (prefillClassId && !classDisplayName) {
       Promise.resolve(
-        supabase.from('classes').select('name').eq('id', prefillClassId).maybeSingle()
+        supabase.from('classes').select('name').eq('school_id', schoolId).eq('id', prefillClassId).maybeSingle()
       )
         .then(({ data }) => {
           if (!cancelled && (data as any)?.name) setClassDisplayName((data as any).name);
@@ -85,7 +90,7 @@ export const AssignmentCreatePage: React.FC = () => {
     }
     if (prefillSubjectId && !subjectDisplayName) {
       Promise.resolve(
-        supabase.from('subjects').select('name').eq('id', prefillSubjectId).maybeSingle()
+        supabase.from('subjects').select('name').eq('school_id', schoolId).eq('id', prefillSubjectId).maybeSingle()
       )
         .then(({ data }) => {
           if (!cancelled && (data as any)?.name) setSubjectDisplayName((data as any).name);
@@ -95,7 +100,7 @@ export const AssignmentCreatePage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [prefillClassId, prefillSubjectId]);
+  }, [prefillClassId, prefillSubjectId, schoolId]);
 
   const today = new Date().toISOString().slice(0, 10);
   const nextWeek = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
