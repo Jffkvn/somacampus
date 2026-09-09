@@ -105,7 +105,10 @@ The teaching loop connects curriculum planning, student physical work, evidence 
 
 #### Stage 3: Server AI Provider Boundary
 - Edge Function: [`supabase/functions/ai-teaching-assistant/index.ts`](../../supabase/functions/ai-teaching-assistant/index.ts)
-- Proxies requests to Gemini server-side or provides high-precision grounded synthesis when running offline.
+- Configuration: [`docs/AI-PROVIDER-CONFIG.md`](../AI-PROVIDER-CONFIG.md)
+- Explicit provider seam: `AI_PROVIDER` selects the backend (default `gemini`; only `gemini` implemented). `GEMINI_API_KEY` is required (missing → HTTP 503 `AI_PROVIDER_UNCONFIGURED`); `GEMINI_MODEL` is required with no default (missing → HTTP 500 naming `GEMINI_MODEL`). Transport failures → HTTP 500 `AI_PROVIDER_ERROR`.
+- No canned fallback: the Edge function never serves deterministic synthesis in production. Deterministic synthesis exists only in the client test-mode seam (`import.meta.env.MODE === 'test'`), labelled `provider: 'synthetic-test'`.
+- Every Gemini output is validated with zod before it is returned (Edge mirror `aiSchemas.ts`); the client re-validates the Edge response (`src/modules/teaching/teachingAiSchema.ts`). Rubric shape is unified on `{ criteria, maxPoints, guidance }`.
 
 #### Stage 4 & 5: Human Educator Approval & Database Publication Gate
 - Form: [`src/modules/teaching/AssignmentCreatePage.tsx`](../../src/modules/teaching/AssignmentCreatePage.tsx)
@@ -116,15 +119,23 @@ The teaching loop connects curriculum planning, student physical work, evidence 
 #### Stage 6: Physical and Digital Student Work Capture
 - Review Page: [`src/modules/teaching/AssignmentReviewPage.tsx`](../../src/modules/teaching/AssignmentReviewPage.tsx)
 - Roster lists all enrolled pupils (John Okello, Grace Achieng, Brian Kigozi, Doreen Nalubega).
-- Supports physical evidence:
-  - `workType: 'notebook' | 'written' | 'photo_reference' | 'file_reference'`
-  - `workSummary` notes physical page numbers, exercises attempted, and observed working.
+- Capability honesty (text-only): the teacher records what was observed in the
+  `workSummary` text field (physical page numbers, exercises attempted, observed
+  working). `workType` values (`notebook` | `written` | `photo_reference` |
+  `file_reference`) are filing labels for where the physical work lives — they
+  do not imply analysis. `photoLocation` is declared for API compatibility but
+  never populated or transmitted, and no image, photo, or vision analysis exists
+  anywhere on this path: the AI never sees student work, only the
+  teacher-entered summary.
 
 #### Stage 7: AI Qualitative Evidence Extraction (No AI Grading)
 - Teacher clicks **[AI Evidence]** for a submission.
-- Calls `teachingAiService.extractObservationDraftFromWork`.
+- Calls `teachingAiService.extractObservationDraftFromWork`, which sends only the
+  teacher-entered `workSummary` string to the Edge provider (code comment at the
+  call site; Edge prompt carries text only, no vision input).
 - Renders amber card with mandatory governance badge:
   `Strictly Qualitative Evidence • No AI Grading, Marks, or Diagnostic Labels`
+- UI copy states the draft is "based on teacher-entered work summary".
 - Drafts concrete qualitative observations (e.g. *Learner demonstrates understanding of common denominator fractions, but showed friction converting unlike denominators in questions 5-7*).
 
 #### Stage 8: Teacher Approval into Student Longitudinal Profile

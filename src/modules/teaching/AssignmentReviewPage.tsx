@@ -731,6 +731,9 @@ export const AssignmentReviewPage: React.FC = () => {
                     {aiExtractSubmission.workType} &bull; {aiExtractSubmission.workSummary || 'Workbook exercises completed'}
                   </span>
                 </p>
+                <p className="text-[11px] text-slate-500">
+                  Based on teacher-entered work summary (text only — no photo or vision analysis).
+                </p>
               </div>
 
               {/* Extraction State */}
@@ -738,7 +741,7 @@ export const AssignmentReviewPage: React.FC = () => {
                 <div className="p-8 text-center space-y-2">
                   <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto" />
                   <p className="text-slate-600 font-medium">
-                    Extracting qualitative observations against Cambridge standard...
+                    Extracting qualitative observations from the teacher-entered work summary...
                   </p>
                 </div>
               ) : extractedObsDraft ? (

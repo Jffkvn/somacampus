@@ -190,7 +190,15 @@ describe('Phase A2 client: all 3 invoke payloads carry tenant IDs', () => {
     mockInvoke.mockImplementation(async (_fn: string, opts: any) => {
       bodies.push({ action: opts.body.action, payload: opts.body.payload });
       if (opts.body.action === 'generate_assignment') {
-        return { data: { title: 'T', instructions: 'I', rubric: [], maxScore: 50 }, error: null };
+        return {
+          data: {
+            title: 'T',
+            instructions: 'I',
+            rubric: [{ criteria: 'Conceptual Accuracy', maxPoints: 20, guidance: 'Shows understanding.' }],
+            maxScore: 50,
+          },
+          error: null,
+        };
       }
       if (opts.body.action === 'extract_work_observation') {
         return {
@@ -210,6 +218,7 @@ describe('Phase A2 client: all 3 invoke payloads carry tenant IDs', () => {
           learningArea: 'Mathematics',
           topicName: 'T',
           suggestedDurationDays: 14,
+          status: 'draft',
         },
         error: null,
       };
