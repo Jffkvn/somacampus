@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../lib/authContext';
+import { supabase } from '../../lib/supabase';
+import { resolveMyEmployeeId } from '../auth/identity';
 import { assignmentService } from './assignmentService';
 import {
   teachingAiService,
@@ -23,18 +25,77 @@ import {
   FileText,
 } from 'lucide-react';
 
-const DEFAULT_TEACHER_ID = '99999999-9999-9999-9999-999999999992'; // David Musoke
-
 export const AssignmentCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { schoolId } = useAuth();
+  const { schoolId, fullName } = useAuth();
 
+  // Teaching context is derived from the linking timetable/lesson context
+  // (LessonCockpit links here with ?lessonId=&classId=&streamId=&subjectId=&topic=).
+  // No silent demo prefill: a missing class/subject blocks writes with an
+  // explicit notice instead of falling back to demo UUIDs.
   const prefillLessonId = searchParams.get('lessonId') || undefined;
-  const prefillClassId = searchParams.get('classId') || '55555555-5555-5555-5555-555555555551'; // Stage 5
-  const prefillStreamId = searchParams.get('streamId') || '66666666-6666-6666-6666-666666666661'; // Blue
-  const prefillSubjectId = searchParams.get('subjectId') || '77777777-7777-7777-7777-777777777771'; // Math
+  const prefillClassId = searchParams.get('classId') || '';
+  const prefillStreamId = searchParams.get('streamId') || '';
+  const prefillSubjectId = searchParams.get('subjectId') || '';
   const prefillTopic = searchParams.get('topic') || '';
+  const hasTeachingContext = Boolean(prefillClassId && prefillSubjectId);
+
+  // Authenticated teacher identity — resolved per school, never a demo constant.
+  // Writes stay disabled until the employee id resolves (fail closed).
+  const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
+  const [isResolvingIdentity, setIsResolvingIdentity] = useState(false);
+  useEffect(() => {
+    if (!schoolId) {
+      setMyTeacherId(null);
+      return;
+    }
+    let cancelled = false;
+    setIsResolvingIdentity(true);
+    resolveMyEmployeeId(schoolId)
+      .then((id) => {
+        if (!cancelled) setMyTeacherId(id);
+      })
+      .catch(() => {
+        if (!cancelled) setMyTeacherId(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsResolvingIdentity(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [schoolId]);
+
+  // Display names: explicit context params first, then a best-effort
+  // RLS-scoped lookup by id, then honest generic labels (never demo names).
+  const [classDisplayName, setClassDisplayName] = useState(searchParams.get('className') || '');
+  const [subjectDisplayName, setSubjectDisplayName] = useState(searchParams.get('subjectName') || '');
+  const streamDisplayName = searchParams.get('streamName') || '';
+  useEffect(() => {
+    let cancelled = false;
+    if (prefillClassId && !classDisplayName) {
+      Promise.resolve(
+        supabase.from('classes').select('name').eq('id', prefillClassId).maybeSingle()
+      )
+        .then(({ data }) => {
+          if (!cancelled && (data as any)?.name) setClassDisplayName((data as any).name);
+        })
+        .catch(() => {});
+    }
+    if (prefillSubjectId && !subjectDisplayName) {
+      Promise.resolve(
+        supabase.from('subjects').select('name').eq('id', prefillSubjectId).maybeSingle()
+      )
+        .then(({ data }) => {
+          if (!cancelled && (data as any)?.name) setSubjectDisplayName((data as any).name);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [prefillClassId, prefillSubjectId]);
 
   const today = new Date().toISOString().slice(0, 10);
   const nextWeek = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -108,27 +169,30 @@ export const AssignmentCreatePage: React.FC = () => {
     try {
       setIsGeneratingAi(true);
       setErrorMessage(null);
-      if (!schoolId) {
-        throw new Error('Sign in to generate drafts for your school.');
+      if (!schoolId || !myTeacherId) {
+        throw new Error('Sign in / resolve identity to generate drafts for your school.');
+      }
+      if (!hasTeachingContext) {
+        throw new Error('Select a class and subject to continue — open Create Assignment from your timetable or lesson context.');
       }
 
       const draft = await teachingAiService.generateAssignmentDraft({
         objectiveCode: selectedObjectiveCode,
-        subjectName: 'Mathematics',
+        subjectName: subjectDisplayName || 'Selected subject',
         stageNumber: 5,
         adaptedResource,
         lessonContext: {
           schoolId,
-          teacherId: DEFAULT_TEACHER_ID,
+          teacherId: myTeacherId,
           classId: prefillClassId,
-          className: 'Stage 5 Blue',
-          streamId: prefillStreamId,
-          streamName: 'Blue',
+          className: classDisplayName || 'Selected class',
+          streamId: prefillStreamId || undefined,
+          streamName: streamDisplayName || undefined,
           subjectId: prefillSubjectId,
-          subjectName: 'Mathematics',
-          teacherName: 'Mr. David Musoke',
+          subjectName: subjectDisplayName || 'Selected subject',
+          teacherName: fullName || 'Teacher',
           lessonId: prefillLessonId,
-          topic: prefillTopic || 'Fractions & Decimals',
+          topic: prefillTopic || undefined,
         },
         evidenceContext: {
           strugglingConcept: customEvidenceNotes,
@@ -176,6 +240,14 @@ export const AssignmentCreatePage: React.FC = () => {
       setErrorMessage('Sign in to publish assignments for your school.');
       return;
     }
+    if (!myTeacherId) {
+      setErrorMessage('Sign in / resolve identity to publish assignments. Your teacher identity could not be resolved for this school.');
+      return;
+    }
+    if (!hasTeachingContext) {
+      setErrorMessage('Select a class and subject to continue — class and subject context is required, no demo class is assumed.');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -183,9 +255,9 @@ export const AssignmentCreatePage: React.FC = () => {
 
       const created = await assignmentService.createAssignment({
         schoolId,
-        teacherId: DEFAULT_TEACHER_ID,
+        teacherId: myTeacherId,
         classId: prefillClassId,
-        streamId: prefillStreamId,
+        streamId: prefillStreamId || undefined,
         subjectId: prefillSubjectId,
         lessonId: prefillLessonId,
         title: title.trim(),
@@ -198,7 +270,7 @@ export const AssignmentCreatePage: React.FC = () => {
         isAiDrafted: groundedDraft ? true : false,
         requiresHumanApproval: groundedDraft ? true : false,
         approvalState: isAiApproved ? 'approved' : 'unreviewed',
-        aiDraftApprovedBy: isAiApproved ? DEFAULT_TEACHER_ID : undefined,
+        aiDraftApprovedBy: isAiApproved ? myTeacherId : undefined,
         aiDraftApprovedAt: isAiApproved ? new Date().toISOString() : undefined,
         curriculumObjectiveCode: groundedDraft?.grounding?.curriculumObjective?.code || selectedObjectiveCode,
         curriculumObjectiveTitle: groundedDraft?.grounding?.curriculumObjective?.title,
@@ -239,6 +311,27 @@ export const AssignmentCreatePage: React.FC = () => {
         <span className="text-slate-800 font-medium">New Assignment</span>
       </div>
 
+      {/* Fail-closed identity gate: writes disabled until the teacher id resolves. */}
+      {isResolvingIdentity && (
+        <div className="p-3 bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg">
+          Resolving your teacher identity for this school...
+        </div>
+      )}
+      {!isResolvingIdentity && !myTeacherId && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">
+          <span className="font-bold">Sign in / resolve identity to publish assignments.</span>{' '}
+          Your teacher identity could not be resolved for this school, so publishing and AI
+          drafts are disabled. No demo teacher is assumed.
+        </div>
+      )}
+      {!hasTeachingContext && (
+        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg">
+          <span className="font-bold">Select a class and subject to continue.</span>{' '}
+          Open Create Assignment from your timetable or lesson context (class and subject are
+          required — no demo class is assumed).
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between">
@@ -247,7 +340,7 @@ export const AssignmentCreatePage: React.FC = () => {
                 Create Assignment / Homework
               </CardTitle>
               <p className="text-xs text-slate-500 mt-1">
-                Establish expected student work linked directly to the Stage 5 Blue curriculum.
+                Establish expected student work linked directly to your class curriculum context.
               </p>
             </div>
             <Button
@@ -470,7 +563,7 @@ export const AssignmentCreatePage: React.FC = () => {
                 type="submit"
                 variant="primary"
                 size="md"
-                disabled={isSubmitting || (Boolean(groundedDraft) && !isAiApproved)}
+                disabled={isSubmitting || isResolvingIdentity || !myTeacherId || !hasTeachingContext || (Boolean(groundedDraft) && !isAiApproved)}
                 className={`text-white ${
                   groundedDraft && !isAiApproved
                     ? 'bg-slate-400 cursor-not-allowed'
@@ -506,7 +599,7 @@ export const AssignmentCreatePage: React.FC = () => {
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
                 <p className="font-semibold text-slate-800">Active Classroom Context (Layer 2)</p>
                 <p className="text-slate-600 mt-0.5">
-                  Class: <span className="font-medium text-slate-900">Stage 5 Blue</span> &bull; Subject: <span className="font-medium text-slate-900">Mathematics</span> &bull; Teacher: <span className="font-medium text-slate-900">Mr. David Musoke</span>
+                  Class: <span className="font-medium text-slate-900">{classDisplayName || 'Selected class'}{streamDisplayName ? ` ${streamDisplayName}` : ''}</span> &bull; Subject: <span className="font-medium text-slate-900">{subjectDisplayName || 'Selected subject'}</span> &bull; Teacher: <span className="font-medium text-slate-900">{fullName || 'Teacher'}</span>
                 </p>
               </div>
 
@@ -602,7 +695,7 @@ export const AssignmentCreatePage: React.FC = () => {
                             type="button"
                             variant="secondary"
                             size="sm"
-                            disabled={isGeneratingAi}
+                            disabled={isGeneratingAi || isResolvingIdentity || !myTeacherId || !hasTeachingContext}
                             onClick={() => handleGenerateAiDraft(res)}
                             className="text-[10px] h-6 px-2 border-teal-600 text-teal-800 bg-teal-50 hover:bg-teal-100 flex items-center gap-1 font-semibold"
                           >
@@ -641,7 +734,7 @@ export const AssignmentCreatePage: React.FC = () => {
                   type="button"
                   variant="primary"
                   size="sm"
-                  disabled={isGeneratingAi}
+                  disabled={isGeneratingAi || isResolvingIdentity || !myTeacherId || !hasTeachingContext}
                   onClick={() => handleGenerateAiDraft()}
                   className="bg-teal-700 hover:bg-teal-800 text-white flex items-center gap-1.5"
                 >

@@ -93,31 +93,7 @@ export async function getLessonContext(
     .eq('id', timetableEntryId)
     .maybeSingle();
 
-  let r: any = row;
-  if (!r && timetableEntryId.startsWith('tt-entry-')) {
-    try {
-      const { data: schoolClass } = await supabase.from('classes').select('id, name, stage_level').limit(1).maybeSingle();
-      const { data: schoolSubj } = await supabase.from('subjects').select('id, name').eq('code', 'MATH').limit(1).maybeSingle();
-      const { data: teacherEmp } = await supabase.from('employees').select('id, people(first_name, last_name)').limit(1).maybeSingle();
-
-      r = {
-        id: timetableEntryId,
-        class_id: schoolClass?.id ?? '55555555-5555-5555-5555-555555555551',
-        subject_id: schoolSubj?.id ?? '77777777-7777-7777-7777-777777777771',
-        teacher_id: teacherEmp?.id ?? '99999999-9999-9999-9999-999999999992',
-        room_name: 'Lab Block Room 3',
-        start_time: '08:00',
-        end_time: '09:00',
-        timetables: { school_id: '22222222-2222-2222-2222-222222222222', is_active: true },
-        subjects: schoolSubj ?? { id: '77777777-7777-7777-7777-777777777771', name: 'Mathematics' },
-        classes: schoolClass ?? { id: '55555555-5555-5555-5555-555555555551', name: 'Stage 5 Blue', stage_level: 'Stage 5' },
-        streams: { id: '66666666-6666-6666-6666-666666666661', name: 'Blue' },
-        teacher: teacherEmp ?? { id: '99999999-9999-9999-9999-999999999992', people: { first_name: 'David', last_name: 'Musoke' } },
-      };
-    } catch (fbErr) {
-      console.warn('Fallback timetable entry resolution failed:', fbErr);
-    }
-  }
+  const r: any = row;
 
   if (!r) {
     console.error('getLessonContext: timetable entry load failed:', error ?? new Error('no row returned'));
