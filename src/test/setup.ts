@@ -25,24 +25,29 @@ if (fs.existsSync(envPath)) {
  * Unmocked supabase.functions.invoke / fetch then hang on DNS until vitest's
  * 5s timeout — that is what produced the Stage 5 timeouts on teaching-ai-grounding.
  *
- * Accidental network calls now reject immediately. Intentional LIVE-GATED tests
- * either skip (no TEST_LIVE_DB) or mock the supabase client themselves.
+ * LIVE-GATED mode is exempt: `TEST_LIVE_DB=true` (live-e2e.yml) intentionally
+ * queries real Supabase; the guard would reject every admin-client call.
+ * Unit/CI (`npm test`) leaves TEST_LIVE_DB unset, so the guard stays on.
  */
-const originalFetch = globalThis.fetch.bind(globalThis);
+const liveDbMode = process.env.TEST_LIVE_DB === 'true';
 
-function extractUrl(input: RequestInfo | URL): string {
-  if (typeof input === 'string') return input;
-  if (input instanceof URL) return input.href;
-  if (input && typeof input === 'object' && 'url' in input) return String((input as Request).url);
-  return String(input);
-}
+if (!liveDbMode) {
+  const originalFetch = globalThis.fetch.bind(globalThis);
 
-globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const url = extractUrl(input);
-  if (/supabase\.(co|in)/i.test(url) || /127\.0\.0\.1:54321|localhost:54321/i.test(url)) {
-    throw new TypeError(
-      `Blocked network call in unit tests (fail-fast): ${url}. Mock the supabase client or use the LIVE-GATED suite.`,
-    );
+  function extractUrl(input: RequestInfo | URL): string {
+    if (typeof input === 'string') return input;
+    if (input instanceof URL) return input.href;
+    if (input && typeof input === 'object' && 'url' in input) return String((input as Request).url);
+    return String(input);
   }
-  return originalFetch(input, init);
-};
+
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = extractUrl(input);
+    if (/supabase\.(co|in)/i.test(url) || /127\.0\.0\.1:54321|localhost:54321/i.test(url)) {
+      throw new TypeError(
+        `Blocked network call in unit tests (fail-fast): ${url}. Mock the supabase client or set TEST_LIVE_DB=true for the LIVE-GATED suite.`,
+      );
+    }
+    return originalFetch(input, init);
+  };
+}
