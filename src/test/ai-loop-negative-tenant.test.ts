@@ -89,6 +89,7 @@ function mockStore(overrides: Partial<GroundingStore> = {}): GroundingStore {
     getStreamSchool: async () => SCHOOL_A,
     getSubjectSchool: async () => SCHOOL_A,
     getEmployeeSchool: async () => SCHOOL_A,
+    getEmployeeIdForAuthUser: async () => 'teacher-1',
     isStudentInSchool: async () => true,
     getResourceSchool: async () => SCHOOL_A,
     objectiveExists: async () => true,
@@ -252,13 +253,13 @@ describe('Phase D Edge guard negative auth (mocked store)', () => {
     const t1 = await authorizeAndValidate(store, USER_A, 'extract_work_observation', {
       ...extractPayload,
     });
-    expect(t1).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher' });
+    expect(t1).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher', teacherId: 'teacher-1' });
     const t2 = await authorizeAndValidate(store, USER_A, 'suggest_intervention', {
       schoolId: SCHOOL_A,
       studentId: 'student-1',
       curriculumObjective: '5Nn.01',
       approvedObservationSnippets: ['friction'],
     });
-    expect(t2).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher' });
+    expect(t2).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher', teacherId: 'teacher-1' });
   });
 });

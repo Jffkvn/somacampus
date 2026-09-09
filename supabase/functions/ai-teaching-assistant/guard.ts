@@ -24,6 +24,8 @@ export interface GroundingStore {
   getStreamSchool(streamId: string): Promise<string | null>;
   getSubjectSchool(subjectId: string): Promise<string | null>;
   getEmployeeSchool(employeeId: string): Promise<string | null>;
+  /** auth.uid() → people → employees within schoolId (caller identity). */
+  getEmployeeIdForAuthUser(userId: string, schoolId: string): Promise<string | null>;
   isStudentInSchool(studentId: string, schoolId: string): Promise<boolean>;
   getResourceSchool(resourceId: string): Promise<string | null>;
   objectiveExists(code: string): Promise<boolean>;
@@ -86,11 +88,14 @@ export function extractObjectiveCode(_action: string, payload: Record<string, an
 export interface AuthorizedTenant {
   schoolId: string;
   roleId: string;
+  /** Caller's employee id in schoolId (auth.uid() → people → employees). */
+  teacherId: string | null;
 }
 
 /**
  * Server-side grounding gate. Throws HttpError:
- *  403 when schoolId missing / no role / any supplied ID is cross-tenant,
+ *  403 when schoolId missing / no role / any supplied ID is cross-tenant /
+ *      supplied teacherId is not the authenticated caller,
  *  400 when objective code missing or unknown (never invent).
  */
 export async function authorizeAndValidate(
@@ -116,6 +121,24 @@ export async function authorizeAndValidate(
     );
   }
 
+  // Identity binding: client-supplied teacherId must be THIS caller's employee
+  // row in the school — same-school membership alone is not enough (Teacher A
+  // cannot act as Teacher B). Prefer the server-resolved employee id.
+  const callerEmployeeId = await store.getEmployeeIdForAuthUser(userId, schoolId);
+  if (ids.teacherId) {
+    if (!callerEmployeeId || ids.teacherId !== callerEmployeeId) {
+      throw new HttpError(
+        403,
+        "TEACHER_ID_MISMATCH",
+        "teacherId must be the authenticated caller's employee id for this school."
+      );
+    }
+    const s = await store.getEmployeeSchool(ids.teacherId);
+    if (!s || s !== schoolId) {
+      throw new HttpError(403, "TENANT_MISMATCH", `teacherId ${ids.teacherId} is not in caller's school.`);
+    }
+  }
+
   if (ids.classId) {
     const s = await store.getClassSchool(ids.classId);
     if (!s || s !== schoolId) {
@@ -134,13 +157,6 @@ export async function authorizeAndValidate(
     const s = await store.getSubjectSchool(ids.subjectId);
     if (!s || s !== schoolId) {
       throw new HttpError(403, "TENANT_MISMATCH", `subjectId ${ids.subjectId} is not in caller's school.`);
-    }
-  }
-
-  if (ids.teacherId) {
-    const s = await store.getEmployeeSchool(ids.teacherId);
-    if (!s || s !== schoolId) {
-      throw new HttpError(403, "TENANT_MISMATCH", `teacherId ${ids.teacherId} is not in caller's school.`);
     }
   }
 
@@ -171,5 +187,5 @@ export async function authorizeAndValidate(
     throw new HttpError(400, "UNKNOWN_OBJECTIVE", `Unknown curriculum objective code: "${code}".`);
   }
 
-  return { schoolId, roleId: match.role_id };
+  return { schoolId, roleId: match.role_id, teacherId: callerEmployeeId };
 }

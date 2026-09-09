@@ -804,10 +804,14 @@ export const learningIntelligenceService = {
         for (const a of rawAssignments) {
           const subs = Array.isArray(a.student_submissions) ? a.student_submissions : [];
           totalSubmissions += subs.length;
-          for (const sub of subs) {
-            if (sub.score !== null && sub.score !== undefined) {
-              scoreSum += Number(sub.score);
-              scoreCount++;
+          // averageFormalScorePct is formal-only: diagnostic/support scores must
+          // never enter the class formal average (gradebook separation).
+          if ((a as any).evidence_track === 'formal_graded') {
+            for (const sub of subs) {
+              if (sub.score !== null && sub.score !== undefined) {
+                scoreSum += Number(sub.score);
+                scoreCount++;
+              }
             }
           }
         }
@@ -818,7 +822,9 @@ export const learningIntelligenceService = {
 
       const summaryText = hasInsufficientEvidence
         ? 'Insufficient recent academic submissions to establish class-wide trend.'
-        : `${totalSubmissions} recent submissions reviewed across this subject with average mark of ${avgScore ?? '—'}%. ${studentsNeedingAttention.length} students currently flagged for targeted attention.`;
+        : scoreCount > 0
+          ? `${totalSubmissions} recent submissions reviewed across this subject with formal graded average of ${avgScore}%. ${studentsNeedingAttention.length} students currently flagged for targeted attention.`
+          : `${totalSubmissions} recent submissions reviewed across this subject (no formal graded scores yet). ${studentsNeedingAttention.length} students currently flagged for targeted attention.`;
 
       // 7. Grounded Retrieval Focus Suggestions
       const suggestedRetrievalFocus: PreLessonBriefing['suggestedRetrievalFocus'] = [];

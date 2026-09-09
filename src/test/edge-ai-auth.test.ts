@@ -34,6 +34,7 @@ function mockStore(overrides: Partial<GroundingStore> = {}): GroundingStore {
     getStreamSchool: async () => SCHOOL_A,
     getSubjectSchool: async () => SCHOOL_A,
     getEmployeeSchool: async () => SCHOOL_A,
+    getEmployeeIdForAuthUser: async () => 'teacher-1',
     isStudentInSchool: async () => true,
     getResourceSchool: async () => SCHOOL_A,
     objectiveExists: async () => true,
@@ -109,6 +110,38 @@ describe('Phase A2 edge auth + grounding gate', () => {
     expect(err.code).toBe('TENANT_MISMATCH');
   });
 
+  it('403 TEACHER_ID_MISMATCH: same-school peer teacherId is rejected (caller is not that employee)', async () => {
+    // Teacher A (caller employee teacher-1) supplies Teacher B (also in SCHOOL_A).
+    const store = mockStore({
+      getEmployeeIdForAuthUser: async () => 'teacher-1',
+      getEmployeeSchool: async () => SCHOOL_A, // peer is still same school — must fail on binding
+    });
+    const err = await authorizeAndValidate(
+      store,
+      USER,
+      'generate_assignment',
+      genPayload({ teacherId: 'teacher-2' }),
+    ).catch((e) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect(err.status).toBe(403);
+    expect(err.code).toBe('TEACHER_ID_MISMATCH');
+  });
+
+  it('403 TEACHER_ID_MISMATCH: caller has no employee row in school when teacherId is supplied', async () => {
+    const store = mockStore({ getEmployeeIdForAuthUser: async () => null });
+    const err = await authorizeAndValidate(store, USER, 'generate_assignment', genPayload()).catch(
+      (e) => e,
+    );
+    expect(err.status).toBe(403);
+    expect(err.code).toBe('TEACHER_ID_MISMATCH');
+  });
+
+  it('accepts teacherId equal to the authenticated caller employee and returns it', async () => {
+    const store = mockStore({ getEmployeeIdForAuthUser: async () => 'teacher-1' });
+    const ok = await authorizeAndValidate(store, USER, 'generate_assignment', genPayload());
+    expect(ok).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher', teacherId: 'teacher-1' });
+  });
+
   it('400: unknown objective code never invents', async () => {
     const store = mockStore({ objectiveExists: async () => false });
     const err = await authorizeAndValidate(
@@ -124,7 +157,7 @@ describe('Phase A2 edge auth + grounding gate', () => {
   it('passes: same-school IDs + known objective resolve tenant', async () => {
     const store = mockStore();
     const tenant = await authorizeAndValidate(store, USER, 'generate_assignment', genPayload());
-    expect(tenant).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher' });
+    expect(tenant).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher', teacherId: 'teacher-1' });
   });
 
   it('collects nested lessonContext IDs and normalizes suggest objective', () => {
@@ -152,7 +185,7 @@ describe('Phase A2 edge auth + grounding gate', () => {
       resourceIds: ['res-1'],
       objectiveCode: '5Nn.01',
     });
-    expect(extractTenant).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher' });
+    expect(extractTenant).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher', teacherId: 'teacher-1' });
 
     const suggestTenant = await authorizeAndValidate(store, USER, 'suggest_intervention', {
       schoolId: SCHOOL_A,
@@ -164,7 +197,7 @@ describe('Phase A2 edge auth + grounding gate', () => {
       resourceIds: ['res-1'],
       curriculumObjective: '5Nn.01',
     });
-    expect(suggestTenant).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher' });
+    expect(suggestTenant).toEqual({ schoolId: SCHOOL_A, roleId: 'teacher', teacherId: 'teacher-1' });
   });
 });
 

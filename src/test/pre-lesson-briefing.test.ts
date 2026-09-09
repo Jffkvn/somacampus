@@ -148,5 +148,97 @@ describe.skipIf(!hasUrl)('Pre-Lesson Teacher Briefing ("Before You Teach")', () 
     expect(briefing.studentsNeedingAttention[0].studentName).toBe('John Okello');
     expect(briefing.suggestedRetrievalFocus.length).toBeGreaterThan(0);
     expect(briefing.suggestedRetrievalFocus[0].evidenceBasis).toContain('observation');
+    expect(briefing.recentClassEvidence.averageFormalScorePct).toBe(75);
+  });
+
+  it('averageFormalScorePct excludes diagnostic scores (adversarial regression)', async () => {
+    const classId = 'class-stage-5';
+    const subjectId = 'subj-math';
+
+    (supabase.from as any).mockImplementation((table: string) => {
+      if (table === 'classes') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { name: 'Stage 5 Blue' } }),
+            }),
+          }),
+        };
+      }
+      if (table === 'subjects') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { name: 'Mathematics' } }),
+            }),
+          }),
+        };
+      }
+      if (table === 'lessons') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockReturnValue({
+                      maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'interventions' || table === 'teacher_observations') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockResolvedValue({ data: [] }),
+                gte: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({ data: [] }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: 'asg-formal',
+                      evidence_track: 'formal_graded',
+                      max_score: 100,
+                      student_submissions: [{ score: 80, submission_status: 'submitted' }],
+                    },
+                    {
+                      id: 'asg-diag',
+                      evidence_track: 'diagnostic_evidence',
+                      max_score: 20,
+                      // Low diagnostic score must NOT drag formal average to ~67
+                      student_submissions: [{ score: 4, submission_status: 'submitted' }],
+                    },
+                  ],
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const briefing = await learningIntelligenceService.getPreLessonBriefing(classId, subjectId);
+    expect(briefing.recentClassEvidence.averageFormalScorePct).toBe(80);
+    expect(briefing.recentClassEvidence.totalSubmissions).toBe(2);
   });
 });
