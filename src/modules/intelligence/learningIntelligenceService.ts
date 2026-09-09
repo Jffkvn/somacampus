@@ -17,6 +17,35 @@ const isMockEnv = (): boolean =>
   !import.meta.env.VITE_SUPABASE_ANON_KEY ||
   import.meta.env.VITE_SUPABASE_ANON_KEY === 'placeholder-anon-key';
 
+// ---------------------------------------------------------------------------
+// Phase C evidence-integrity policy constants.
+// Heuristic thresholds are named (never magic): they gate qualitative
+// attention flags only — the longitudinal path is verify-only and must
+// never create or mutate interventions (regression-tested).
+// ---------------------------------------------------------------------------
+/** Minimum evidence items before a pattern may be classified (else insufficient_evidence). */
+export const HEURISTIC_MIN_EVIDENCE_FOR_PATTERN = 2;
+/** Formal average below this percent flags support_needed (qualitative attention only). */
+export const HEURISTIC_FORMAL_SUPPORT_THRESHOLD_PCT = 50;
+/** Misconception/support_need observations at/above this count form an observed_pattern. */
+export const HEURISTIC_MIN_CONCERN_OBSERVATIONS = 2;
+/** Strength observations at/above this count form an observed strength pattern. */
+export const HEURISTIC_MIN_STRENGTH_OBSERVATIONS = 2;
+/** Observation lookback window (days) for the pre-lesson briefing "recent" predicate. */
+export const HEURISTIC_OBSERVATION_LOOKBACK_DAYS = 30;
+
+/**
+ * Legal intervention lifecycle transitions (draft → active → completed/abandoned).
+ * Rejected pairs (notably active → draft, completed → active) throw instead of
+ * writing, so status history stays monotonic and auditable.
+ */
+const LEGAL_INTERVENTION_TRANSITIONS: Record<InterventionStatus, InterventionStatus[]> = {
+  draft: ['active', 'abandoned'],
+  active: ['completed', 'abandoned'],
+  completed: [],
+  abandoned: [],
+};
+
 
 function one<T>(val: T | T[] | null | undefined): T | null {
   if (Array.isArray(val)) return val[0] ?? null;
@@ -329,9 +358,12 @@ export const learningIntelligenceService = {
         ).length;
 
         let status: 'steady' | 'support_needed' | 'insufficient_evidence' = 'steady';
-        if (totalEvidence < 2) {
+        if (totalEvidence < HEURISTIC_MIN_EVIDENCE_FOR_PATTERN) {
           status = 'insufficient_evidence';
-        } else if ((sFormalAvg !== null && sFormalAvg < 50) || struggles >= 2) {
+        } else if (
+          (sFormalAvg !== null && sFormalAvg < HEURISTIC_FORMAL_SUPPORT_THRESHOLD_PCT) ||
+          struggles >= HEURISTIC_MIN_CONCERN_OBSERVATIONS
+        ) {
           status = 'support_needed';
         }
 
@@ -376,7 +408,7 @@ export const learningIntelligenceService = {
 
         const totalItems = group.formal.length + group.diagnostic.length + group.obs.length;
 
-        if (totalItems < 2) {
+        if (totalItems < HEURISTIC_MIN_EVIDENCE_FOR_PATTERN) {
           emergingPatterns.push({
             subjectId: subjId,
             subjectName: group.name,
@@ -392,7 +424,7 @@ export const learningIntelligenceService = {
         }
 
         // Observed Struggle Pattern
-        if (misconceptions.length + supportNeeds.length >= 2) {
+        if (misconceptions.length + supportNeeds.length >= HEURISTIC_MIN_CONCERN_OBSERVATIONS) {
           emergingPatterns.push({
             subjectId: subjId,
             subjectName: group.name,
@@ -406,7 +438,7 @@ export const learningIntelligenceService = {
           });
         }
         // Observed Strength Pattern
-        else if (strengths.length >= 2) {
+        else if (strengths.length >= HEURISTIC_MIN_STRENGTH_OBSERVATIONS) {
           emergingPatterns.push({
             subjectId: subjId,
             subjectName: group.name,
@@ -420,7 +452,7 @@ export const learningIntelligenceService = {
           });
         }
         // Possible Struggle Pattern (1 observation + lower score)
-        else if (misconceptions.length === 1 && group.formal.some((f) => f.score !== null && Number(f.score) < 50)) {
+        else if (misconceptions.length === 1 && group.formal.some((f) => f.score !== null && Number(f.score) < HEURISTIC_FORMAL_SUPPORT_THRESHOLD_PCT)) {
           emergingPatterns.push({
             subjectId: subjId,
             subjectName: group.name,
@@ -553,7 +585,8 @@ export const learningIntelligenceService = {
     classId: string,
     subjectId: string,
     topic?: string,
-    objectiveId?: string
+    objectiveId?: string,
+    options?: { timetableEntryId?: string; schoolId?: string },
   ): Promise<PreLessonBriefing> {
     if (isMockEnv()) {
       return {
@@ -572,6 +605,27 @@ export const learningIntelligenceService = {
         recentClassObservations: [],
         suggestedRetrievalFocus: [],
       };
+    }
+
+    // 0. Timetable-entry scoping (Phase C): when the caller teaches from a
+    // scheduled entry, the entry must belong to the requested class and —
+    // when a school is supplied — to that teacher's school (via the entry's
+    // class/timetable school lineage). Cross-tenant entries throw (fail
+    // closed, outside the degraded-fallback try below so scoping failures
+    // are never masked as an empty briefing).
+    if (options?.timetableEntryId) {
+      const { data: entry, error: entryErr } = await supabase
+        .from('timetable_entries')
+        .select('id, class_id, timetables(school_id)')
+        .eq('id', options.timetableEntryId)
+        .maybeSingle();
+      const e = entry as any;
+      const entrySchool = Array.isArray(e?.timetables)
+        ? e.timetables[0]?.school_id
+        : e?.timetables?.school_id;
+      if (entryErr || !e || e.class_id !== classId || (options.schoolId && entrySchool !== options.schoolId)) {
+        throw new Error('Timetable entry does not belong to the requested class/school.');
+      }
     }
 
     try {
@@ -619,7 +673,12 @@ export const learningIntelligenceService = {
 
       const interventionsList = Array.isArray(rawInterventions) ? rawInterventions : [];
 
-      // 4. Recent Class Observations in this subject (last 30 days)
+      // 4. Recent Class Observations in this subject (last 30 days — the date
+      // predicate below implements the window; rows older than the cutoff are
+      // never surfaced as "recent" nor used for attention flags).
+      const observationCutoff = new Date(
+        Date.now() - HEURISTIC_OBSERVATION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+      ).toISOString();
       const { data: rawObs } = await supabase
         .from('teacher_observations')
         .select(`
@@ -632,6 +691,7 @@ export const learningIntelligenceService = {
         `)
         .eq('class_id', classId)
         .eq('subject_id', subjectId)
+        .gte('observed_at', observationCutoff)
         .order('observed_at', { ascending: false })
         .limit(10);
 
@@ -840,6 +900,10 @@ export const learningIntelligenceService = {
 
   /**
    * Creates a targeted teacher intervention.
+   * Defaults to 'draft': only an explicit teacher activation (via
+   * activateIntervention) may move it to 'active'. Requesting 'active' up
+   * front additionally requires observation-type evidence in the payload —
+   * activation without a grounding observation is rejected.
    * Inserts canonical relational links into intervention_evidence.
    */
   async createIntervention(
@@ -850,7 +914,13 @@ export const learningIntelligenceService = {
     const userId = userRes?.user?.id;
 
     // AI or automated systems can ONLY create 'draft'. Teacher approval required for 'active'.
-    const status = input.status ?? 'active';
+    const status = input.status ?? 'draft';
+
+    if (status === 'active' && !evidenceItems.some((ev) => ev.type === 'observation')) {
+      throw new Error(
+        'Active interventions require linked observation evidence: approve the grounding observation first, then activate.',
+      );
+    }
 
     const { data, error } = await supabase
       .from('interventions')
@@ -901,8 +971,61 @@ export const learningIntelligenceService = {
   },
 
   /**
-   * Updates intervention status. Enforces valid lifecycle:
-   * draft -> active -> completed/abandoned.
+   * Explicit teacher activation gate: draft → active.
+   * Validates (1) the intervention is still a draft, (2) at least one
+   * observation-type evidence link exists (provenance grounding), and
+   * (3) the activating teacher owns the intervention. No other path may
+   * create an 'active' intervention without observation linkage.
+   */
+  async activateIntervention(interventionId: string, teacherId: string): Promise<void> {
+    const { data: row, error: fetchErr } = await supabase
+      .from('interventions')
+      .select('id, status, teacher_id, school_id')
+      .eq('id', interventionId)
+      .maybeSingle();
+
+    if (fetchErr || !row) {
+      throw new Error(`Cannot activate intervention: ${fetchErr?.message || 'Intervention not found'}`);
+    }
+
+    const current = (row as any).status as InterventionStatus;
+    if (current !== 'draft') {
+      throw new Error(`Only draft interventions can be activated (current status: ${current}).`);
+    }
+
+    if (!teacherId || (row as any).teacher_id !== teacherId) {
+      throw new Error('Only the owning teacher may activate this intervention.');
+    }
+
+    const { data: evidence, error: evErr } = await supabase
+      .from('intervention_evidence')
+      .select('evidence_type')
+      .eq('intervention_id', interventionId);
+
+    if (evErr) {
+      throw new Error(`Cannot verify intervention evidence: ${evErr.message}`);
+    }
+
+    const hasObservation = Array.isArray(evidence) && evidence.some((e: any) => e.evidence_type === 'observation');
+    if (!hasObservation) {
+      throw new Error('Activation requires linked observation evidence: approve the grounding observation first.');
+    }
+
+    const { error: updateErr } = await supabase
+      .from('interventions')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .eq('id', interventionId);
+
+    if (updateErr) {
+      throw new Error(`Failed to activate intervention: ${updateErr.message}`);
+    }
+  },
+
+  /**
+   * Updates intervention status. Enforces the legal lifecycle
+   * (draft → active → completed/abandoned):
+   * rejects active → draft, completed → active, and any other
+   * non-monotonic transition instead of writing it.
    * DB trigger automatically records state change in intervention_audit_logs.
    */
   async updateInterventionStatus(
@@ -910,6 +1033,20 @@ export const learningIntelligenceService = {
     newStatus: InterventionStatus,
     reason?: string,
   ): Promise<void> {
+    const { data: row, error: fetchErr } = await supabase
+      .from('interventions')
+      .select('id, status')
+      .eq('id', interventionId)
+      .maybeSingle();
+
+    if (fetchErr || !row) {
+      throw new Error(`Cannot update intervention status: ${fetchErr?.message || 'Intervention not found'}`);
+    }
+
+    const current = (row as any).status as InterventionStatus;
+    if (current !== newStatus && !LEGAL_INTERVENTION_TRANSITIONS[current]?.includes(newStatus)) {
+      throw new Error(`Illegal intervention status transition: ${current} → ${newStatus}.`);
+    }
     const updatePayload: Record<string, any> = {
       status: newStatus,
       updated_at: new Date().toISOString(),

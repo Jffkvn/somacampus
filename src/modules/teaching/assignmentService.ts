@@ -249,6 +249,36 @@ export const assignmentService = {
       teacherId: string;
     }
   ): Promise<StudentSubmission> {
+    // Gradebook guard (Phase C): authoritative scores live ONLY on the
+    // formal_graded track. Diagnostic evidence accepts feedback but never a
+    // score — a score on any other track is rejected before any write.
+    if (review.score !== null && review.score !== undefined) {
+      const { data: subRow, error: subErr } = await supabase
+        .from('student_submissions')
+        .select('assignment_id')
+        .eq('id', submissionId)
+        .maybeSingle();
+
+      const assignmentId = (subRow as any)?.assignment_id;
+      if (subErr || !assignmentId) {
+        throw new Error('Cannot verify assignment evidence track for scoring.');
+      }
+
+      const { data: assignRow, error: assignErr } = await supabase
+        .from('assignments')
+        .select('evidence_track')
+        .eq('id', assignmentId)
+        .maybeSingle();
+
+      if (assignErr || !assignRow) {
+        throw new Error('Cannot verify assignment evidence track for scoring.');
+      }
+
+      if ((assignRow as any).evidence_track !== 'formal_graded') {
+        throw new Error('Scores may only be recorded for formal graded assessments (formal_graded track).');
+      }
+    }
+
     const payload: Record<string, unknown> = {
       teacher_review_status: review.reviewStatus,
       teacher_feedback: review.feedback ?? null,

@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   extractObservationDraft: vi.fn(),
   suggestIntervention: vi.fn(),
   createIntervention: vi.fn(),
+  activateIntervention: vi.fn(),
   findMatchingResources: vi.fn(),
 }));
 
@@ -119,6 +120,7 @@ vi.mock('../modules/teaching/resourceLibraryService', () => ({
 vi.mock('../modules/intelligence/learningIntelligenceService', () => ({
   learningIntelligenceService: {
     createIntervention: (...args: any[]) => mocks.createIntervention(...args),
+    activateIntervention: (...args: any[]) => mocks.activateIntervention(...args),
   },
 }));
 
@@ -395,7 +397,8 @@ describe('A3 AssignmentReviewPage identity resolution', () => {
       strategyAction: 'Small-group reteach',
       targetOutcome: 'Converts confidently',
     });
-    mocks.createIntervention.mockResolvedValue({ id: 'int-1' });
+    mocks.createIntervention.mockResolvedValue({ interventionId: 'int-1' });
+    mocks.activateIntervention.mockResolvedValue(undefined);
   });
 
   afterEach(() => {

@@ -57,8 +57,17 @@ const gradingKeyRefinement = (obj: Record<string, unknown>, ctx: z.RefinementCtx
   }
 };
 
-const NO_GRADE_TEXT_EDGE =
-  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrade\s+[A-F]\b|\bfinal\s+grades?\b|\bgraded?\s+\d{2,}\b|\bgraded?\s+\d+\s*\/\s*\d+|\bgrading\s+(scale|system)\b)/i;
+const NO_GRADE_TEXT_EDGE_CI =
+  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrade\s+[A-F]\b|\bfinal\s+grades?\b|\bgraded?\s+\d+\s*\/\s*\d+|\bgrading\s+(scale|system)\b)/i;
+
+// Policy (Phase C drive-by): the 2+-digit number pattern is lowercase-only
+// ('grade 85' rejected) so capitalized stage labels ('Grade 10') pass.
+// No /i flag by design.
+const NO_GRADE_NUMBER_CS =
+  /\bgraded?\s+\d{2,}\b/;
+
+const containsGradingProseEdge = (t: string): boolean =>
+  NO_GRADE_TEXT_EDGE_CI.test(t) || NO_GRADE_NUMBER_CS.test(t);
 
 export const ObservationDraftEdgeSchema = z
   .object({
@@ -66,7 +75,7 @@ export const ObservationDraftEdgeSchema = z
     observationText: z
       .string()
       .min(1)
-      .refine((t) => !NO_GRADE_TEXT_EDGE.test(t), {
+      .refine((t) => !containsGradingProseEdge(t), {
         message: "Observation text must not contain scores, percentages, marks, or grades.",
       }),
     suggestedFollowupFocus: z.string().min(1).optional(),

@@ -54,7 +54,7 @@ export const InterventionModal: React.FC<InterventionModalProps> = ({
   const [targetDate, setTargetDate] = useState(
     new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
   );
-  const [status, setStatus] = useState<InterventionStatus>('active');
+  const [status, setStatus] = useState<InterventionStatus>('draft');
   const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -121,7 +121,10 @@ export const InterventionModal: React.FC<InterventionModalProps> = ({
         .filter((e) => selectedEvidenceIds.includes(e.id))
         .map((e) => ({ type: e.type, id: e.id }));
 
-      await learningIntelligenceService.createIntervention(
+      // Phase C two-step: always persist as draft first; an explicit teacher
+      // activation moves it to active (the activate op itself enforces
+      // draft → active + observation linkage + teacher authorization).
+      const { interventionId } = await learningIntelligenceService.createIntervention(
         {
           schoolId,
           studentId,
@@ -134,10 +137,14 @@ export const InterventionModal: React.FC<InterventionModalProps> = ({
           strategyAction,
           targetOutcome,
           targetDate,
-          status,
+          status: 'draft',
         },
         evidenceToLink,
       );
+
+      if (status === 'active') {
+        await learningIntelligenceService.activateIntervention(interventionId, teacherId);
+      }
 
       onSuccess();
       onClose();

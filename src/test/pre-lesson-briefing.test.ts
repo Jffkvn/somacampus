@@ -90,18 +90,20 @@ describe.skipIf(!hasUrl)('Pre-Lesson Teacher Briefing ("Before You Teach")', () 
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
-                order: vi.fn().mockReturnValue({
-                  limit: vi.fn().mockResolvedValue({
-                    data: [
-                      {
-                        id: 'obs-1',
-                        student_id: 'student-john',
-                        observation_type: 'misconception',
-                        observation_text: 'Confusion between 3/4 and 6/8',
-                        observed_at: '2026-09-02T10:30:00Z',
-                        students: { people: { first_name: 'John', last_name: 'Okello' } },
-                      },
-                    ],
+                gte: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({
+                      data: [
+                        {
+                          id: 'obs-1',
+                          student_id: 'student-john',
+                          observation_type: 'misconception',
+                          observation_text: 'Confusion between 3/4 and 6/8',
+                          observed_at: '2026-09-02T10:30:00Z',
+                          students: { people: { first_name: 'John', last_name: 'Okello' } },
+                        },
+                      ],
+                    }),
                   }),
                 }),
               }),

@@ -74,8 +74,21 @@ function rejectGradingKeys(obj: Record<string, unknown>, ctx: z.RefinementCtx) {
 // (grade + letter, 'final grade', grade + number-as-score, grading
 // scale/system). Word-boundaried to stay tight: stage labels ('Grade 5'),
 // 'grade-level', and 'graded readers/evidence' never match.
-const NO_GRADE_TEXT =
-  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrade\s+[A-F]\b|\bfinal\s+grades?\b|\bgraded?\s+\d{2,}\b|\bgraded?\s+\d+\s*\/\s*\d+|\bgrading\s+(scale|system)\b)/i;
+//
+// Policy (Phase C drive-by): the 2+-digit number pattern is matched by the
+// case-SENSITIVE NO_GRADE_NUMBER_CS below, restricted to lowercase 'grade' /
+// 'graded'. Stage labels are capitalized ('Grade 10') and must pass, while
+// score-like prose ('grade 85', 'graded 82') is rejected.
+const NO_GRADE_TEXT_CI =
+  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrade\s+[A-F]\b|\bfinal\s+grades?\b|\bgraded?\s+\d+\s*\/\s*\d+|\bgrading\s+(scale|system)\b)/i;
+
+// Lowercase-only: 'grade 85' / 'graded 82' denote scores; 'Grade 10' is a
+// stage label and must NOT match (no /i flag by design).
+const NO_GRADE_NUMBER_CS = /\bgraded?\s+\d{2,}\b/;
+
+function containsGradingProse(t: string): boolean {
+  return NO_GRADE_TEXT_CI.test(t) || NO_GRADE_NUMBER_CS.test(t);
+}
 
 export const ObservationDraftAiSchema = z
   .object({
@@ -83,7 +96,7 @@ export const ObservationDraftAiSchema = z
     observationText: z
       .string()
       .min(1)
-      .refine((t) => !NO_GRADE_TEXT.test(t), {
+      .refine((t) => !containsGradingProse(t), {
         message: 'Observation text must not contain scores, percentages, marks, or grades.',
       }),
     suggestedFollowupFocus: z.string().min(1).optional(),

@@ -95,7 +95,17 @@ describe('Intervention Service Unit Tests', () => {
 
     (supabase.from as any).mockImplementation((table: string) => {
       if (table === 'interventions') {
-        return { update: mockUpdate };
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { id: 'intervention-1', status: 'active' },
+                error: null,
+              }),
+            }),
+          }),
+          update: mockUpdate,
+        };
       }
       return {};
     });

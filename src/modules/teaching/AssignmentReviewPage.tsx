@@ -62,6 +62,9 @@ export const AssignmentReviewPage: React.FC = () => {
   const [interventionDraft, setInterventionDraft] = useState<GroundedInterventionDraft | null>(null);
   const [isAcceptingIntervention, setIsAcceptingIntervention] = useState(false);
   const [interventionSuccessMsg, setInterventionSuccessMsg] = useState<string | null>(null);
+  // Phase C provenance: id of the teacher-approved observation grounding the
+  // intervention accept path (linked as observation-type evidence).
+  const [approvedObsId, setApprovedObsId] = useState<string | null>(null);
 
   // Authenticated teacher identity — resolved per school, never a demo constant.
   // Review, observation and intervention writes stay disabled until it resolves.
@@ -187,6 +190,7 @@ export const AssignmentReviewPage: React.FC = () => {
     setAiExtractSubmission(sub);
     setIsExtractingAi(true);
     setObsApprovedSuccess(false);
+    setApprovedObsId(null);
     setInterventionDraft(null);
     setInterventionSuccessMsg(null);
 
@@ -226,7 +230,7 @@ export const AssignmentReviewPage: React.FC = () => {
 
     try {
       setIsApprovingObs(true);
-      await observationService.createObservation({
+      const savedObs = await observationService.createObservation({
         schoolId: assignment.schoolId,
         studentId: aiExtractSubmission.studentId,
         teacherId: myTeacherId,
@@ -238,6 +242,9 @@ export const AssignmentReviewPage: React.FC = () => {
         observationText: aiDraftObsText.trim(),
       });
 
+      // Phase C provenance: capture the saved observation id so the
+      // intervention accept path links [{observation: obsId}, {submission}].
+      setApprovedObsId(savedObs.id);
       setObsApprovedSuccess(true);
     } catch (err: any) {
       alert(err?.message ?? 'Failed to record approved observation');
@@ -275,7 +282,15 @@ export const AssignmentReviewPage: React.FC = () => {
     try {
       setIsAcceptingIntervention(true);
       const targetDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      await learningIntelligenceService.createIntervention(
+      // Phase C provenance: link the approved observation (when present) plus
+      // the grounding submission. Created as draft, then explicitly activated
+      // — never a direct status:'active' create.
+      const evidence: Array<{ type: 'observation' | 'submission'; id: string }> = [];
+      if (approvedObsId) {
+        evidence.push({ type: 'observation', id: approvedObsId });
+      }
+      evidence.push({ type: 'submission', id: aiExtractSubmission.id });
+      const { interventionId } = await learningIntelligenceService.createIntervention(
         {
           schoolId: assignment.schoolId,
           studentId: aiExtractSubmission.studentId,
@@ -289,10 +304,11 @@ export const AssignmentReviewPage: React.FC = () => {
           strategyAction: interventionDraft.strategyAction,
           targetOutcome: interventionDraft.targetOutcome,
           targetDate,
-          status: 'active', // Explicit teacher approval gate
+          status: 'draft', // Explicit teacher approval gate below
         },
-        [{ type: 'submission', id: aiExtractSubmission.id }]
+        evidence
       );
+      await learningIntelligenceService.activateIntervention(interventionId, myTeacherId);
       setInterventionSuccessMsg('Intervention accepted & active! Grounded evidence will appear in your next Lesson Cockpit briefing.');
     } catch (err: any) {
       alert(err?.message ?? 'Failed to accept intervention');
