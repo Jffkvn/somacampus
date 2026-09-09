@@ -22,6 +22,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Stage 1 - Mock Rot & In-Memory Cheat Scan
+        run: npm run verify:trust
+
       - name: Stage 2 - Database Contract Alignment Audit
         run: npm run verify:contracts
 
@@ -42,4 +45,3 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://mock.supabase.co
           VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock
-

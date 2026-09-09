@@ -1,0 +1,67 @@
+# Nightly / manual LIVE E2E against a real Supabase project.
+# Mock suite (verify.yml) runs on every PR; this job is the only path that
+# claims TRANSACTIONAL verification and therefore requires live secrets.
+#
+# Required repository secrets:
+#   VITE_SUPABASE_URL              — project URL
+#   VITE_SUPABASE_ANON_KEY         — anon key (signed-in client tests)
+#   SUPABASE_SERVICE_ROLE_KEY      — service role (live E2E admin client)
+#
+# Honesty: if secrets are missing the job fails loudly (no silent PASS).
+name: Live E2E (nightly + manual)
+
+on:
+  schedule:
+    # 02:17 UTC daily — off the :00 stampede
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: live-e2e
+  cancel-in-progress: false
+
+jobs:
+  live-ai-loop-e2e:
+    name: LIVE-GATED AI teaching loop E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Require live secrets (fail closed — never skip silently)
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          missing=0
+          for v in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Missing required secret: $v"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Live E2E cannot run without secrets. Configure repo secrets or use workflow_dispatch after setup."
+            exit 1
+          fi
+          echo "Live secrets present."
+
+      - name: LIVE-GATED AI teaching loop E2E
+        run: npm run test:live-e2e
+        env:
+          TEST_LIVE_DB: 'true'
+          TEST_E2E_SCHOOL_ID: ${{ secrets.TEST_E2E_SCHOOL_ID }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
