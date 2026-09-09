@@ -23,14 +23,12 @@ import {
   FileText,
 } from 'lucide-react';
 
-const DEFAULT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
 const DEFAULT_TEACHER_ID = '99999999-9999-9999-9999-999999999992'; // David Musoke
 
 export const AssignmentCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { schoolId } = useAuth();
-  const effectiveSchoolId = schoolId || DEFAULT_SCHOOL_ID;
 
   const prefillLessonId = searchParams.get('lessonId') || undefined;
   const prefillClassId = searchParams.get('classId') || '55555555-5555-5555-5555-555555555551'; // Stage 5
@@ -62,22 +60,28 @@ export const AssignmentCreatePage: React.FC = () => {
   // Layer 4 Resource Library Search-Before-Generate State
   const [matchingResources, setMatchingResources] = useState<AcademicResource[]>([]);
   const [isLoadingResources, setIsLoadingResources] = useState(false);
+  const [resourceError, setResourceError] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Query live school resources when objective changes in modal
   useEffect(() => {
-    if (!isAiModalOpen) return;
+    if (!isAiModalOpen || !schoolId) return;
     let isCancelled = false;
     setIsLoadingResources(true);
+    setResourceError(null);
     resourceLibraryService
-      .findMatchingResources(effectiveSchoolId, selectedObjectiveCode)
+      .findMatchingResources(schoolId, selectedObjectiveCode)
       .then((res) => {
         if (!isCancelled) setMatchingResources(res);
       })
-      .catch(() => {
-        if (!isCancelled) setMatchingResources([]);
+      .catch((err) => {
+        // Fail closed: surface the error, never inject unscoped fallback rows.
+        if (!isCancelled) {
+          setMatchingResources([]);
+          setResourceError(err.message ?? 'Failed to search school resource library.');
+        }
       })
       .finally(() => {
         if (!isCancelled) setIsLoadingResources(false);
@@ -85,7 +89,7 @@ export const AssignmentCreatePage: React.FC = () => {
     return () => {
       isCancelled = true;
     };
-  }, [isAiModalOpen, selectedObjectiveCode, effectiveSchoolId]);
+  }, [isAiModalOpen, selectedObjectiveCode, schoolId]);
 
   // Available Cambridge objectives for Stage 5 Mathematics
   const availableObjectives = useMemo(() => {
@@ -104,6 +108,9 @@ export const AssignmentCreatePage: React.FC = () => {
     try {
       setIsGeneratingAi(true);
       setErrorMessage(null);
+      if (!schoolId) {
+        throw new Error('Sign in to generate drafts for your school.');
+      }
 
       const draft = await teachingAiService.generateAssignmentDraft({
         objectiveCode: selectedObjectiveCode,
@@ -111,7 +118,7 @@ export const AssignmentCreatePage: React.FC = () => {
         stageNumber: 5,
         adaptedResource,
         lessonContext: {
-          schoolId: effectiveSchoolId,
+          schoolId,
           teacherId: DEFAULT_TEACHER_ID,
           classId: prefillClassId,
           className: 'Stage 5 Blue',
@@ -165,13 +172,17 @@ export const AssignmentCreatePage: React.FC = () => {
       setErrorMessage('You must review and check the approval confirmation before publishing an AI-drafted assignment.');
       return;
     }
+    if (!schoolId) {
+      setErrorMessage('Sign in to publish assignments for your school.');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
       setErrorMessage(null);
 
       const created = await assignmentService.createAssignment({
-        schoolId: effectiveSchoolId,
+        schoolId,
         teacherId: DEFAULT_TEACHER_ID,
         classId: prefillClassId,
         streamId: prefillStreamId,
@@ -200,6 +211,22 @@ export const AssignmentCreatePage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  // Fail-closed tenant gate: never fall back to a demo school when unauthenticated.
+  if (!schoolId) {
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto px-4 py-6">
+        <Card>
+          <CardContent>
+            <p className="text-sm font-bold text-slate-800">Sign in to create assignments for your school</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Assignments are scoped to your school. Please sign in to continue.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto px-4 py-6">
@@ -538,6 +565,10 @@ export const AssignmentCreatePage: React.FC = () => {
                   <p className="text-[11px] text-slate-400 italic p-2.5 bg-slate-50 rounded border border-slate-200">
                     Searching library for approved {selectedObjectiveCode} materials...
                   </p>
+                ) : resourceError ? (
+                  <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-red-700 text-[11px] font-semibold">
+                    {resourceError}
+                  </div>
                 ) : matchingResources.length > 0 ? (
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {matchingResources.map((res) => (
