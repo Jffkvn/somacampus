@@ -146,9 +146,9 @@ The teaching loop connects curriculum planning, student physical work, evidence 
 #### Stage 9: Targeted Next-Step Intervention & Next-Lesson Briefing
 - For students exhibiting friction or misconceptions, teacher clicks **[Suggest Next Step]**.
 - AI proposes a targeted 14-day small-group retrieval action (e.g. *Conduct structured 15-minute small-group retrieval practice with concrete fraction strips twice weekly*).
-- Teacher clicks **[Accept Intervention]**.
-- Persisted to PostgreSQL table `interventions` (`status = 'active'`) with linked evidence in `intervention_evidence`.
-- Immediately becomes visible in the teacher's Morning Workspace ([Teacher Today](../../src/modules/teacher/TeacherTodayPage.tsx)) pre-lesson briefing for the next scheduled class!
+- **Two-step teacher gate (Phase C):** the suggestion is saved as a **draft** (`interventions.status = 'draft'`) with provenance links in `intervention_evidence` (observation + submission). Direct creation of `active` is rejected.
+- Explicit activation only: `learningIntelligenceService.activateIntervention(interventionId, teacherId)` moves draft → active after (1) still-draft check, (2) observation evidence linkage, (3) teacher ownership. `updateInterventionStatus` rejects draft → active (single activation path, no bypass).
+- After activation the intervention surfaces in the teacher's Morning Workspace ([Teacher Today](../../src/modules/teacher/TeacherTodayPage.tsx)) pre-lesson briefing for the next scheduled class.
 
 ---
 
@@ -172,15 +172,41 @@ Educator acceptance gate linking evidence to longitudinal intervention profile:
 
 ---
 
-## 5. Verification Results Matrix
+## 5. Phase D — Verification Suites (honest labels)
 
-All verification commands executed against the live remote database and local Vite server:
+| Suite | File | Label | This environment |
+|---|---|---|---|
+| Negative tenant isolation | `src/test/ai-loop-negative-tenant.test.ts` | **MOCKED-UNIT** | Runs: School A vs B resource/list/byId/create, observation/assignment RLS denial, Edge 403 `TENANT_MISMATCH` / `TENANT_FORBIDDEN`, Bearer → 401 contract |
+| Gradebook separation | `src/test/gradebook-separation.test.ts` | **MOCKED-UNIT** | Runs: diagnostic score rejected pre-write; formal averages exclude diagnostic |
+| Full teaching-loop E2E | `src/test/ai-teaching-loop-e2e.test.ts` | **MOCKED-LOOP** + **LIVE-GATED** | MOCKED-LOOP runs (21 steps, payloads + sequencing, `provider:'synthetic-test'`). LIVE-GATED **skips** unless `TEST_LIVE_DB=true` with live anon + service-role creds. |
+
+Browser traversal remains **SMOKE_ONLY** (see `browser_test_report.json`): DOM/shell checks only, never a transactional DB proof.
+
+---
+
+## 6. Verification Results Matrix
+
+Labels are honesty-scoped: **PASS** only when a gate actually executed successfully in this run. Browser traversal is **SMOKE_ONLY**, not transactionally verified.
+
+**Phase D gate run** (worktree `feat/ai-loop-hardening`, no live Supabase creds):
 
 | Verification Gate | Command | Scope | Result |
 |---|---|---|---|
-| **Production Trust Gate** | `npm run verify:trust` | 39 runtime services | **0 errors, 0 warnings** (Zero mock rot) |
-| **Database Contracts** | `npm run verify:contracts` | UI forms to PostgreSQL constraints | **PASS** (100% aligned) |
-| **Migration Safety** | `npm run verify:migrations` | 60 remote migrations catalog | **PASS** (RLS verified, no ungrantable statements) |
-| **Type Validation** | `npm run typecheck` | TypeScript compiler (`tsc -b`) | **PASS** (0 type errors) |
-| **Automated Tests** | `npm test` | Vitest test suites | **80 passed (700 tests passed, 0 failed)** |
-| **Browser Traversal** | `node scripts/verify-browser-playwright.mjs` | 20 operator routes in Chrome | **PASS (0 console errors, 0 runtime errors)** |
+| **Production Trust Gate** | `npm run verify:trust` | 39 runtime services | **PASS** — 0 errors, 0 warnings (zero mock rot) |
+| **Database Contracts** | `npm run verify:contracts` | UI forms to PostgreSQL constraints | **PASS** — 0 errors, 0 warnings |
+| **Migration Safety** | `npm run verify:migrations` | 62 SQL migration files | **PASS** — 0 errors, 13 pre-existing warnings (core-schema `USING (true)` reads + historical `subject_teachers` DELETEs; not introduced by this branch) |
+| **Type Validation** | `npm run typecheck` | TypeScript (`tsc -b`) | **PASS** — exit 0 |
+| **Automated Tests** | `npm test` | Vitest (incl. Phase D suites) | **PASS** — **86 files passed, 7 skipped; 793 tests passed, 29 skipped, 0 failed** |
+| **Browser Traversal** | `node scripts/verify-browser-playwright.mjs` | 20 operator routes | **SMOKE_ONLY** — requires live Vite (`localhost:5173`) + Chrome; not re-run here. Prior report: 20/20 SMOKE_ONLY, 0 failures (`browser_test_report.json`) |
+| **LIVE loop E2E** | `TEST_LIVE_DB=true` + live creds | 21-step transactional loop | **SKIPPED** — no live Supabase creds in this environment. Proof rests on MOCKED-LOOP + prior live walkthrough evidence, not a new transactional run. |
+
+### Phase D forensic summary
+
+| Item | Verdict |
+|---|---|
+| Negative tenant suite | **MOCKED-UNIT PASS** (11 tests) |
+| Gradebook separation suite | **MOCKED-UNIT PASS** (3 tests) |
+| Loop E2E MOCKED-LOOP | **PASS** (21 steps; AI via `provider:'synthetic-test'`) |
+| Loop E2E LIVE-GATED | **SKIPPED** — `TEST_LIVE_DB` / live creds absent |
+| Browser smoke | **Not re-run** — needs localhost:5173; labels corrected to SMOKE_ONLY |
+| `src/` behavior changes in Phase D | **None** (tests + docs only) |
