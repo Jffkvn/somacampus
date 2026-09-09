@@ -1,4 +1,38 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+/**
+ * Force the deterministic test-mode synthesis seam.
+ * With a live .env present, an unmocked functions.invoke hits the deployed Edge
+ * and client schema validation rejects stale payloads — these cases assert the
+ * grounding engine's synthetic path, not a live provider round-trip.
+ */
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+      signOut: vi.fn().mockResolvedValue({ error: null }),
+    },
+    functions: {
+      invoke: vi.fn().mockRejectedValue(new Error('offline (unit test seam)')),
+    },
+    from: vi.fn(() => {
+      const err = { message: 'offline (unit test)' };
+      const b: any = {
+        select: () => b,
+        eq: () => b,
+        order: () => b,
+        limit: () => b,
+        or: () => b,
+        in: () => b,
+        then: (res: any, rej: any) => Promise.resolve({ data: null, error: err }).then(res, rej),
+      };
+      return b;
+    }),
+  },
+}));
+
 import {
   teachingAiService,
   resolveCambridgeObjective,
