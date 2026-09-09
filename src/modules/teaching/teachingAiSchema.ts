@@ -69,13 +69,13 @@ function rejectGradingKeys(obj: Record<string, unknown>, ctx: z.RefinementCtx) {
   }
 }
 
-// Explicit grading-prose list: score(s)/scored, ranking/ranked, marks,
-// percentage/percent/%, grade(d)/grading. Word-boundaried to stay tight
-// (e.g. "classroom" or "disagreement" never match), at the accepted cost that
-// phrases like "graded evidence" are rejected — any grading language keeps
-// the draft out, by design.
+// Explicit grading-prose list: score(s)/scored, ranking(s)/ranked, marks,
+// percentage/percent/%, plus grade-forms ONLY with grading semantics
+// (grade + letter, 'final grade', grade + number-as-score, grading
+// scale/system). Word-boundaried to stay tight: stage labels ('Grade 5'),
+// 'grade-level', and 'graded readers/evidence' never match.
 const NO_GRADE_TEXT =
-  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrades?\b|\bgraded\b|\bgrading\b)/i;
+  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrade\s+[A-F]\b|\bfinal\s+grades?\b|\bgraded?\s+\d{2,}\b|\bgraded?\s+\d+\s*\/\s*\d+|\bgrading\s+(scale|system)\b)/i;
 
 export const ObservationDraftAiSchema = z
   .object({
@@ -106,8 +106,9 @@ export const InterventionDraftAiSchema = z
     strategyAction: z.string().min(1),
     targetOutcome: z.string().min(1),
     suggestedDurationDays: z.number().int().positive(),
-    // Status is forced to draft: anything else is rejected, never coerced.
-    status: z.literal('draft'),
+    // Status is forced to draft, defaulting when omitted (the model is not
+    // asked for it): anything else is rejected, never coerced.
+    status: z.literal('draft').default('draft'),
     provider: z.string().optional(),
     // Known Edge governance envelope (optional; anything else is rejected).
     studentId: z.string().optional(),

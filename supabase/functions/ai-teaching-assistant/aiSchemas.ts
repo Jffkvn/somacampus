@@ -58,7 +58,7 @@ const gradingKeyRefinement = (obj: Record<string, unknown>, ctx: z.RefinementCtx
 };
 
 const NO_GRADE_TEXT_EDGE =
-  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrades?\b|\bgraded\b|\bgrading\b)/i;
+  /(%|\bpercent(?:age)?s?\b|\bmarks?\b|\bscores?\b|\bscored\b|\brankings?\b|\branked\b|\bgrade\s+[A-F]\b|\bfinal\s+grades?\b|\bgraded?\s+\d{2,}\b|\bgraded?\s+\d+\s*\/\s*\d+|\bgrading\s+(scale|system)\b)/i;
 
 export const ObservationDraftEdgeSchema = z
   .object({
@@ -88,10 +88,9 @@ export const InterventionDraftEdgeSchema = z
     strategyAction: z.string().min(1),
     targetOutcome: z.string().min(1),
     suggestedDurationDays: z.number().int().positive(),
-    // Status is forced to draft when present (the prompt does not request it,
-    // but model outputs that echo status:'draft' must still validate).
-    // Anything else is rejected, never coerced.
-    status: z.literal("draft").optional(),
+    // Status is forced to draft, defaulting when omitted (the prompt does not
+    // request it). Anything else is rejected, never coerced.
+    status: z.literal("draft").default("draft"),
     // Known governance envelope passthroughs (optional).
     provider: z.string().optional(),
     studentId: z.string().optional(),

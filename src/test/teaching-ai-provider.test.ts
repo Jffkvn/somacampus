@@ -141,6 +141,22 @@ describe('Phase B: teaching AI output schemas', () => {
     expect(InterventionDraftAiSchema.safeParse({ ...base, status: 'draft' }).success).toBe(true);
   });
 
+  it('status-less intervention payload validates to draft', () => {
+    const { status, ...withoutStatus } = {
+      learningArea: 'Mathematics',
+      topicName: 'Fractions',
+      reason: 'r',
+      strategyAction: 'a',
+      targetOutcome: 'o',
+      suggestedDurationDays: 14,
+      status: 'draft' as const,
+    };
+    void status;
+    const res = InterventionDraftAiSchema.safeParse(withoutStatus);
+    expect(res.success).toBe(true);
+    if (res.success) expect(res.data.status).toBe('draft');
+  });
+
   it('accepts valid model output echoing the known governance envelope', () => {
     // Assignment: full Edge-decorated shape passes strict validation.
     expect(
@@ -204,8 +220,11 @@ describe('Phase B: teaching AI output schemas', () => {
       '82 percent accuracy',
       'a high percentage of errors',
       'deserves grade B',
-      'the work was graded yesterday',
-      'grading is now complete',
+      'final grade posted on Friday',
+      'earned grade 85 on the test',
+      'graded 7/10 for presentation',
+      'grading scale shared with parents',
+      'per the new grading system',
     ];
     for (const observationText of rejects) {
       expect(
@@ -218,6 +237,10 @@ describe('Phase B: teaching AI output schemas', () => {
       'Drew clear tape diagrams showing equivalent values.',
       'Successfully demonstrated skill for 5Nn.01 with clear mathematical notation.',
       'Needs guided retrieval on common denominators before extension problems.',
+      'Stage 5 pupil working at Grade 5 expectations.',
+      'Completed grade-level work with tape diagrams.',
+      'Used graded readers for fluency practice.',
+      'Graded evidence filed in the learner portfolio.',
     ];
     for (const observationText of accepts) {
       expect(
@@ -272,6 +295,10 @@ describe('Phase B: Edge schema mirror parity (text-level invariant check)', () =
     for (const token of ['scored', 'ranked', 'graded', 'grading', 'percentage', 'percent']) {
       expect(edgeMirror, `edge mirror must guard "${token}"`).toContain(token);
     }
+  });
+
+  it('edge mirror defaults a missing intervention status to draft', () => {
+    expect(edgeMirror).toContain('z.literal("draft").default("draft")');
   });
 });
 
