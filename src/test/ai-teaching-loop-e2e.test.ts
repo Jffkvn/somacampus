@@ -37,11 +37,23 @@ describe.skipIf(!liveReady)(`LIVE-GATED loop E2E — ${LIVE_SKIP_REASON}`, () =>
 
   async function cleanupLiveRows(): Promise<void> {
     if (!admin) return;
-    await admin.from('intervention_evidence').delete().eq('school_id', LIVE_SCHOOL).like('evidence_id', `${runTag}%`).catch(() => null);
-    await admin.from('interventions').delete().eq('school_id', LIVE_SCHOOL).like('learning_area', `${runTag}%`);
-    await admin.from('teacher_observations').delete().eq('school_id', LIVE_SCHOOL).like('observation_text', `${runTag}%`);
-    await admin.from('student_submissions').delete().eq('school_id', LIVE_SCHOOL).like('work_summary', `${runTag}%`);
-    await admin.from('assignments').delete().eq('school_id', LIVE_SCHOOL).like('title', `${runTag}%`);
+    try {
+      const { data: ivs } = await admin
+        .from('interventions')
+        .select('id')
+        .eq('school_id', LIVE_SCHOOL)
+        .like('learning_area', `${runTag}%`);
+      if (ivs && ivs.length > 0) {
+        const ivIds = ivs.map((i: any) => i.id);
+        await admin.from('intervention_evidence').delete().in('intervention_id', ivIds);
+      }
+      await admin.from('interventions').delete().eq('school_id', LIVE_SCHOOL).like('learning_area', `${runTag}%`);
+      await admin.from('teacher_observations').delete().eq('school_id', LIVE_SCHOOL).like('observation_text', `${runTag}%`);
+      await admin.from('student_submissions').delete().eq('school_id', LIVE_SCHOOL).like('work_summary', `${runTag}%`);
+      await admin.from('assignments').delete().eq('school_id', LIVE_SCHOOL).like('title', `${runTag}%`);
+    } catch {
+      // Best-effort teardown of test run rows
+    }
   }
 
   afterEach(async () => {
@@ -53,7 +65,14 @@ describe.skipIf(!liveReady)(`LIVE-GATED loop E2E — ${LIVE_SKIP_REASON}`, () =>
     const { data: teacher } = await admin.from('employees').select('id').eq('school_id', LIVE_SCHOOL).limit(1).maybeSingle();
     const { data: cls } = await admin.from('classes').select('id').eq('school_id', LIVE_SCHOOL).limit(1).maybeSingle();
     const { data: subj } = await admin.from('subjects').select('id').limit(1).maybeSingle();
-    const { data: student } = await admin.from('students').select('id').eq('school_id', LIVE_SCHOOL).limit(1).maybeSingle();
+    const { data: enrolment } = await admin
+      .from('student_enrolments')
+      .select('student_id')
+      .eq('school_id', LIVE_SCHOOL)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle();
+    const student = enrolment ? { id: enrolment.student_id } : null;
     if (!teacher || !cls || !subj || !student) {
       throw new Error('LIVE E2E infra: seeded school/teacher/class/subject/student rows not found.');
     }
