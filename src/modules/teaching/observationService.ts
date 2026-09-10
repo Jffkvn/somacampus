@@ -28,8 +28,10 @@ export const observationService = {
     if (!input.teacherId) {
       throw new Error('Teacher ID is required');
     }
-    if (!input.classId && !input.onlineSessionId) {
-      throw new Error('Class ID is required');
+    if (!input.classId) {
+      throw new Error(
+        'observationService.createObservation: classId is required (teacher_observations.class_id is NOT NULL; online sessions must pass the pupil\u2019s class).'
+      );
     }
 
     const { data, error } = await supabase

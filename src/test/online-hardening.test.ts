@@ -208,7 +208,7 @@ describe('Phase 9 Hardening: Invariant 3 — Classless Online Academic Work', ()
     expect(onlineSessionAssignment.errors).toHaveLength(0);
   });
 
-  it('rejects observation creation when both classId and onlineSessionId are missing', async () => {
+  it('rejects observation creation when classId is missing (even with a session: class_id is NOT NULL)', async () => {
     await expect(
       observationService.createObservation({
         schoolId: 's1',
@@ -217,9 +217,9 @@ describe('Phase 9 Hardening: Invariant 3 — Classless Online Academic Work', ()
         observationType: 'learning_progress',
         observationText: 'Great participation',
         classId: null,
-        onlineSessionId: null,
+        onlineSessionId: 'sess-1',
       }),
-    ).rejects.toThrow('Class ID is required');
+    ).rejects.toThrow(/classId is required/);
   });
 });
 

@@ -76,6 +76,9 @@ const isMockEnv = (): boolean =>
   import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
   import.meta.env.VITE_SUPABASE_URL.includes('mock');
 
+const isUUID = (val?: string | null): boolean =>
+  !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
 export function toCalendarEventView(row: any): CalendarEvent {
   return {
     id: row.id,
@@ -225,7 +228,14 @@ export const calendarService = {
    * Auto-provisions an official school calendar if none exists.
    */
   async createCalendarEvent(payload: CreateCalendarEventPayload): Promise<CalendarEvent> {
-    if (!payload.schoolId) throw new Error('createCalendarEvent requires a schoolId.');
+    if (!isUUID(payload.schoolId)) {
+      throw new Error('calendarService.createCalendarEvent: no school selected.');
+    }
+    if (payload.audience === 'class' && !isUUID(payload.targetClassId)) {
+      throw new Error(
+        'calendarService.createCalendarEvent: class-audience events require a target class.'
+      );
+    }
 
     let calId = payload.calendarId;
     if (!calId) {
