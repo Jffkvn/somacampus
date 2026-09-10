@@ -113,6 +113,14 @@ BEGIN
   v_receipt := 'RCP-' || to_char(now(), 'YYYYMMDD') || '-' ||
     substr(replace(gen_random_uuid()::text, '-', ''), 1, 6);
 
+  -- Staging table is created UNCONDITIONALLY before the loop: a pupil with
+  -- zero open charges must still reach the final INSERT (zero rows), not
+  -- raise `relation "tmp_fee_alloc" does not exist`.
+  CREATE TEMP TABLE IF NOT EXISTS tmp_fee_alloc (
+    charge_id UUID, amount NUMERIC
+  ) ON COMMIT DROP;
+  DELETE FROM tmp_fee_alloc;
+
   -- Oldest-due-first allocation across open charges.
   v_remaining := p_amount;
   FOR c IN
@@ -127,10 +135,6 @@ BEGIN
     v_outstanding := GREATEST(0, c.amount - c.already_paid);
     IF v_outstanding > 0 THEN
       v_take := LEAST(v_remaining, v_outstanding);
-      -- Staged in a temp table: payment row does not exist yet.
-      CREATE TEMP TABLE IF NOT EXISTS tmp_fee_alloc (
-        charge_id UUID, amount NUMERIC
-      ) ON COMMIT DROP;
       INSERT INTO tmp_fee_alloc (charge_id, amount) VALUES (c.id, v_take);
       v_remaining := v_remaining - v_take;
       v_alloc_total := v_alloc_total + v_take;
