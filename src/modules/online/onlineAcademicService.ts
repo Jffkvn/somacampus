@@ -469,6 +469,11 @@ export const onlineAcademicService = {
     if (!input.studentId) {
       throw new Error('Student ID is required');
     }
+    if (!input.classId) {
+      throw new Error(
+        'recordSessionObservation: classId is required (teacher_observations.class_id is NOT NULL). Pass the pupil\u2019s class alongside the session.'
+      );
+    }
     const teacherId = await resolveTeacherId(teacherIdOrEmail);
     const session = await loadOwnedSession(sessionId, teacherId);
     const { data, error } = await supabase

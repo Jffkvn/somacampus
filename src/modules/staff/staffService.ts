@@ -258,68 +258,12 @@ export const staffService = {
       if (!isMissingRpc) {
         throw error;
       }
-
-      console.warn('hire_staff_member RPC not present in schema cache; attempting direct table inserts.');
-
-      const { data: personData, error: personErr } = await supabase
-        .from('people')
-        .insert({
-          school_id: payload.schoolId,
-          first_name: payload.firstName.trim(),
-          last_name: payload.lastName.trim(),
-          email: payload.email?.trim() || null,
-          phone: payload.phone?.trim() || null,
-          gender: payload.gender || null,
-          date_of_birth: payload.dateOfBirth || null,
-          national_id: payload.nationalId?.trim() || null,
-          nationality: payload.nationality?.trim() || null,
-          address: payload.address?.trim() || null,
-        })
-        .select('id')
-        .single();
-
-      if (personErr || !personData) {
-        throw new Error(`hireStaffMember: Failed to create person record: ${personErr?.message || 'Unknown error'}`);
-      }
-
-      const empNumber =
-        payload.employeeNumber?.trim() ||
-        `EMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-      const { data: empData, error: empErr } = await supabase
-        .from('employees')
-        .insert({
-          person_id: personData.id,
-          school_id: payload.schoolId,
-          employee_number: empNumber,
-          role: payload.role.trim() || 'teacher',
-          department: payload.department.trim() || 'Academics',
-          is_teacher: payload.isTeacher ?? true,
-          status: 'active',
-          hire_date: payload.hireDate || new Date().toISOString().split('T')[0],
-          contract_type: payload.contractType || 'permanent',
-          qualification: payload.qualification?.trim() || null,
-        })
-        .select('id')
-        .single();
-
-      if (empErr || !empData) {
-        throw new Error(`hireStaffMember: Failed to create employee record: ${empErr?.message || 'Unknown error'}`);
-      }
-
-      if (payload.subjectIds && payload.subjectIds.length > 0) {
-        const subjectsPayload = payload.subjectIds.map((sId) => ({
-          school_id: payload.schoolId,
-          teacher_id: empData.id,
-          subject_id: sId,
-          appointed_at: payload.hireDate || new Date().toISOString().split('T')[0],
-        }));
-        await supabase.from('teacher_official_subjects').insert(subjectsPayload);
-      }
-
-      const fallbackEmpId = empData.id;
-      await this.establishInitialCompensation(fallbackEmpId, payload);
-      return fallbackEmpId;
+      // No direct-insert fallback: it referenced non-existent columns
+      // (people.school_id) and bypassed the authoritative RPC. Fail clearly
+      // so a missing migration is fixed instead of silently half-working.
+      throw new Error(
+        'hireStaffMember: hire_staff_member RPC is not available. Apply pending migrations and retry.'
+      );
     }
 
     const rpcEmpId = data as string;

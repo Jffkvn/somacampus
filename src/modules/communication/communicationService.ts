@@ -32,6 +32,9 @@
 import { supabase } from '../../lib/supabase';
 import { createEventAndFanOut, fanOutMessage } from '../notifications/notificationFanout';
 
+const errMessage = (e: unknown): string =>
+  e instanceof Error ? e.message : (e as any)?.message || String(e);
+
 export type ThreadContextType =
   | 'general'
   | 'attendance'
@@ -298,6 +301,23 @@ export const communicationService = {
     });
     if (threadError) throw threadError;
 
+    // Compensating rollback: steps below run sequentially, so a later
+    // failure must not orphan a visible thread. Threads are append-only
+    // history (no DELETE policy by design), so rollback archives the
+    // just-created row (participants may update) and names the outcome.
+    const rollbackThread = async (step: string, cause: unknown) => {
+      const { error: archErr } = await supabase
+        .from('communication_threads')
+        .update({ archived: true })
+        .eq('id', threadId);
+      throw new Error(
+        `communicationService.createThread: ${step} failed${
+          archErr ? `; rollback also failed: ${errMessage(archErr)}` : '; thread creation rolled back (archived)'
+        }`,
+        { cause }
+      );
+    };
+
     const { error: participantError } = await supabase
       .from('communication_participants')
       .insert(
@@ -307,7 +327,7 @@ export const communicationService = {
           role: personId === input.creatorPersonId ? 'sender' : 'recipient',
         }))
       );
-    if (participantError) throw participantError;
+    if (participantError) await rollbackThread('participants insert', participantError);
 
     const { error: messageError } = await supabase.from('communication_messages').insert({
       thread_id: threadId,
@@ -315,7 +335,7 @@ export const communicationService = {
       body: input.initialBody.trim(),
       is_ai_drafted: false,
     });
-    if (messageError) throw messageError;
+    if (messageError) await rollbackThread('initial message insert', messageError);
 
     // Best-effort fan-out: other participants get an in_app delivery. The
     // helper never throws; this try/catch is defense in depth — the thread

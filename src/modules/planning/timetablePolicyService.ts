@@ -413,19 +413,20 @@ export const timetablePolicyService = {
           }
         : schoolIdOrInput;
 
+    // Authoritative path: appoint_teacher_subject RPC verifies leadership,
+    // teacher/subject tenancy, and upserts atomically. No direct inserts.
+    const { data: rpcId, error: rpcError } = await supabase.rpc('appoint_teacher_subject', {
+      p_school_id: input.schoolId,
+      p_teacher_id: input.teacherId,
+      p_subject_id: input.subjectId,
+      p_notes: input.notes ?? null,
+    });
+    if (rpcError) throw rpcError;
+
     const { data, error } = await supabase
       .from('teacher_official_subjects')
-      .upsert(
-        {
-          school_id: input.schoolId,
-          teacher_id: input.teacherId,
-          subject_id: input.subjectId,
-          appointed_at: input.appointedAt ?? new Date().toISOString().split('T')[0],
-          notes: input.notes,
-        },
-        { onConflict: 'school_id,teacher_id,subject_id' }
-      )
       .select('*, subjects(name)')
+      .eq('id', rpcId as string)
       .single();
 
     if (error) throw error;
