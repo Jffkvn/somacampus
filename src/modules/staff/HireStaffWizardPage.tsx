@@ -55,6 +55,11 @@ export const HireStaffWizardPage: React.FC = () => {
   const [qualification, setQualification] = useState('');
   const [employeeNumber, setEmployeeNumber] = useState('');
 
+  // Step 2 (cont): Compensation
+  const [baseSalary, setBaseSalary] = useState('');
+  const [currency, setCurrency] = useState('UGX');
+  const [paymentMethod, setPaymentMethod] = useState<HireStaffPayload['paymentMethod']>('bank_transfer');
+
   // Step 3: Teaching Subjects
   const [availableSubjects, setAvailableSubjects] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
@@ -143,6 +148,9 @@ export const HireStaffWizardPage: React.FC = () => {
         qualification: qualification.trim() || null,
         employeeNumber: employeeNumber.trim() || null,
         subjectIds: isTeacher ? selectedSubjectIds : undefined,
+        baseSalary: baseSalary.trim() ? Number(baseSalary.replace(/,/g, '')) : null,
+        currency: currency.trim() || 'UGX',
+        paymentMethod: paymentMethod || 'bank_transfer',
       };
 
       const newEmpId = await staffService.hireStaff(payload, role);
@@ -347,9 +355,9 @@ export const HireStaffWizardPage: React.FC = () => {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Briefcase className="w-5 h-5 text-brand-teal" />
-              <span>Employment & Terms</span>
+              <span>Employment & Compensation</span>
             </CardTitle>
-            <CardDescription>Designation, department, contract type, and qualifications</CardDescription>
+            <CardDescription>Designation, department, contract terms, and agreed remuneration</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -445,6 +453,55 @@ export const HireStaffWizardPage: React.FC = () => {
                   placeholder="Auto-generated if left blank"
                   className={inputClass}
                 />
+              </div>
+            </div>
+
+            {/* Compensation & Remuneration */}
+            <div className="pt-4 border-t border-slate-200 space-y-3">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-brand-teal" />
+                <span className="text-sm font-bold text-slate-900">Agreed Remuneration & Pay Terms</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-1">
+                  <label className={labelClass}>Base Monthly Salary</label>
+                  <input
+                    type="text"
+                    value={baseSalary}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9]/g, '');
+                      setBaseSalary(raw ? Number(raw).toLocaleString() : '');
+                    }}
+                    placeholder="e.g. 2,800,000"
+                    className={inputClass}
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">Optional. Leave blank for volunteers or pending approval.</p>
+                </div>
+                <div>
+                  <label className={labelClass}>Currency</label>
+                  <select
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="UGX">UGX (Ugandan Shilling)</option>
+                    <option value="KES">KES (Kenyan Shilling)</option>
+                    <option value="USD">USD (US Dollar)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Payment Method</label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as any)}
+                    className={inputClass}
+                  >
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="mobile_money">Mobile Money</option>
+                    <option value="cash">Cash</option>
+                    <option value="cheque">Cheque</option>
+                  </select>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -590,18 +647,37 @@ export const HireStaffWizardPage: React.FC = () => {
               </div>
             )}
 
-            {/* Honest Payroll Indicator */}
-            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1.5">
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-amber-700" />
-                <span className="font-bold text-xs uppercase tracking-wide">
-                  Payroll Profile: Pending Setup / Incomplete
-                </span>
+            {/* Remuneration & Payroll Summary */}
+            {baseSalary.trim() && Number(baseSalary.replace(/,/g, '')) > 0 ? (
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-emerald-700" />
+                    <span className="font-bold text-xs uppercase tracking-wide">
+                      Agreed Remuneration & Payroll Profile
+                    </span>
+                  </div>
+                  <span className="text-xs font-extrabold text-emerald-800">
+                    {currency} {Number(baseSalary.replace(/,/g, '')).toLocaleString()} / month
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  An active payroll profile will be created effective {hireDate}. Payment method: <span className="font-semibold capitalize">{paymentMethod?.replace('_', ' ')}</span>. Statutory PAYE and NSSF will be calculated automatically by the Payroll Engine during payroll runs.
+                </p>
               </div>
-              <p className="text-xs text-amber-800 leading-relaxed">
-                Staff member will be created in active employment. Salary structure, statutory NSSF/PAYE tax configuration, and bank account details must be configured in the Payroll Engine before the monthly payroll run.
-              </p>
-            </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-amber-700" />
+                  <span className="font-bold text-xs uppercase tracking-wide">
+                    Compensation: Pending Setup
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  No starting salary was entered (e.g. volunteer, intern, or pending approval). The employee will be hired in active status, and remuneration can be configured later in their staff dossier prior to payroll runs.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

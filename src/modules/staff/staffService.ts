@@ -317,9 +317,69 @@ export const staffService = {
         await supabase.from('teacher_official_subjects').insert(subjectsPayload);
       }
 
-      return empData.id;
+      const fallbackEmpId = empData.id;
+      await this.establishInitialCompensation(fallbackEmpId, payload);
+      return fallbackEmpId;
     }
-    return data as string;
+
+    const rpcEmpId = data as string;
+    await this.establishInitialCompensation(rpcEmpId, payload);
+    return rpcEmpId;
+  },
+
+  /**
+   * Safe starting compensation establishment on hire.
+   * Product Policy: School leadership (admin or principal) can record starting compensation
+   * during initial hiring. Subsequent modifications to existing compensation profiles in the
+   * staff dossier require 'admin' (hr.payroll.manage) to prevent unauthorized salary drift.
+   *
+   * Partial-failure resilience: If payroll profile insert fails, we log a warning and return
+   * false without throwing. The employee has already been created in PostgreSQL; throwing here
+   * would trap the user on the wizard and trigger duplicate employee creation on re-submit.
+   */
+  async establishInitialCompensation(employeeId: string, payload: HireStaffPayload): Promise<boolean> {
+    if (payload.baseSalary === undefined || payload.baseSalary === null || Number(payload.baseSalary) <= 0) {
+      return false;
+    }
+    const effectiveDate = payload.hireDate || new Date().toISOString().split('T')[0];
+    try {
+      // Close any pre-existing open profiles for safety (e.g. re-hires)
+      await supabase
+        .from('employee_payroll_profiles')
+        .update({ effective_to: effectiveDate })
+        .eq('employee_id', employeeId)
+        .is('effective_to', null);
+
+      const { error: payrollErr } = await supabase
+        .from('employee_payroll_profiles')
+        .insert({
+          school_id: payload.schoolId,
+          employee_id: employeeId,
+          effective_from: effectiveDate,
+          effective_to: null,
+          pay_basis: 'salaried',
+          tax_treatment: 'local',
+          base_salary: Number(payload.baseSalary),
+          currency: payload.currency?.trim() || 'UGX',
+          nssf_applicable: true,
+          payment_method: payload.paymentMethod || 'bank_transfer',
+        });
+
+      if (payrollErr) {
+        console.warn(
+          `hireStaff: payroll profile creation failed for employee ${employeeId}; employee hired with pending compensation.`,
+          payrollErr
+        );
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn(
+        `hireStaff: unexpected error during payroll profile insert for employee ${employeeId}; employee hired with pending compensation.`,
+        err
+      );
+      return false;
+    }
   },
 
   /**
