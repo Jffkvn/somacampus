@@ -21,13 +21,13 @@ import {
 
 export const ExpensesPage: React.FC = () => {
   const { schoolId } = useAuth();
-  const effectiveSchoolId = schoolId || '22222222-2222-2222-2222-222222222222';
 
   const [categories, setCategories] = useState<SchoolExpenseCategory[]>([]);
   const [expenses, setExpenses] = useState<SchoolExpense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const [pageError, setPageError] = useState<string | null>(null);
 
   // Record Expense Modal state
   const [showModal, setShowModal] = useState(false);
@@ -39,21 +39,37 @@ export const ExpensesPage: React.FC = () => {
   const [description, setDescription] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Add-category inline state
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
 
   async function loadData() {
     try {
       setIsLoading(true);
+      setPageError(null);
+      if (!schoolId) {
+        setPageError('No school selected. Sign in to manage expenses.');
+        setCategories([]);
+        setExpenses([]);
+        return;
+      }
       const [cats, exps] = await Promise.all([
-        expenseService.getCategories(effectiveSchoolId),
-        expenseService.getExpenses(effectiveSchoolId),
+        expenseService.getCategories(schoolId),
+        expenseService.getExpenses(schoolId),
       ]);
       setCategories(cats);
       setExpenses(exps);
       if (cats.length > 0) {
-        setCategoryId((prev) => prev || cats[0].id);
+        setCategoryId((prev) => (cats.some((c) => c.id === prev) ? prev : cats[0].id));
+      } else {
+        setCategoryId('');
       }
     } catch (err) {
       console.error('Failed to load expenses', err);
+      setPageError('Could not load expenses. Please retry.');
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +77,8 @@ export const ExpensesPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [effectiveSchoolId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId]);
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
   const foodSpent = expenses
@@ -88,18 +105,24 @@ export const ExpensesPage: React.FC = () => {
     e.preventDefault();
     const numAmount = Number(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
-      alert('Please enter a valid amount.');
+      setFormError('Please enter a valid amount.');
+      return;
+    }
+    if (!schoolId) {
+      setFormError('No school selected. Sign in before logging expenses.');
+      return;
+    }
+    if (!categoryId || categories.length === 0) {
+      setFormError('No expense category selected. Create a category below first.');
       return;
     }
 
-    const selectedCategory = categories.find((c) => c.id === categoryId) || categories[0];
-    const finalCategoryId = selectedCategory?.id || categoryId;
-
     try {
       setIsSaving(true);
+      setFormError(null);
       await expenseService.recordExpense({
-        schoolId: effectiveSchoolId,
-        categoryId: finalCategoryId,
+        schoolId,
+        categoryId,
         amount: numAmount,
         spentOn,
         paymentChannel,
@@ -109,7 +132,7 @@ export const ExpensesPage: React.FC = () => {
       });
 
       // Reload
-      const updated = await expenseService.getExpenses(effectiveSchoolId);
+      const updated = await expenseService.getExpenses(schoolId);
       setExpenses(updated);
       setShowModal(false);
       setAmount('');
@@ -118,9 +141,31 @@ export const ExpensesPage: React.FC = () => {
       setReferenceNumber('');
     } catch (err: any) {
       console.error('Failed to record expense', err);
-      alert(err?.message || 'Could not record expense');
+      setFormError(err?.message || 'Could not record expense');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!schoolId) {
+      setFormError('No school selected. Sign in before creating categories.');
+      return;
+    }
+    try {
+      setIsAddingCategory(true);
+      setFormError(null);
+      const created = await expenseService.createCategory({ schoolId, name: newCategoryName });
+      const cats = await expenseService.getCategories(schoolId);
+      setCategories(cats);
+      setCategoryId(created.id);
+      setNewCategoryName('');
+      setShowAddCategory(false);
+    } catch (err: any) {
+      setFormError(err?.message || 'Could not create category');
+    } finally {
+      setIsAddingCategory(false);
     }
   };
 
@@ -134,6 +179,11 @@ export const ExpensesPage: React.FC = () => {
 
   return (
     <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in">
+      {pageError && (
+        <div role="alert" className="p-3 bg-rose-50 rounded-lg border border-rose-200 text-sm text-rose-800">
+          {pageError}
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -335,19 +385,54 @@ export const ExpensesPage: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Category
                   </label>
-                  <select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    className="w-full text-sm border border-slate-200 rounded-lg p-2.5 bg-white"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  {categories.length === 0 ? (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                      No expense categories configured yet. Create one below before logging expenses.
+                    </p>
+                  ) : (
+                    <select
+                      value={categoryId}
+                      onChange={(e) => setCategoryId(e.target.value)}
+                      className="w-full text-sm border border-slate-200 rounded-lg p-2.5 bg-white"
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {!showAddCategory ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCategory(true)}
+                      className="mt-1.5 text-xs font-semibold text-brand-teal hover:underline"
+                    >
+                      + New category
+                    </button>
+                  ) : (
+                    <form onSubmit={handleAddCategory} className="mt-1.5 flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="e.g. Water & Sanitation"
+                        className="flex-1 text-sm border border-slate-200 rounded-lg p-2"
+                      />
+                      <Button variant="secondary" type="submit" disabled={isAddingCategory}>
+                        {isAddingCategory ? 'Adding…' : 'Add'}
+                      </Button>
+                    </form>
+                  )}
                 </div>
               </div>
+
+              {formError && (
+                <div role="alert" className="p-3 bg-rose-50 rounded-lg border border-rose-200 text-xs text-rose-800">
+                  {formError}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

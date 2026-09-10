@@ -339,25 +339,45 @@ describe('D9 audit coverage: services ATTEMPT audit write with who/what/when/sch
     expect(payload.reason).toBeDefined();
   }
 
-  it('recordPayment attempts payment (+allocation) audit with required fields', async () => {
-    await financeService.recordPayment({
-      schoolId: 's1',
-      studentId: 'stud-x',
+  it('recordPayment delegates audit to the atomic RPC (single call, no client waterfall)', async () => {
+    const rpcCalls: Array<{ fn: string; args: any }> = [];
+    (supabase as any).rpc = vi.fn(async (fn: string, args: any) => {
+      rpcCalls.push({ fn, args });
+      return {
+        data: {
+          payment_id: '11111111-1111-4111-8111-111111111111',
+          receipt_number: 'REC-202609-0001',
+          status: 'fully_allocated',
+          allocated: 100,
+          unallocated: 0,
+          account_id: 'acc-1',
+        },
+        error: null,
+      };
+    });
+    const payment = await financeService.recordPayment({
+      schoolId: '22222222-2222-2222-2222-222222222222',
+      studentId: '767d2e4a-6fec-47f0-a1d2-2cc50ec29771',
       amount: 100,
       paymentDate: '2026-09-05',
       paymentChannel: 'cash',
       paymentReference: 'CASH-AUDIT-1',
     });
-    const inserts = auditInserts();
-    expect(inserts.length).toBeGreaterThan(0);
-    const payload = inserts[0].payload?.constructor === Array ? inserts[0].payload[0] : inserts[0].payload;
-    expectAuditFields(payload, 'payment');
+    // One atomic server call carries school context; audit row is written
+    // inside the RPC transaction (verified on scratch Postgres), so the
+    // client must NOT issue its own audit/table inserts.
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0].fn).toBe('record_fee_payment');
+    expect(rpcCalls[0].args.p_school_id).toBe('22222222-2222-2222-2222-222222222222');
+    const clientInserts = captured.filter((c) => c.op === 'insert');
+    expect(clientInserts).toEqual([]);
+    expect(payment.receiptNumber).toBe('REC-202609-0001');
   });
 
   it('recordExpense attempts expense audit with required fields', async () => {
     await expenseService.recordExpense({
-      schoolId: 's1',
-      categoryId: 'cat-lunch',
+      schoolId: '22222222-2222-2222-2222-222222222222',
+      categoryId: '11111111-1111-4111-8111-111111111111',
       amount: 50000,
       spentOn: '2026-09-05',
       paymentChannel: 'cash',
@@ -448,17 +468,28 @@ describe('D8+D9 immutability: finalized payroll + audit rows reject mutation', (
   it('services never issue update/delete against financial_audit_logs', async () => {
     forceProductionEnv();
     mockLiveSuccess();
+    (supabase as any).rpc = vi.fn(async () => ({
+      data: {
+        payment_id: '11111111-1111-4111-8111-111111111111',
+        receipt_number: 'R-1',
+        status: 'fully_allocated',
+        allocated: 50,
+        unallocated: 0,
+        account_id: 'acc-1',
+      },
+      error: null,
+    }));
     await financeService.recordPayment({
-      schoolId: 's1',
-      studentId: 'stud-x',
+      schoolId: '22222222-2222-2222-2222-222222222222',
+      studentId: '767d2e4a-6fec-47f0-a1d2-2cc50ec29771',
       amount: 50,
       paymentDate: '2026-09-05',
       paymentChannel: 'cash',
       paymentReference: 'CASH-NOMUT-1',
     });
     await expenseService.recordExpense({
-      schoolId: 's1',
-      categoryId: 'cat-lunch',
+      schoolId: '22222222-2222-2222-2222-222222222222',
+      categoryId: '11111111-1111-4111-8111-111111111111',
       amount: 10,
       spentOn: '2026-09-05',
       paymentChannel: 'cash',

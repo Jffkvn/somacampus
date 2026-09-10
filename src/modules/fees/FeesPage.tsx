@@ -9,19 +9,24 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { formatCurrency } from '../../lib/utils';
 import { DollarSign, Upload, Search, CheckCircle2, AlertCircle, PlusCircle, Receipt, X, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../lib/authContext';
+import { studentService, StudentDirectoryRow } from '../students/studentService';
 
-const STUDENTS = [
-  { id: 'stud-amari', name: 'Amari Kyomugisha', admissionNumber: '2026/0142', className: 'Stage 5 Blue' },
-  { id: 'stud-aurora', name: 'Aurora Namukasa', admissionNumber: '2026/0143', className: 'Stage 7 Red' },
-  { id: 'stud-brian', name: 'Brian Musoke', admissionNumber: '2026/0098', className: 'Stage 5 Blue' },
-  { id: 'stud-claire', name: 'Claire Nabatanzi', admissionNumber: '2026/0115', className: 'Stage 6 Yellow' },
-];
+interface PupilOption {
+  id: string;
+  name: string;
+  admissionNumber: string;
+  className: string;
+}
 
 export const FeesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { schoolId } = useAuth();
   const [accounts, setAccounts] = useState<StudentFeeAccount[]>([]);
+  const [pupils, setPupils] = useState<PupilOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [pageError, setPageError] = useState<string | null>(null);
 
   // Modals state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -29,7 +34,7 @@ export const FeesPage: React.FC = () => {
   const [lastReceipt, setLastReceipt] = useState<FeePayment | null>(null);
 
   // Form state for rapid intake
-  const [selectedStudentId, setSelectedStudentId] = useState('stud-aurora');
+  const [selectedStudentId, setSelectedStudentId] = useState('');
   const [amount, setAmount] = useState('800000');
   const [channel, setChannel] = useState<FeePayment['paymentChannel']>('bank_deposit');
   const [reference, setReference] = useState('');
@@ -37,14 +42,34 @@ export const FeesPage: React.FC = () => {
   const [payerPhone, setPayerPhone] = useState('+256782334455');
   const [notes, setNotes] = useState('Term 1 tuition payment');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   async function loadData() {
     try {
       setIsLoading(true);
-      const accs = await financeService.getStudentFeeAccounts('school-default', 'term-1');
+      setPageError(null);
+      if (!schoolId) {
+        setPageError('No school selected. Sign in to load fee accounts.');
+        setAccounts([]);
+        setPupils([]);
+        return;
+      }
+      const [accs, dir] = await Promise.all([
+        financeService.getStudentFeeAccounts(schoolId, ''),
+        studentService.getStudentDirectory(schoolId),
+      ]);
       setAccounts(accs);
+      const opts = dir.map((d: StudentDirectoryRow) => ({
+        id: d.studentId,
+        name: d.fullName,
+        admissionNumber: d.admissionNumber,
+        className: d.className,
+      }));
+      setPupils(opts);
+      setSelectedStudentId((prev) => (opts.some((o) => o.id === prev) ? prev : opts[0]?.id ?? ''));
     } catch (err) {
       console.error('Failed to load fee accounts', err);
+      setPageError('Could not load fee accounts. Please retry.');
     } finally {
       setIsLoading(false);
     }
@@ -52,7 +77,8 @@ export const FeesPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId]);
 
   const totalAssessed = accounts.reduce((sum, a) => sum + a.assessedAmount, 0);
   const totalCollected = accounts.reduce((sum, a) => sum + a.paidAmount, 0);
@@ -63,8 +89,11 @@ export const FeesPage: React.FC = () => {
     e.preventDefault();
     try {
       setIsSubmitting(true);
+      setPaymentError(null);
+      if (!schoolId) throw new Error('No school selected. Sign in before recording payments.');
+      if (!selectedStudentId) throw new Error('Select an enrolled pupil before recording payments.');
       const pmt = await financeService.recordPayment({
-        schoolId: 'school-default',
+        schoolId,
         studentId: selectedStudentId,
         amount: parseFloat(amount) || 0,
         paymentDate: new Date().toISOString().split('T')[0],
@@ -79,7 +108,7 @@ export const FeesPage: React.FC = () => {
       setShowPaymentModal(false);
       await loadData();
     } catch (err: any) {
-      alert(err?.message || 'Failed to record payment');
+      setPaymentError(err?.message || 'Failed to record payment');
     } finally {
       setIsSubmitting(false);
     }
@@ -95,13 +124,18 @@ export const FeesPage: React.FC = () => {
   }
 
   const filteredAccounts = accounts.filter((acc) => {
-    const s = STUDENTS.find((st) => st.id === acc.studentId);
+    const s = pupils.find((st) => st.id === acc.studentId);
     const text = `${s?.name || ''} ${s?.admissionNumber || ''} ${s?.className || ''}`.toLowerCase();
     return text.includes(searchTerm.toLowerCase());
   });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {pageError && (
+        <div role="alert" className="p-3 bg-rose-50 rounded-lg border border-rose-200 text-sm text-rose-800">
+          {pageError}
+        </div>
+      )}
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
         <div>
@@ -228,7 +262,7 @@ export const FeesPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredAccounts.map((acc) => {
-                  const s = STUDENTS.find((st) => st.id === acc.studentId);
+                  const s = pupils.find((st) => st.id === acc.studentId);
                   return (
                     <tr key={acc.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3.5 px-4">
@@ -312,17 +346,23 @@ export const FeesPage: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   Select Student
                 </label>
-                <select
-                  value={selectedStudentId}
-                  onChange={(e) => setSelectedStudentId(e.target.value)}
-                  className="w-full text-sm border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white"
-                >
-                  {STUDENTS.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.admissionNumber} — {s.className})
-                    </option>
-                  ))}
-                </select>
+                  {pupils.length === 0 ? (
+                    <p className="text-sm text-slate-500">
+                      No enrolled pupils found. Admit and enrol pupils before recording payments.
+                    </p>
+                  ) : (
+                  <select
+                    value={selectedStudentId}
+                    onChange={(e) => setSelectedStudentId(e.target.value)}
+                    className="w-full text-sm border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white"
+                  >
+                    {pupils.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.admissionNumber} — {s.className})
+                      </option>
+                    ))}
+                  </select>
+                  )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -411,6 +451,12 @@ export const FeesPage: React.FC = () => {
               <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100 text-xs text-emerald-800">
                 <span className="font-semibold">Automated Allocation:</span> Payment will allocate against the oldest outstanding charges (Tuition first, then Catering, then Clubs). Excess amount will be retained as unallocated credit.
               </div>
+
+              {paymentError && (
+                <div role="alert" className="p-3 bg-rose-50 rounded-lg border border-rose-200 text-xs text-rose-800">
+                  {paymentError}
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <Button variant="secondary" onClick={() => setShowPaymentModal(false)}>

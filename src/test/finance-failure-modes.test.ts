@@ -188,12 +188,20 @@ describe('finance failure modes: production DB failure must throw, never mock', 
 
   it('expense getExpenses: empty DB -> empty', async () => {
     mockFrom({ school_expenses: { data: [], error: null } });
-    await expect(expenseService.getExpenses('s1')).resolves.toEqual([]);
+    await expect(
+      expenseService.getExpenses('22222222-2222-2222-2222-222222222222')
+    ).resolves.toEqual([]);
+  });
+
+  it('expense getExpenses: non-UUID school -> throws fail-closed (never silent pilot rewrite)', async () => {
+    await expect(expenseService.getExpenses('s1')).rejects.toThrow(/no school selected/);
   });
 
   it('expense getCategories: DB failure -> throws', async () => {
     mockFrom({ school_expense_categories: { data: null, error: DB_DOWN } });
-    await expect(expenseService.getCategories('s1')).rejects.toThrow();
+    await expect(
+      expenseService.getCategories('22222222-2222-2222-2222-222222222222')
+    ).rejects.toThrow();
   });
 
   // ─── hrService ───
