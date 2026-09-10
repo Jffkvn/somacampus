@@ -1672,6 +1672,9 @@ export interface HireStaffPayload {
   qualification?: string | null;
   employeeNumber?: string | null;
   subjectIds?: string[];
+  baseSalary?: number | null;
+  currency?: string;
+  paymentMethod?: 'bank_transfer' | 'mobile_money' | 'cash' | 'cheque';
 }
 
 export interface StaffExitPayload {

@@ -26,6 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     teaching: true,
     academics: true,
     students: false,
+    online_centre: false,
     finance: false,
     administration: false,
     staff_portal: false,

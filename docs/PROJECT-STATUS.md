@@ -37,7 +37,7 @@
 
 1. Tenant-isolation design (finance & online proofs complete; school-wide full read audit)
 2. CI hardening (gate `verify:all` in CI pipeline, nightly live-DB probe)
-3. Phase 10 — Advanced Learning & Hybrid Education
+3. Phase 10 — Special Educational Needs (SEN) & Inclusive Education (Phase 9 Online/Hybrid operational)
 
 ## Standing decisions
 

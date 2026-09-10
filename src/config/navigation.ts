@@ -8,6 +8,7 @@ import {
   ShieldAlert,
   Clock,
   UserCheck,
+  Video,
 } from 'lucide-react';
 import type { UserRole } from './permissions';
 
@@ -94,7 +95,16 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
       { label: 'Operating Expenses', href: '/expenses', roles: ['bursar', 'admin', 'principal'] },
       { label: 'Payroll Engine', href: '/payroll', roles: ['bursar', 'admin', 'principal'] },
       { label: 'Payment Imports', href: '/fees/import', roles: ['bursar', 'admin'] },
+    ],
+  },
+  {
+    id: 'online_centre',
+    label: 'Online Centre',
+    icon: Video,
+    roles: ['teacher', 'admin', 'principal', 'bursar'],
+    subItems: [
       { label: 'Centre Operations', href: '/online/centre', roles: ['bursar', 'admin', 'principal'] },
+      { label: 'Teacher Online Day', href: '/teaching/online', roles: ['teacher', 'admin', 'principal'] },
     ],
   },
   {
