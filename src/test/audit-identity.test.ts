@@ -111,17 +111,6 @@ function baseStubs(overrides: Record<string, TableStub> = {}): Record<string, Ta
   };
 }
 
-async function livePayment(amount: number) {
-  return financeService.recordPayment({
-    schoolId: 's1',
-    studentId: 'stud-x',
-    amount,
-    paymentDate: '2026-09-05',
-    paymentChannel: 'cash',
-    paymentReference: `CASH-T1-${amount}-${Date.now()}`,
-  });
-}
-
 beforeEach(() => {
   vi.resetAllMocks();
   captured = [];
@@ -193,76 +182,91 @@ describe('T1(b): people lookup failure degrades gracefully', () => {
   });
 });
 
-describe('T1(c): live recordPayment mirrors the mock waterfall', () => {
-  it('fully_allocated: 100 across 70 (oldest) + 60 -> two allocation rows, oldest first', async () => {
-    mockAuthUid();
-    mockTables(baseStubs());
-    await livePayment(100);
-    const allocInserts = captured.filter((c) => c.table === 'payment_allocations' && c.op === 'insert');
-    expect(allocInserts.length).toBe(1);
-    const rows = allocInserts[0].payload?.constructor === Array ? allocInserts[0].payload : [allocInserts[0].payload];
-    expect(rows).toHaveLength(2);
-    // Waterfall oldest-first: chg-old (due 08-01) before chg-new (due 09-01).
-    expect(rows[0].charge_id).toBe('chg-old');
-    expect(rows[0].amount).toBe(70);
-    expect(rows[1].charge_id).toBe('chg-new');
-    expect(rows[1].amount).toBe(30);
-    for (const r of rows) {
-      expect(r.school_id).toBe('s1');
-      expect(r.payment_id).toBe('pay-1');
-    }
-    const paymentInserts = captured.filter((c) => c.table === 'fee_payments' && c.op === 'insert');
-    expect(paymentInserts.length).toBe(1);
-    const paymentPayload =
-      paymentInserts[0].payload?.constructor === Array ? paymentInserts[0].payload[0] : paymentInserts[0].payload;
-    expect(Number(paymentPayload.unallocated_amount)).toBe(0);
-    expect(paymentPayload.status).toBe('fully_allocated');
+describe('T1(c): live recordPayment delegates to the atomic record_fee_payment RPC', () => {
+  const SCHOOL = '22222222-2222-2222-2222-222222222222';
+  const STUDENT = '767d2e4a-6fec-47f0-a1d2-2cc50ec29771';
+  let rpcCalls: Array<{ fn: string; args: any }> = [];
+
+  function mockRpc(result: any) {
+    rpcCalls = [];
+    (supabase as any).rpc = vi.fn(async (fn: string, args: any) => {
+      rpcCalls.push({ fn, args });
+      return result;
+    });
+  }
+
+  async function livePaymentRpc(amount: number) {
+    return financeService.recordPayment({
+      schoolId: SCHOOL,
+      studentId: STUDENT,
+      amount,
+      paymentDate: '2026-09-05',
+      paymentChannel: 'cash',
+      paymentReference: `CASH-T1-${amount}`,
+    });
+  }
+
+  it('issues exactly one RPC call with school/student/amount (no client waterfall)', async () => {
+    mockRpc({
+      data: {
+        payment_id: 'pay-1',
+        receipt_number: 'RCP-20260905-x1',
+        status: 'fully_allocated',
+        allocated: 100,
+        unallocated: 0,
+        account_id: 'acc-1',
+      },
+      error: null,
+    });
+    const pmt = await livePaymentRpc(100);
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0].fn).toBe('record_fee_payment');
+    expect(rpcCalls[0].args).toMatchObject({
+      p_school_id: SCHOOL,
+      p_student_id: STUDENT,
+      p_amount: 100,
+    });
+    // No direct table writes from the client: atomicity lives server-side.
+    expect(captured.filter((c) => c.op === 'insert')).toEqual([]);
+    expect(pmt.status).toBe('fully_allocated');
+    expect(pmt.unallocatedAmount).toBe(0);
+    expect(pmt.receiptNumber).toBe('RCP-20260905-x1');
   });
 
-  it('partially_allocated: 200 against 130 outstanding -> 70 retained credit', async () => {
-    mockAuthUid();
-    mockTables(baseStubs());
-    await livePayment(200);
-    const allocInserts = captured.filter((c) => c.table === 'payment_allocations' && c.op === 'insert');
-    const rows = allocInserts[0].payload?.constructor === Array ? allocInserts[0].payload : [allocInserts[0].payload];
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ charge_id: 'chg-old', amount: 70 });
-    expect(rows[1]).toMatchObject({ charge_id: 'chg-new', amount: 60 });
-    const paymentInserts = captured.filter((c) => c.table === 'fee_payments' && c.op === 'insert');
-    const paymentPayload =
-      paymentInserts[0].payload?.constructor === Array ? paymentInserts[0].payload[0] : paymentInserts[0].payload;
-    expect(Number(paymentPayload.unallocated_amount)).toBe(70);
-    expect(paymentPayload.status).toBe('partially_allocated');
+  it('maps partial allocation + retained credit from the RPC result', async () => {
+    mockRpc({
+      data: {
+        payment_id: 'pay-2',
+        receipt_number: 'RCP-20260905-x2',
+        status: 'partially_allocated',
+        allocated: 130,
+        unallocated: 70,
+        account_id: 'acc-1',
+      },
+      error: null,
+    });
+    const pmt = await livePaymentRpc(200);
+    expect(pmt.status).toBe('partially_allocated');
+    expect(pmt.unallocatedAmount).toBe(70);
   });
 
-  it('unallocated: no open charges -> no allocation rows, full credit retained', async () => {
-    mockAuthUid();
-    mockTables(baseStubs({ student_charges: { awaitData: [] } }));
-    await livePayment(100);
-    const allocInserts = captured.filter((c) => c.table === 'payment_allocations' && c.op === 'insert');
-    expect(allocInserts).toEqual([]);
-    const paymentInserts = captured.filter((c) => c.table === 'fee_payments' && c.op === 'insert');
-    const paymentPayload =
-      paymentInserts[0].payload?.constructor === Array ? paymentInserts[0].payload[0] : paymentInserts[0].payload;
-    expect(Number(paymentPayload.unallocated_amount)).toBe(100);
-    expect(paymentPayload.status).toBe('unallocated');
+  it('surfaces RPC failure with server text (allocation math is server-side)', async () => {
+    mockRpc({ data: null, error: { message: 'student is not enrolled' } });
+    await expect(livePaymentRpc(100)).rejects.toThrow(/student is not enrolled/);
   });
 
-  it('outstanding nets existing allocations (charges carry no paid column)', async () => {
-    mockAuthUid();
-    mockTables(
-      baseStubs({ payment_allocations: { awaitData: [{ charge_id: 'chg-old', amount: 50 }] } })
-    );
-    await livePayment(100);
-    const allocInserts = captured.filter((c) => c.table === 'payment_allocations' && c.op === 'insert');
-    const rows = allocInserts[0].payload?.constructor === Array ? allocInserts[0].payload : [allocInserts[0].payload];
-    // chg-old outstanding is 70-50=20, then chg-new takes 60, leaving 20 credit.
-    expect(rows[0]).toMatchObject({ charge_id: 'chg-old', amount: 20 });
-    expect(rows[1]).toMatchObject({ charge_id: 'chg-new', amount: 60 });
-    const paymentInserts = captured.filter((c) => c.table === 'fee_payments' && c.op === 'insert');
-    const paymentPayload =
-      paymentInserts[0].payload?.constructor === Array ? paymentInserts[0].payload[0] : paymentInserts[0].payload;
-    expect(Number(paymentPayload.unallocated_amount)).toBe(20);
-    expect(paymentPayload.status).toBe('partially_allocated');
+  it('rejects fixture IDs before any DB call', async () => {
+    mockRpc({ data: null, error: null });
+    await expect(
+      financeService.recordPayment({
+        schoolId: SCHOOL,
+        studentId: 'stud-x',
+        amount: 100,
+        paymentDate: '2026-09-05',
+        paymentChannel: 'cash',
+        paymentReference: 'X',
+      })
+    ).rejects.toThrow(/no pupil selected/);
+    expect(rpcCalls).toEqual([]);
   });
 });

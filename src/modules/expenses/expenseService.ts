@@ -28,16 +28,18 @@ export { DEFAULT_EXPENSE_CATEGORIES };
 
 export const expenseService = {
   /**
-   * Get expense categories
+   * Get expense categories — empty stays empty (never fixture-substituted).
    */
   async getCategories(schoolId: string): Promise<SchoolExpenseCategory[]> {
     if (isMockEnv()) return expenseFixtureStore.categories;
+    if (!isUUID(schoolId)) {
+      throw new Error('expenseService.getCategories: no school selected.');
+    }
     try {
-      const effectiveSchoolId = isUUID(schoolId) ? schoolId : '22222222-2222-2222-2222-222222222222';
       const { data, error } = await supabase
         .from('school_expense_categories')
         .select('*')
-        .eq('school_id', effectiveSchoolId);
+        .eq('school_id', schoolId);
       if (error) throw error;
       return (data || []).map((c: any) => ({
         id: c.id,
@@ -60,15 +62,17 @@ export const expenseService = {
       if (termId && isUUID(termId)) filtered = filtered.filter((e) => !e.termId || e.termId === termId);
       return filtered.sort((a, b) => b.spentOn.localeCompare(a.spentOn));
     }
+    if (!isUUID(schoolId)) {
+      throw new Error('expenseService.getExpenses: no school selected.');
+    }
     try {
-      const effectiveSchoolId = isUUID(schoolId) ? schoolId : '22222222-2222-2222-2222-222222222222';
       let query = supabase
         .from('school_expenses')
         .select(`
           *,
           category:school_expense_categories(name)
         `)
-        .eq('school_id', effectiveSchoolId)
+        .eq('school_id', schoolId)
         .order('spent_on', { ascending: false });
 
       if (termId && isUUID(termId)) query = query.eq('term_id', termId);
@@ -115,16 +119,18 @@ export const expenseService = {
     if (payload.amount <= 0) {
       throw new Error('Expense amount must be positive.');
     }
-
-    const effectiveSchoolId = isUUID(payload.schoolId) ? payload.schoolId : '22222222-2222-2222-2222-222222222222';
-    const effectiveTermId = isUUID(payload.termId) ? payload.termId : null;
-
-    let effectiveCategoryId = payload.categoryId;
-    if (!isUUID(effectiveCategoryId)) {
-      effectiveCategoryId = DEFAULT_EXPENSE_CATEGORIES[0].id;
+    if (!isUUID(payload.schoolId)) {
+      throw new Error('expenseService.recordExpense: no school selected.');
+    }
+    // No fixture fallback: a missing category is a configuration error the
+    // user must fix (create the category), never a silent substitution.
+    if (!isUUID(payload.categoryId)) {
+      throw new Error(
+        'expenseService.recordExpense: no expense category selected. Create an expense category first.'
+      );
     }
 
-    const cat = expenseFixtureStore.categories.find((c) => c.id === payload.categoryId) || DEFAULT_EXPENSE_CATEGORIES[0];
+    const cat = expenseFixtureStore.categories.find((c) => c.id === payload.categoryId);
 
     if (isMockEnv()) {
       const newExp: SchoolExpense = {
@@ -158,15 +164,15 @@ export const expenseService = {
     }
 
     const insertRow: any = {
-      school_id: effectiveSchoolId,
-      category_id: effectiveCategoryId,
+      school_id: payload.schoolId,
+      category_id: payload.categoryId,
       amount: payload.amount,
       spent_on: payload.spentOn,
       payment_channel: payload.paymentChannel,
       recipient_payee: payload.recipientPayee,
       description: payload.description,
       reference_number: payload.referenceNumber || null,
-      term_id: effectiveTermId,
+      term_id: isUUID(payload.termId) ? payload.termId : null,
     };
 
     const res = await supabase
@@ -187,5 +193,49 @@ export const expenseService = {
       newData: data,
     });
     return data;
+  },
+
+  /**
+   * Create an expense category for a school. Fail-closed on identity.
+   */
+  async createCategory(payload: {
+    schoolId: string;
+    name: string;
+    code?: string;
+  }): Promise<SchoolExpenseCategory> {
+    const name = payload.name.trim();
+    if (!isUUID(payload.schoolId)) {
+      throw new Error('expenseService.createCategory: no school selected.');
+    }
+    if (!name) {
+      throw new Error('expenseService.createCategory: category name is required.');
+    }
+    const code =
+      payload.code?.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_') ||
+      name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').slice(0, 24);
+    if (isMockEnv()) {
+      const created: SchoolExpenseCategory = {
+        id: `cat-${Date.now()}`,
+        schoolId: payload.schoolId,
+        name,
+        code,
+        createdAt: new Date().toISOString(),
+      };
+      expenseFixtureStore.categories.unshift(created);
+      return created;
+    }
+    const { data, error } = await supabase
+      .from('school_expense_categories')
+      .insert({ school_id: payload.schoolId, name, code })
+      .select()
+      .single();
+    if (error) throw error;
+    return {
+      id: (data as any).id,
+      schoolId: (data as any).school_id,
+      name: (data as any).name,
+      code: (data as any).code,
+      createdAt: (data as any).created_at,
+    };
   },
 };
