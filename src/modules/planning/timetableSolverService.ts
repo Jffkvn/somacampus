@@ -219,6 +219,7 @@ export const timetableSolverService = {
     const teacherDayPeriods: Record<string, number[]> = {}; // `${teacherId}-${day}` -> periodNumbers[]
     const teacherDaySlots: Record<string, SolverPeriodSlot[]> = {}; // `${teacherId}-${day}` -> SolverPeriodSlot[]
     const teacherWeekCount: Record<string, number> = {}; // `${teacherId}` -> count
+    const dayLoad: Record<number, number> = {}; // dayOfWeek -> assigned count (week-spread)
     const classDaySubjectPeriods: Record<string, number[]> = {}; // `${classId}-${day}-${subjectId}` -> periodNumbers[]
     const assignments: ScheduledAssignment[] = [];
 
@@ -319,6 +320,7 @@ export const timetableSolverService = {
       teacherDaySlots[teacherDayKey].push(slot);
 
       teacherWeekCount[v.req.teacherId] = (teacherWeekCount[v.req.teacherId] || 0) + 1;
+      dayLoad[slot.dayOfWeek] = (dayLoad[slot.dayOfWeek] || 0) + 1;
 
       const classSubjKey = `${v.req.classId}-${slot.dayOfWeek}-${v.req.subjectId}`;
       if (!classDaySubjectPeriods[classSubjKey]) classDaySubjectPeriods[classSubjKey] = [];
@@ -356,6 +358,7 @@ export const timetableSolverService = {
       );
 
       teacherWeekCount[v.req.teacherId] = Math.max(0, (teacherWeekCount[v.req.teacherId] || 1) - 1);
+      dayLoad[slot.dayOfWeek] = Math.max(0, (dayLoad[slot.dayOfWeek] || 1) - 1);
 
       const classSubjKey = `${v.req.classId}-${slot.dayOfWeek}-${v.req.subjectId}`;
       classDaySubjectPeriods[classSubjKey] = (classDaySubjectPeriods[classSubjKey] || []).filter(
@@ -365,20 +368,26 @@ export const timetableSolverService = {
       assignments.pop();
     }
 
-    // Order candidate slots for a variable according to soft preferences
+    // Order candidate slots: soft time-window preferences first, then
+    // week-spread (emptier days first) so lessons distribute Mon-Fri instead
+    // of packing the earliest days. Spread weight sits below the window
+    // weight so explicit preferences still win.
     function orderCandidateSlots(v: TimetableVariable, candidateList: SolverPeriodSlot[]): SolverPeriodSlot[] {
       const pref = preferenceMap[v.req.subjectId];
+      const loads = [1, 2, 3, 4, 5].map((d) => dayLoad[d] || 0);
+      const maxLoad = Math.max(...loads, 0);
       return [...candidateList].sort((s1, s2) => {
-        if (!pref) return 0;
-        let score1 = 0;
-        let score2 = 0;
+        let score1 = (maxLoad - (dayLoad[s1.dayOfWeek] || 0)) * 2;
+        let score2 = (maxLoad - (dayLoad[s2.dayOfWeek] || 0)) * 2;
 
-        if (pref.preferredTimeWindow === 'MORNING') {
-          if (s1.isMorning) score1 += 10;
-          if (s2.isMorning) score2 += 10;
-        } else if (pref.preferredTimeWindow === 'AFTERNOON') {
-          if (s1.isAfternoon) score1 += 10;
-          if (s2.isAfternoon) score2 += 10;
+        if (pref) {
+          if (pref.preferredTimeWindow === 'MORNING') {
+            if (s1.isMorning) score1 += 10;
+            if (s2.isMorning) score2 += 10;
+          } else if (pref.preferredTimeWindow === 'AFTERNOON') {
+            if (s1.isAfternoon) score1 += 10;
+            if (s2.isAfternoon) score2 += 10;
+          }
         }
 
         return score2 - score1;

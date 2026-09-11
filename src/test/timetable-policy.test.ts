@@ -547,3 +547,51 @@ describe('School Timetable Policy & Constraint Solver Engine (Phase 9I)', () => 
     expect(result.assignments).toHaveLength(3);
   });
 });
+
+describe('Solver week-spread (commissioning: no empty Friday)', () => {
+  it('distributes 9 pairs x 4 periods across all five days', () => {
+    const classes = ['Stage 5', 'Stage 6', 'Year 4'];
+    const subjects = [
+      { id: 'math', name: 'Mathematics', teacher: 't-anthony' },
+      { id: 'eng', name: 'English', teacher: 't-mary' },
+      { id: 'sci', name: 'Science', teacher: 't-david' },
+    ];
+    const requirements: SolverClassRequirement[] = [];
+    // Anthony takes maths+science for two classes to mirror the live load shape.
+    const plan: Array<[string, string, string]> = [
+      ['Stage 5', 'math', 't-anthony'],
+      ['Stage 5', 'eng', 't-mary'],
+      ['Stage 5', 'sci', 't-david'],
+      ['Stage 6', 'math', 't-anthony'],
+      ['Stage 6', 'eng', 't-mary'],
+      ['Stage 6', 'sci', 't-anthony'],
+      ['Year 4', 'math', 't-anthony'],
+      ['Year 4', 'eng', 't-mary'],
+      ['Year 4', 'sci', 't-anthony'],
+    ];
+    for (const [cls, sub, teacher] of plan) {
+      const s = subjects.find((x) => x.id === sub)!;
+      requirements.push({
+        classId: cls,
+        className: cls,
+        subjectId: sub,
+        subjectName: s.name,
+        teacherId: teacher,
+        teacherName: teacher,
+        periodsPerWeek: 4,
+      });
+    }
+    void classes;
+    const result = timetableSolverService.solveTimetable({ requirements });
+    expect(result.assignments).toHaveLength(36);
+    const perDay: Record<number, number> = {};
+    for (const a of result.assignments) {
+      perDay[a.slot.dayOfWeek] = (perDay[a.slot.dayOfWeek] || 0) + 1;
+    }
+    for (let d = 1; d <= 5; d++) {
+      expect(perDay[d] ?? 0).toBeGreaterThan(0);
+    }
+    const loads = [1, 2, 3, 4, 5].map((d) => perDay[d] ?? 0);
+    expect(Math.max(...loads) - Math.min(...loads)).toBeLessThanOrEqual(4);
+  });
+});
