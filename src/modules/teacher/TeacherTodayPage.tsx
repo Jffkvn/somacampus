@@ -20,6 +20,7 @@ import {
   Video,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../lib/authContext';
 import { greetFirstName, toLocalYYYYMMDD } from './scheduleUtils';
 
 interface StudentRosterItem {
@@ -42,6 +43,7 @@ const DEFAULT_P5_STUDENTS: StudentRosterItem[] = [
 
 export const TeacherTodayPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [data, setData] = useState<TeacherTodayViewModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClockingIn, setIsClockingIn] = useState(false);
@@ -55,9 +57,15 @@ export const TeacherTodayPage: React.FC = () => {
 
   useEffect(() => {
     async function loadData() {
+      // The workspace belongs to the signed-in teacher — never a hardcoded
+      // identity (that once served one teacher's day to every teacher).
+      if (!user?.email) {
+        setIsLoading(false);
+        return;
+      }
       try {
         setIsLoading(true);
-        const result = await teacherService.getTeacherToday('teacher@somacampus.ug', '2026-09-03');
+        const result = await teacherService.getTeacherToday(user.email, toLocalYYYYMMDD(new Date()));
         setData(result);
       } catch (err) {
         console.error('Failed to load teacher today data', err);
@@ -66,7 +74,7 @@ export const TeacherTodayPage: React.FC = () => {
       }
     }
     loadData();
-  }, []);
+  }, [user?.email]);
 
   const handleClockIn = async () => {
     if (!data) return;
@@ -574,7 +582,8 @@ export const TeacherTodayPage: React.FC = () => {
             })}
           </div>
 
-          {/* School Events */}
+          {/* School Events (only when the calendar actually has events) */}
+          {data.dailyEvents.length > 0 && (
           <div className="space-y-6">
             <Card>
               <CardHeader className="pb-3">
@@ -599,6 +608,7 @@ export const TeacherTodayPage: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+          )}
         </div>
       </div>
 

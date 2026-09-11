@@ -191,16 +191,34 @@ async function seedAuthUsers() {
       authUserId = created.user.id;
     }
 
-    // 3. Link or insert into `people`
-    const { data: existingPeople } = await adminClient
+    // 3. Link or insert into `people`.
+    // Prefer a person already referenced by an identity-bearing table
+    // (students/employees/guardians) so re-runs after supabase/seed.sql reuse
+    // the canonical row instead of creating a duplicate email (which once
+    // broke single-row lookups with PGRST116).
+    const { data: candidatePeople } = await adminClient
       .from('people')
-      .select('id')
-      .eq('email', userDef.email)
-      .limit(1);
+      .select('id, students(person_id), employees(person_id), student_guardians(guardian_person_id)')
+      .eq('email', userDef.email);
+
+    const candidates = (candidatePeople ?? []) as any[];
+    if (candidates.length > 1) {
+      console.warn(
+        `  Warning: ${candidates.length} people rows share ${userDef.email}; ` +
+          'reusing the identity-referenced one (dedupe the rest via migration 20260922000008).',
+      );
+    }
 
     let personId: string;
-    if (existingPeople && existingPeople.length > 0) {
-      personId = existingPeople[0].id;
+    const canonical = candidates.find((p) => p.students?.length || p.employees?.length || p.student_guardians?.length);
+    if (canonical) {
+      personId = canonical.id;
+      await adminClient
+        .from('people')
+        .update({ auth_user_id: authUserId })
+        .eq('id', personId);
+    } else if (candidates.length > 0) {
+      personId = candidates[0].id;
       await adminClient
         .from('people')
         .update({ auth_user_id: authUserId })

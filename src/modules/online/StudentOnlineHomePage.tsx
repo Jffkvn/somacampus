@@ -69,7 +69,19 @@ export const StudentOnlineHomePage: React.FC = () => {
         setLoadError(null);
         setHome(await onlineStudentService.getOnlineHome(studentKey, schoolId));
       } catch (err: any) {
-        setLoadError(err?.message ?? 'Could not load your online home. Please try again.');
+        // Engine/permission text (PostgREST codes, RLS messages) must never
+        // reach a learner. Log the detail, show a friendly line.
+        console.error('Student online home failed:', err);
+        const raw = String(err?.message ?? '');
+        const looksTechnical =
+          /PGRST\d+|row-level security|multiple \(or no\) rows|JSON object|duplicate key|violates|permission denied/i.test(
+            raw,
+          );
+        setLoadError(
+          looksTechnical
+            ? 'We could not load your learning page right now. Please try again later, or ask your teacher for help.'
+            : raw || 'Could not load your online home. Please try again.',
+        );
         setHome(null);
       } finally {
         setIsLoading(false);

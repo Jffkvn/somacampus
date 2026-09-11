@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase';
 import { fanOutAttendanceRecord } from '../notifications/notificationFanout';
 import { TeacherTodayViewModel, TimetableEntry, ClassResponsibility, AttendanceSession, AttendanceAuditLog } from '../../types/domain';
 import { toDayOfWeek, toHHMM, toLocalYYYYMMDD, deriveRecorderRole, selectActiveEntry } from './scheduleUtils';
-import { INITIAL_TEACHER_SCHEDULE, getTeacherScheduleFallback, INITIAL_STUDENT_ROSTER } from './fixtures/teacherFixtures';
+import { INITIAL_TEACHER_SCHEDULE, INITIAL_STUDENT_ROSTER } from './fixtures/teacherFixtures';
 
 const VERIF = ['verified_gps', 'verified_manual', 'flagged'] as const;
 type VerificationMethod = (typeof VERIF)[number];
@@ -62,34 +62,37 @@ export const teacherService = {
     }
 
     try {
-      // 1. Resolve employee from authenticated user or fallback ID
+      // 1. Resolve employee from authenticated user or email. No hardcoded
+      // fallback id: if the caller is not a known employee we fail closed so
+      // the page shows an honest error instead of another teacher's day.
       let employeeId = teacherEmailOrId;
-      let teacherName = 'Mrs. Sarah Namukasa';
+      let teacherName = '';
 
       const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-      if (!isUUID(employeeId) && !teacherEmailOrId.includes('teacher')) {
-        const { data: empData } = await supabase
-          .from('employees')
-          .select('id, person_id, people(first_name, last_name, email)')
-          .limit(5);
-
-        if (empData && empData.length > 0) {
-          const matched = empData.find(
-            (e: any) => e.id === teacherEmailOrId || e.people?.email === teacherEmailOrId
-          ) || empData[0];
-          employeeId = matched.id;
-          const person = Array.isArray((matched as any).people)
-            ? (matched as any).people[0]
-            : (matched as any).people;
-          if (person) {
-            teacherName = `${person.first_name} ${person.last_name}`;
-          }
-        }
-      }
-
       if (!isUUID(employeeId)) {
-        employeeId = '99999999-9999-9999-9999-999999999991';
+        const { data: personData, error: personError } = await supabase
+          .from('people')
+          .select('id, first_name, last_name')
+          .eq('email', teacherEmailOrId)
+          .maybeSingle();
+        if (personError) throw personError;
+        const personRow = Array.isArray(personData) ? personData[0] : personData;
+        if (!personRow) {
+          throw new Error(`No staff record found for ${teacherEmailOrId}.`);
+        }
+        const { data: empRow, error: empError } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('person_id', personRow.id)
+          .limit(2);
+        if (empError) throw empError;
+        const employee = Array.isArray(empRow) ? empRow[0] : empRow;
+        if (!employee) {
+          throw new Error(`No employee record found for ${teacherEmailOrId}.`);
+        }
+        employeeId = employee.id;
+        teacherName = `${personRow.first_name} ${personRow.last_name}`;
       }
 
       const schoolIdForSchedule = '22222222-2222-2222-2222-222222222222';
@@ -256,25 +259,12 @@ export const teacherService = {
         }
       }
 
-      // Canonical Sarah P5 Blue model fallback
-      if (activeResponsibilities.length === 0 && teacherEmailOrId.includes('teacher')) {
-        activeResponsibilities.push({
-          classId: '55555555-5555-5555-5555-555555555551',
-          className: 'Stage 5 Blue',
-          streamId: '66666666-6666-6666-6666-666666666661',
-          streamName: 'Blue',
-          studentCount: 24,
-          classTeacherId: employeeId,
-          classTeacherName: 'Mrs. Sarah Namukasa',
-          effectiveFrom: '2026-01-01',
-          isCurrentUserClassTeacher: true,
-          todayDailyAttendance: undefined,
-        });
-      }
-
-      // 3. Process Scheduled Teaching Timetable
-      const defaultSchedule = getTeacherScheduleFallback(employeeId, teacherName);
-      let schedule: TimetableEntry[] = defaultSchedule;
+      // 3. Process Scheduled Teaching Timetable.
+      // Live path starts from an honest empty schedule: fixture data must
+      // never mask a real gap (a fixture entry id reaching the Lesson Cockpit
+      // produced "Could not load lesson context"). The page renders a truthful
+      // "no lessons scheduled" state when the DB has none for this teacher.
+      let schedule: TimetableEntry[] = [];
       if (ttRes.status === 'fulfilled' && ttRes.value.data && ttRes.value.data.length > 0) {
         const mapped: TimetableEntry[] = (ttRes.value.data as any[])
           .map((r) => {
@@ -367,29 +357,20 @@ export const teacherService = {
         teacherId: employeeId,
         teacherName,
         date,
-        dayLabel: 'Tuesday, 3 September 2026',
+        dayLabel: new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        }),
         clockInStatus,
         classResponsibilities: activeResponsibilities,
         schedule,
         activeClassIndex: 0,
         activeTimetableEntry: activeEntry,
         completedLessonIds,
-        dailyEvents: [
-          {
-            id: 'event-01',
-            title: "Cambridge Primary Staff Briefing",
-            time: '07:45 AM',
-            location: 'Staff Common Room',
-            eventType: 'meeting',
-          },
-          {
-            id: 'event-02',
-            title: "Parents' Consultation Evening",
-            time: '03:30 PM',
-            location: 'Main Assembly Hall',
-            eventType: 'meeting',
-          },
-        ],
+        // Live path: events come from calendar data only. No fabricated events.
+        dailyEvents: [],
       };
 
       teacherTodayCache.set(cacheKey, { data: result, timestamp: Date.now() });

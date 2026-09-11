@@ -513,9 +513,12 @@ export const parentService = {
 
     const statement = await financeService.getStudentFeeStatement(studentId);
 
+    // activity_enrolments carries only institutional columns (activity_id,
+    // status, charge_id, enrolled_at) — student/class labels are derived from
+    // the child's own enrolment context, never selected from this table.
     const { data: activityEnrolments, error: activityEnrolError } = await supabase
       .from('activity_enrolments')
-      .select('student_id, student_name, class_name, stream_name, activity_id')
+      .select('student_id, activity_id, status')
       .eq('school_id', schoolId)
       .eq('student_id', studentId);
     if (activityEnrolError) throw new Error('Failed to load child overview.', { cause: activityEnrolError });
@@ -586,9 +589,9 @@ export const parentService = {
       const clearance = clearanceRows.find((c: any) => c.activity_id === e.activity_id);
       return toParentActivityProjection({
         studentId,
-        studentName: e.student_name ?? child.name,
-        className: e.class_name ?? child.class,
-        streamName: e.stream_name ?? null,
+        studentName: child.name,
+        className: child.class,
+        streamName: null,
         activityId: e.activity_id,
         activityName: activityNameById.get(e.activity_id) ?? 'Activity',
         status: (clearance?.status ?? 'pending_review') as ClearanceStatus,

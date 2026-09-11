@@ -274,36 +274,35 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
       setError(null);
       setPublishState('Saving the generated week…');
       const assignments = (window as any).__wizardAssignments ?? [];
-      const { data: ttRow, error: ttErr } = await supabase
-        .from('timetables')
-        .insert({
-          school_id: schoolId,
-          term_id: terms[0]?.id ?? null,
-          name: `Term Master Schedule (Wizard ${new Date().toLocaleDateString()})`,
-          status: 'reviewed',
-          base_timetable_id: null,
-        })
-        .select()
-        .single();
-      if (ttErr) throw ttErr;
-      const rowsToInsert = assignments.map((a: any) => ({
-        timetable_id: (ttRow as any).id,
+      // Privileged writes go through the leadership-gated SECURITY DEFINER RPC:
+      // RLS on timetables/timetable_entries is SELECT-only by design, and the
+      // RPC creates the timetable plus all entries in one transaction so a
+      // partial week can never be left behind.
+      const entriesPayload = assignments.map((a: any) => ({
         class_id: a.classId,
         stream_id: a.streamId ?? null,
         subject_id: a.subjectId,
         teacher_id: a.teacherId,
+        room_name: a.roomName ?? null,
         day_of_week: a.slot.dayOfWeek,
         start_time: a.slot.startTime,
         end_time: a.slot.endTime,
       }));
-      if (rowsToInsert.length > 0) {
-        const { error: entErr } = await supabase.from('timetable_entries').insert(rowsToInsert);
-        if (entErr) throw entErr;
-      }
+      const { data: timetableId, error: createErr } = await supabase.rpc(
+        'create_timetable_with_entries',
+        {
+          p_school_id: schoolId,
+          p_term_id: terms[0]?.id ?? null,
+          p_name: `Term Master Schedule (Wizard ${new Date().toLocaleDateString()})`,
+          p_entries: entriesPayload,
+        }
+      );
+      if (createErr) throw createErr;
+      if (!timetableId) throw new Error('Timetable creation returned no id.');
       setPublishState('Approving…');
-      await timetablePolicyService.approveTimetableAtomic((ttRow as any).id, currentEmployeeId);
+      await timetablePolicyService.approveTimetableAtomic(timetableId as string, currentEmployeeId);
       setPublishState('Publishing…');
-      await timetablePolicyService.publishTimetableAtomic((ttRow as any).id, currentEmployeeId);
+      await timetablePolicyService.publishTimetableAtomic(timetableId as string, currentEmployeeId);
       setPublishState('published');
     } catch (err) {
       const detail = err instanceof Error ? err.message : 'Publishing failed.';

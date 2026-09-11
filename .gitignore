@@ -12,3 +12,6 @@ supabase/.temp/
 .DS_Store
 .supabase_home/
 .reference_repos/
+
+# PDF report page renders (regenerable from the PDF)
+pdf_report/pages/

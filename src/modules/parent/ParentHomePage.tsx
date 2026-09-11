@@ -174,45 +174,46 @@ export const ParentHomePage: React.FC = () => {
     }
   }, [schoolId]);
 
+  const loadOverview = useCallback(async () => {
+    if (!schoolId || !selectedId) {
+      setOverview(null);
+      setOnline(null);
+      return;
+    }
+    try {
+      setLoadingOverview(true);
+      setError(null);
+      // Isolated fetches: an online-learning failure degrades to an empty
+      // online card only — the main overview must still render.
+      const [mainResult, onlineResult] = await Promise.allSettled([
+        parentService.getChildOverview(schoolId, selectedId),
+        parentService.getChildOnlineOverview(schoolId, selectedId),
+      ]);
+      if (mainResult.status === 'rejected') throw mainResult.reason;
+      setOverview(mainResult.value);
+      if (onlineResult.status === 'fulfilled') {
+        setOnline(onlineResult.value);
+      } else {
+        console.error('Failed to load child online overview', onlineResult.reason);
+        setOnline(null);
+      }
+    } catch (err) {
+      console.error('Failed to load child overview', err);
+      setError('Could not load this child’s overview. Please try again.');
+      setOverview(null);
+      setOnline(null);
+    } finally {
+      setLoadingOverview(false);
+    }
+  }, [schoolId, selectedId]);
+
   useEffect(() => {
     loadChildren();
   }, [loadChildren]);
 
   useEffect(() => {
-    async function loadOverview() {
-      if (!schoolId || !selectedId) {
-        setOverview(null);
-        setOnline(null);
-        return;
-      }
-      try {
-        setLoadingOverview(true);
-        setError(null);
-        // Isolated fetches: an online-learning failure degrades to an empty
-        // online card only — the main overview must still render.
-        const [mainResult, onlineResult] = await Promise.allSettled([
-          parentService.getChildOverview(schoolId, selectedId),
-          parentService.getChildOnlineOverview(schoolId, selectedId),
-        ]);
-        if (mainResult.status === 'rejected') throw mainResult.reason;
-        setOverview(mainResult.value);
-        if (onlineResult.status === 'fulfilled') {
-          setOnline(onlineResult.value);
-        } else {
-          console.error('Failed to load child online overview', onlineResult.reason);
-          setOnline(null);
-        }
-      } catch (err) {
-        console.error('Failed to load child overview', err);
-        setError('Could not load this child’s overview. Please try again.');
-        setOverview(null);
-        setOnline(null);
-      } finally {
-        setLoadingOverview(false);
-      }
-    }
     loadOverview();
-  }, [schoolId, selectedId]);
+  }, [loadOverview]);
 
   if (loadingChildren) {
     return <LoadingState label="Loading your children..." />;
@@ -278,11 +279,17 @@ export const ParentHomePage: React.FC = () => {
         </div>
       )}
 
-      {error && (
-        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
-      )}
-
-      {loadingOverview ? (
+      {error && loadingOverview === false ? (
+        // Single honest failure state: one card, one retry. Never stack an
+        // error banner on top of the empty state.
+        <EmptyState
+          icon={Users}
+          title="Something went wrong"
+          description={error}
+          actionLabel="Try again"
+          onAction={loadOverview}
+        />
+      ) : loadingOverview ? (
         <LoadingState label={`Loading ${selected.name}’s overview...`} />
       ) : !overview ? (
         <EmptyState

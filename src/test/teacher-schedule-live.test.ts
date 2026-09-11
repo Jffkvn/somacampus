@@ -173,14 +173,14 @@ describe('teacher live schedule branch (Task 3 follow-up, supabase mocked)', () 
     expect(vm.activeTimetableEntry?.id).toBe('tte-live-001');
   });
 
-  it('falls back to the 3-entry array on empty rows', async () => {
+  it('serves an honest empty schedule on empty rows (no fixture fallback)', async () => {
     tableResponses.timetable_entries = { data: [], error: null };
     const vm = await teacherService.getTeacherToday(TEACHER_UUID, '2020-01-05');
-    expect(vm.schedule).toHaveLength(3);
-    expect(vm.activeTimetableEntry?.id).toBe('tt-entry-001');
+    expect(vm.schedule).toHaveLength(0);
+    expect(vm.activeTimetableEntry).toBeUndefined();
   });
 
-  it('falls back without throwing when the query rejects', async () => {
+  it('serves an honest empty schedule without throwing when the query rejects', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     tableResponses.timetable_entries = new Error('timetable read failed');
     let vm;
@@ -189,8 +189,8 @@ describe('teacher live schedule branch (Task 3 follow-up, supabase mocked)', () 
         vm = await teacherService.getTeacherToday(TEACHER_UUID, '2020-01-05');
       })()
     ).resolves.toBeUndefined();
-    expect(vm!.schedule).toHaveLength(3);
-    expect(vm!.activeTimetableEntry?.id).toBe('tt-entry-001');
+    expect(vm!.schedule).toHaveLength(0);
+    expect(vm!.activeTimetableEntry).toBeUndefined();
     warn.mockRestore();
   });
 

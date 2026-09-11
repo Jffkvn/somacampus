@@ -101,34 +101,40 @@ const SUBMISSION_SELECT =
 /**
  * UUID student ids pass through; anything else (login email) resolves via
  * people → students. Unknown → throw (never another student's id).
+ * Duplicate people rows for one email (a seed-script artifact that once
+ * surfaced as PGRST116 "multiple rows returned") are tolerated: every
+ * candidate person is considered and the student record disambiguates.
  */
 async function resolveStudentId(studentIdOrEmail: string): Promise<string> {
   if (isUUID(studentIdOrEmail)) return studentIdOrEmail;
-  const { data: person, error: personError } = await supabase
+  const { data: peopleRows, error: personError } = await supabase
     .from('people')
     .select('id, email')
-    .eq('email', studentIdOrEmail)
-    .maybeSingle();
+    .eq('email', studentIdOrEmail);
   if (personError) throw personError;
-  const personRow = one(person);
-  if (!personRow) {
+  const personIds = [...new Set(((peopleRows ?? []) as any[]).map((p) => String(p.id)))];
+  if (personIds.length === 0) {
     throw new Error(
       `onlineStudentService: student ${studentIdOrEmail} not found (people lookup)`,
     );
   }
-  const { data: student, error: studentError } = await supabase
+  const { data: studentRows, error: studentError } = await supabase
     .from('students')
     .select('id')
-    .eq('person_id', personRow.id)
-    .maybeSingle();
+    .in('person_id', personIds);
   if (studentError) throw studentError;
-  const studentRow = one(student);
-  if (!studentRow) {
+  const students = (studentRows ?? []) as any[];
+  if (students.length === 0) {
     throw new Error(
       `onlineStudentService: no student record for ${studentIdOrEmail}`,
     );
   }
-  return String(studentRow.id);
+  if (students.length > 1) {
+    throw new Error(
+      `onlineStudentService: ${students.length} student records resolve to ${studentIdOrEmail}; contact the school office to fix the enrolment.`,
+    );
+  }
+  return String(students[0].id);
 }
 
 export const onlineStudentService = {
