@@ -37,6 +37,10 @@
 - Hire dead fallback removed; subjects via authoritative RPC
 - Thread creation archive-rollback; observations require classId
 
+## PASS update (2026-09-11)
+
+| 17 | Save teaching allocation | Root cause found + unblocked: `academic_years`/`terms` had RLS with zero policies → reads [] → `academicYearId` empty → guard blamed visible fields. Fixed by `20260922000007` policies; seeded year 2026-2027 + Terms 1–3; guard now names the missing piece field-by-field. Pending your retest with Stage 6 / Mathematics / Anthony / 4. |
+
 ## OPEN (user-reported, queued)
 
 1. Calendar: edit/delete events (UX pass #1)

@@ -399,8 +399,15 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
   };
 
   const handleSaveManualAllocation = async () => {
-    if (!schoolId || !academicYearId || !manualClassId || !manualSubjectId || !manualTeacherId) {
-      setAllocationError('Please complete all fields. A qualified teacher is required.');
+    const missing: string[] = [];
+    if (!schoolId) missing.push('school (sign in again)');
+    if (!academicYearId)
+      missing.push('academic year (none found for this school — set one up first)');
+    if (!manualClassId) missing.push('class');
+    if (!manualSubjectId) missing.push('subject');
+    if (!manualTeacherId) missing.push('a qualified teacher (appoint one under Timetable Policies first)');
+    if (missing.length > 0) {
+      setAllocationError(`Cannot save yet — missing: ${missing.join('; ')}.`);
       return;
     }
 
