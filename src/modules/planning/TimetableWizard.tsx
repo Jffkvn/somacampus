@@ -531,7 +531,7 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <p className="text-xs font-bold text-slate-700 uppercase tracking-wider px-3 pt-3">
                   Draft preview — {draftPreview.length} placed periods (not live until published).
-                  Break 10:15–10:45 • Lunch 12:15–13:15 shown in every day.
+                  Break 10:15–10:45 • Lunch 13:00–14:00 shown in every day.
                 </p>
                 <div className="overflow-x-auto">
                 <div className="grid grid-cols-5 gap-2 p-3 min-w-[900px]">
@@ -550,7 +550,7 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
                         timeline.push({ __band: 'break' });
                         breakShown = true;
                       }
-                      if (!lunchShown && t >= '13:15') {
+                      if (!lunchShown && t >= '14:00') {
                         timeline.push({ __band: 'lunch' });
                         lunchShown = true;
                       }
@@ -568,7 +568,7 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
                           </div>
                         ) : a.__band === 'lunch' ? (
                           <div key={`l-${ti}`} className="p-1.5 rounded-lg bg-orange-50 border border-orange-200 text-[10px] text-center text-orange-800 font-semibold">
-                            🍽️ Lunch 12:15–13:15
+                            🍽️ Lunch 13:00–14:00
                           </div>
                         ) : (
                         <div key={a.__idx} className="p-2 rounded-lg border text-[11px] space-y-0.5 bg-sky-50/50 border-sky-200 text-sky-950">
