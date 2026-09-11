@@ -787,6 +787,28 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
           <p className="text-sm text-slate-500">
             Authoritative Academic Workflow: Official Staff Teaching Subjects → Teaching Allocations → Deterministic CSP Solver.
           </p>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+            <div className="p-3 bg-white border border-slate-200 rounded-xl">
+              <p className="font-bold text-slate-900">Step 1 — Who teaches what</p>
+              <p className="text-slate-500 mt-0.5">
+                In Teaching Allocations below, match each class + subject to a teacher, then approve.
+                The solver cannot run until every pair is approved.
+              </p>
+            </div>
+            <div className="p-3 bg-white border border-slate-200 rounded-xl">
+              <p className="font-bold text-slate-900">Step 2 — Build the week</p>
+              <p className="text-slate-500 mt-0.5">
+                The solver places approved pairs into periods, respecting workload limits and subject
+                time windows. Nothing is final until you publish.
+              </p>
+            </div>
+            <div className="p-3 bg-white border border-slate-200 rounded-xl">
+              <p className="font-bold text-slate-900">Step 3 — Master Schedule</p>
+              <p className="text-slate-500 mt-0.5">
+                Publishing freezes the week teachers and classes follow. Republish after any allocation change.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Navigation Pills */}

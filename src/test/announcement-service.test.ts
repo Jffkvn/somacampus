@@ -200,16 +200,15 @@ describe('Announcement Service (Phase 8B)', () => {
 });
 
 describe('Announcement Service: edit/cancel/delete + multi-audience (commissioning UX)', () => {
-  let updated: Array<{ payload: unknown; col: string; val: unknown }>;
-  let deleted: Array<{ col: string; val: unknown }>;
+  let updated: Array<{ payload: unknown }>;
 
   const builderFor2 = (row: any) => {
     const b: any = {};
     b.select = () => b;
-    b.eq = (col: string, val: unknown) => b;
+    b.eq = (_col: string, _val: unknown) => b;
     b.single = async () => ({ data: row, error: null });
     b.update = (payload: unknown) => {
-      updated.push({ payload, col: '', val: '' });
+      updated.push({ payload });
       return b;
     };
     b.delete = () => b;
@@ -220,7 +219,6 @@ describe('Announcement Service: edit/cancel/delete + multi-audience (commissioni
     vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
     vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key');
     updated = [];
-    deleted = [];
   });
 
   afterEach(() => {
