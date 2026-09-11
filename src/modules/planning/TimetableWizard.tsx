@@ -53,6 +53,7 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
 
   // Generate + publish
   const [genSummary, setGenSummary] = useState<string | null>(null);
+  const [draftPreview, setDraftPreview] = useState<any[]>([]);
   const [genDetail, setGenDetail] = useState<string[]>([]);
   const [isSolving, setIsSolving] = useState(false);
   const [publishState, setPublishState] = useState('');
@@ -220,6 +221,7 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
           : `${placed} of ${total} periods placed. ${unplaced} could not be placed — adjust staffing or workload limits, then generate again.`
       );
       setGenDetail(((result.diagnostics as any)?.bottlenecks ?? []).map((b: any) => b.description ?? JSON.stringify(b)).slice(0, 8));
+      setDraftPreview(result.assignments ?? []);
       (window as any).__wizardAssignments = result.assignments ?? [];
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Schedule generation failed.');
@@ -247,13 +249,13 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
       if (ttErr) throw ttErr;
       const rowsToInsert = assignments.map((a: any) => ({
         timetable_id: (ttRow as any).id,
-        school_id: schoolId,
         class_id: a.classId,
+        stream_id: a.streamId ?? null,
         subject_id: a.subjectId,
         teacher_id: a.teacherId,
-        day_of_week: a.dayOfWeek,
-        start_time: a.startTime,
-        end_time: a.endTime,
+        day_of_week: a.slot.dayOfWeek,
+        start_time: a.slot.startTime,
+        end_time: a.slot.endTime,
       }));
       if (rowsToInsert.length > 0) {
         const { error: entErr } = await supabase.from('timetable_entries').insert(rowsToInsert);
@@ -265,7 +267,8 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
       await timetablePolicyService.publishTimetableAtomic((ttRow as any).id, currentEmployeeId);
       setPublishState('published');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Publishing failed.');
+      const detail = err instanceof Error ? err.message : 'Publishing failed.';
+      setError(`Publishing failed: ${detail}`);
       setPublishState('');
     }
   };
@@ -480,6 +483,30 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
             {genSummary && (
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-medium">
                 {genSummary}
+              </div>
+            )}
+            {draftPreview.length > 0 && (
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-wider px-3 pt-3">
+                  Draft preview — {draftPreview.length} placed periods (not live until published)
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3">
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, di) => (
+                    <div key={day} className="space-y-1.5">
+                      <p className="text-[11px] font-bold text-slate-500 uppercase text-center">{day}</p>
+                      {draftPreview
+                        .filter((a: any) => a.slot.dayOfWeek === di + 1)
+                        .sort((x: any, y: any) => String(x.slot.startTime).localeCompare(String(y.slot.startTime)))
+                        .map((a: any, i: number) => (
+                          <div key={i} className="p-2 rounded-lg border text-[11px] space-y-0.5 bg-sky-50/50 border-sky-200 text-sky-950">
+                            <p className="font-bold truncate">{a.subjectName}</p>
+                            <p className="truncate">{a.className}</p>
+                            <p className="text-slate-500 truncate">{a.teacherName} • {String(a.slot.startTime).slice(0, 5)}</p>
+                          </div>
+                        ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             {genDetail.length > 0 && (
