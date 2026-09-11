@@ -198,3 +198,104 @@ describe('Announcement Service (Phase 8B)', () => {
     expect(mockFrom).not.toHaveBeenCalled();
   });
 });
+
+describe('Announcement Service: edit/cancel/delete + multi-audience (commissioning UX)', () => {
+  let updated: Array<{ payload: unknown; col: string; val: unknown }>;
+  let deleted: Array<{ col: string; val: unknown }>;
+
+  const builderFor2 = (row: any) => {
+    const b: any = {};
+    b.select = () => b;
+    b.eq = (col: string, val: unknown) => b;
+    b.single = async () => ({ data: row, error: null });
+    b.update = (payload: unknown) => {
+      updated.push({ payload, col: '', val: '' });
+      return b;
+    };
+    b.delete = () => b;
+    return b;
+  };
+
+  beforeEach(() => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key');
+    updated = [];
+    deleted = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  const ROW = {
+    id: 'ann-1',
+    school_id: 's1',
+    title: 'T',
+    body: 'B',
+    priority: 'normal',
+    target_audience: 'parents',
+    additional_audiences: ['teachers'],
+    target_class_id: null,
+    requires_acknowledgement: false,
+    published_by: null,
+    published_at: '2026-09-10T08:00:00Z',
+    expires_at: null,
+  };
+
+  it('create sends additional audiences (excluding the primary)', async () => {
+    const inserted: any[] = [];
+    mockFrom.mockImplementation(() => {
+      const b: any = {};
+      b.select = () => b;
+      b.single = async () => ({ data: ROW, error: null });
+      b.insert = (payload: any) => {
+        inserted.push(payload);
+        return b;
+      };
+      return b;
+    });
+    await announcementService.createAnnouncement({
+      schoolId: 's1',
+      title: 'T',
+      body: 'B',
+      audience: 'parents',
+      additionalAudiences: ['teachers', 'parents'],
+      actorRole: 'principal',
+    } as any);
+    expect(inserted[0].additional_audiences).toEqual(['teachers']);
+  });
+
+  it('maps additional audiences onto the view', async () => {
+    mockFrom.mockImplementation(() => builderFor2(ROW));
+    const updatedRow = await announcementService.updateAnnouncement('ann-1', 'principal', {
+      title: 'T2',
+    });
+    expect(updatedRow.additionalAudiences).toEqual(['teachers']);
+    expect(updatedRow.title).toBe('T');
+  });
+
+  it('update sends only provided fields; teacher role rejected', async () => {
+    mockFrom.mockImplementation(() => builderFor2(ROW));
+    await announcementService.updateAnnouncement('ann-1', 'principal', {
+      title: 'T2',
+      additionalAudiences: ['teachers'],
+    });
+    expect(updated[0].payload).toMatchObject({ title: 'T2', additional_audiences: ['teachers'] });
+    await expect(
+      announcementService.updateAnnouncement('ann-1', 'teacher' as any, { title: 'X' })
+    ).rejects.toThrow(/Only admin or principal/);
+  });
+
+  it('cancel expires now; delete is principal-only', async () => {
+    mockFrom.mockImplementation(() => builderFor2(ROW));
+    const cancelled = await announcementService.cancelAnnouncement('ann-1', 'admin');
+    expect(cancelled).toBeDefined();
+    const payload: any = updated[0].payload;
+    expect(payload.expires_at).toBeDefined();
+    await announcementService.deleteAnnouncement('ann-1', 'principal');
+    await expect(announcementService.deleteAnnouncement('ann-1', 'admin' as any)).rejects.toThrow(
+      /Only the principal/
+    );
+  });
+});
