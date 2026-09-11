@@ -7,21 +7,21 @@
 
 ## PASS (live-verified)
 
-| # | Flow | Verified | Notes |
-|---|------|----------|-------|
-| 1 | Principal login + role resolution | 2026-09-10 | `resolve_my_app_roles()` returns principal; UI Role badge correct |
-| 2 | Create class | 2026-09-10 | After browser-data clear (earlier failure was stale session) |
-| 3 | Hire staff (+ compensation + dossier) | 2026-09-10 | Anthony Mabirizi EMP-2026-0006, full dossier renders |
-| 4 | Submit admission application | 2026-09-10 | Amina Kato, guardian + placement captured |
-| 5 | Approve & enrol admission | 2026-09-10 | Required DB fix `20260922000000` (phantom `people.school_id`) |
-| 6 | Log operating expense | 2026-09-10 | Required live category seeding (10 rows) + fixture-fallback removal |
-| 7 | Record fee payment + receipt | 2026-09-10 | Required atomic RPC `20260922000001`–`03` (3 live iterations: missing staging table, WHERE-less DELETE) |
-| 8 | Appoint official teaching subjects | 2026-09-11 | Via authoritative RPC (timetable path rerouted) |
-| 9 | Save timetable workload policies | 2026-09-11 | "Policies Saved" confirmed in UI |
-| 10 | Stock request → approve → issue | 2026-09-11 | Full inventory loop |
-| 11 | Add store items | 2026-09-11 | — |
-| 12 | Create calendar events | 2026-09-11 | Required write policies `20260922000004` |
-| 13 | Create announcements | 2026-09-11 | AI draft → review → publish path used |
+| # | Flow | Verified | Why it failed at first → what fixed it |
+|---|------|----------|----------------------------------------|
+| 1 | Principal login + role resolution | 2026-09-10 | First session behaved role-less (stale browser state). Clearing browser data + server-resolved roles via `resolve_my_app_roles()` fixed it. No backfill was ever needed — all 10 `user_roles` rows already existed. |
+| 2 | Create class | 2026-09-10 | Same stale session as #1. The contract (`classes_leadership_write`) already existed — nothing to fix in code. |
+| 3 | Hire staff (+ compensation + dossier) | 2026-09-10 | Same stale session; hire RPC + compensation profile were already correct (Anthony Mabirizi EMP-2026-0006 hired, dossier renders). Dead direct-insert fallback later removed to prevent future half-hires. |
+| 4 | Submit admission application | 2026-09-10 | Worked once session was clean (Amina Kato + guardian + placement). |
+| 5 | Approve & enrol admission | 2026-09-10 | Real code bug: approval RPC inserted `school_id` into `people`/`students` (columns don't exist) + wrong guardian columns. Fixed by `20260922000000` rewriting 3 inserts; verified on scratch Postgres. |
+| 6 | Log operating expense | 2026-09-10 | Two stacked causes: (a) `school_expense_categories` empty live + service silently substituting a fake UUID → FK violation; fixed by seeding 10 real categories + removing the fallback + inline category creation. Blocking `alert()`s replaced with banners (they froze the modal). |
+| 7 | Record fee payment + receipt | 2026-09-10 | Three iterations: (a) fixture ghost pupil + missing `student_account_id` → rebuilt as atomic `record_fee_payment` RPC (`...01`); (b) staging table created inside loop → no-charge pupils crashed (`...02`); (c) defensive WHERE-less DELETE rejected by live Postgres (`...03`). |
+| 8 | Appoint official teaching subjects | 2026-09-11 | Timetable path did direct upserts bypassing the authoritative RPC. Rerouted through `appoint_teacher_subject`. |
+| 9 | Save timetable workload policies | 2026-09-11 | Worked once RLS helpers resolved (identity fix #1). "Policies Saved" confirmed in UI. |
+| 10 | Stock request → approve → issue | 2026-09-11 | Principals without `employees` rows couldn't file (`...05` allows leadership). Orphan risk closed with archive-rollback. |
+| 11 | Add store items | 2026-09-11 | Worked once identity resolved. |
+| 12 | Create calendar events | 2026-09-11 | Dead feature: zero write policies existed. Added leadership policies + real `target_class_id` (`...04`). |
+| 13 | Create announcements | 2026-09-11 | Worked once identity resolved; AI-draft review path used as designed. |
 
 ## FIXED (code + live, merged to main)
 
