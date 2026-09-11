@@ -54,6 +54,9 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
   // Generate + publish
   const [genSummary, setGenSummary] = useState<string | null>(null);
   const [draftPreview, setDraftPreview] = useState<any[]>([]);
+  const [editingSlot, setEditingSlot] = useState<number | null>(null);
+  const [slotTeacher, setSlotTeacher] = useState('');
+  const [slotError, setSlotError] = useState<string | null>(null);
   const [genDetail, setGenDetail] = useState<string[]>([]);
   const [isSolving, setIsSolving] = useState(false);
   const [publishState, setPublishState] = useState('');
@@ -273,6 +276,45 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
     }
   };
 
+  const applySlotTeacher = (idx: number) => {
+    const slot = draftPreview[idx];
+    if (!slot || !slotTeacher) {
+      setSlotError('Choose a replacement teacher first.');
+      return;
+    }
+    const clash = draftPreview.some(
+      (s: any, i: number) =>
+        i !== idx &&
+        s.teacherId === slotTeacher &&
+        s.slot.dayOfWeek === slot.slot.dayOfWeek &&
+        s.slot.startTime === slot.slot.startTime
+    );
+    if (clash) {
+      const name = teachers.find((t) => t.id === slotTeacher)?.name ?? 'That teacher';
+      setSlotError(`${name} is already teaching at this hour — pick someone free.`);
+      return;
+    }
+    const name = teachers.find((t) => t.id === slotTeacher)?.name ?? slot.teacherName;
+    const next = draftPreview.map((s: any, i: number) =>
+      i === idx ? { ...s, teacherId: slotTeacher, teacherName: name } : s
+    );
+    setDraftPreview(next);
+    (window as any).__wizardAssignments = next;
+    setEditingSlot(null);
+    setSlotError(null);
+  };
+
+  const removeSlot = (idx: number) => {
+    const next = draftPreview.filter((_: any, i: number) => i !== idx);
+    setDraftPreview(next);
+    (window as any).__wizardAssignments = next;
+    setEditingSlot(null);
+    setSlotError(null);
+    setGenSummary(
+      `Updated — ${next.length} periods kept. Removed slots stay unplaced until you regenerate or re-add staffing.`
+    );
+  };
+
   const steps = ['Foundation', 'Staffing', 'Generate', 'Publish'];
 
   const addClass = async () => {
@@ -488,24 +530,89 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
             {draftPreview.length > 0 && (
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <p className="text-xs font-bold text-slate-700 uppercase tracking-wider px-3 pt-3">
-                  Draft preview — {draftPreview.length} placed periods (not live until published)
+                  Draft preview — {draftPreview.length} placed periods (not live until published).
+                  Break 10:15–10:45 • Lunch 12:15–13:15 shown in every day.
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3">
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, di) => (
+                <div className="overflow-x-auto">
+                <div className="grid grid-cols-5 gap-2 p-3 min-w-[900px]">
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, di) => {
+                    const daySlots = draftPreview
+                      .map((a: any, idx: number) => ({ ...a, __idx: idx }))
+                      .filter((a: any) => a.slot.dayOfWeek === di + 1)
+                      .sort((x: any, y: any) => String(x.slot.startTime).localeCompare(String(y.slot.startTime)));
+                    // Chronological timeline: slots with break/lunch bands interleaved.
+                    const timeline: any[] = [];
+                    let breakShown = false;
+                    let lunchShown = false;
+                    for (const s of daySlots) {
+                      const t = String(s.slot.startTime);
+                      if (!breakShown && t >= '10:45') {
+                        timeline.push({ __band: 'break' });
+                        breakShown = true;
+                      }
+                      if (!lunchShown && t >= '13:15') {
+                        timeline.push({ __band: 'lunch' });
+                        lunchShown = true;
+                      }
+                      timeline.push(s);
+                    }
+                    if (!breakShown) timeline.push({ __band: 'break' });
+                    if (!lunchShown) timeline.push({ __band: 'lunch' });
+                    return (
                     <div key={day} className="space-y-1.5">
                       <p className="text-[11px] font-bold text-slate-500 uppercase text-center">{day}</p>
-                      {draftPreview
-                        .filter((a: any) => a.slot.dayOfWeek === di + 1)
-                        .sort((x: any, y: any) => String(x.slot.startTime).localeCompare(String(y.slot.startTime)))
-                        .map((a: any, i: number) => (
-                          <div key={i} className="p-2 rounded-lg border text-[11px] space-y-0.5 bg-sky-50/50 border-sky-200 text-sky-950">
-                            <p className="font-bold truncate">{a.subjectName}</p>
-                            <p className="truncate">{a.className}</p>
-                            <p className="text-slate-500 truncate">{a.teacherName} • {String(a.slot.startTime).slice(0, 5)}</p>
+                      {timeline.map((a: any, ti: number) =>
+                        a.__band === 'break' ? (
+                          <div key={`b-${ti}`} className="p-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[10px] text-center text-amber-800 font-semibold">
+                            ☕ Break 10:15–10:45
                           </div>
-                        ))}
+                        ) : a.__band === 'lunch' ? (
+                          <div key={`l-${ti}`} className="p-1.5 rounded-lg bg-orange-50 border border-orange-200 text-[10px] text-center text-orange-800 font-semibold">
+                            🍽️ Lunch 12:15–13:15
+                          </div>
+                        ) : (
+                        <div key={a.__idx} className="p-2 rounded-lg border text-[11px] space-y-0.5 bg-sky-50/50 border-sky-200 text-sky-950">
+                          <p className="font-bold truncate">{a.subjectName}</p>
+                          <p className="truncate">{a.className}</p>
+                          <p className="text-slate-500 truncate">{a.teacherName} • {String(a.slot.startTime).slice(0, 5)}</p>
+                          {editingSlot === a.__idx ? (
+                            <div className="pt-1 space-y-1" onClick={(e) => e.stopPropagation()}>
+                              <select
+                                value={slotTeacher}
+                                onChange={(e) => setSlotTeacher(e.target.value)}
+                                className="w-full text-[11px] border border-slate-300 rounded px-1 py-0.5 bg-white"
+                                aria-label="Replacement teacher"
+                              >
+                                <option value="">Choose teacher…</option>
+                                {qualifiedFor(a.subjectId).map((t) => (
+                                  <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                              </select>
+                              {slotError && <p className="text-rose-700 font-semibold">{slotError}</p>}
+                              <div className="flex gap-1">
+                                <button type="button" className="px-1.5 py-0.5 rounded bg-[#002b36] text-white font-bold" onClick={() => applySlotTeacher(a.__idx)}>
+                                  Apply
+                                </button>
+                                <button type="button" className="px-1.5 py-0.5 rounded bg-white border border-slate-300 font-bold" onClick={() => removeSlot(a.__idx)}>
+                                  Remove slot
+                                </button>
+                                <button type="button" className="px-1.5 py-0.5 rounded font-bold text-slate-500" onClick={() => { setEditingSlot(null); setSlotError(null); }}>
+                                  ×
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button type="button" className="text-[10px] font-bold text-brand-teal hover:underline" onClick={() => { setEditingSlot(a.__idx); setSlotTeacher(a.teacherId); setSlotError(null); }}>
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                        )
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
+                </div>
                 </div>
               </div>
             )}

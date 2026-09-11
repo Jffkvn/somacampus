@@ -89,15 +89,17 @@ export const timetableSolverService = {
    */
   generateStandardPeriods(): SolverPeriodSlot[] {
     const slots: SolverPeriodSlot[] = [];
+    // Bell schedule: 45-min periods; 30-min morning break 10:15-10:45;
+    // 1-hour lunch 12:15-13:15. Break/lunch bands render in grids separately.
     const periodTimes = [
       { start: '08:00', end: '08:45', isMorning: true },
       { start: '08:45', end: '09:30', isMorning: true },
       { start: '09:30', end: '10:15', isMorning: true },
       { start: '10:45', end: '11:30', isMorning: true }, // Post morning break
       { start: '11:30', end: '12:15', isMorning: false },
-      { start: '13:00', end: '13:45', isMorning: false }, // Post lunch
-      { start: '13:45', end: '14:30', isMorning: false },
-      { start: '14:30', end: '15:15', isMorning: false },
+      { start: '13:15', end: '14:00', isMorning: false }, // Post lunch
+      { start: '14:00', end: '14:45', isMorning: false },
+      { start: '14:45', end: '15:30', isMorning: false },
     ];
 
     for (let day = 1; day <= 5; day++) {
