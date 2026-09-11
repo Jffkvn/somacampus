@@ -402,3 +402,82 @@ describe('Calendar Service (Phase 8E Task 1)', () => {
     expect(await calendarService.resolveViewerClassIds('school-1', 'student')).toEqual([]);
   });
 });
+
+describe('Calendar Service: update + delete (commissioning UX)', () => {
+  const EVT = '11111111-1111-4111-8111-111111111111';
+
+  function mockUpdateDelete(result: { data: unknown; error: unknown }) {
+    const calls: Array<{ op: string; table: string; payload?: unknown; col?: string; val?: unknown }> = [];
+    const b: any = {};
+    b.update = (payload: unknown) => {
+      calls.push({ op: 'update', table: 'calendar_events', payload });
+      return b;
+    };
+    b.delete = () => {
+      calls.push({ op: 'delete', table: 'calendar_events' });
+      return b;
+    };
+    b.eq = (col: string, val: unknown) => {
+      calls.push({ op: 'eq', table: 'calendar_events', col, val });
+      return b;
+    };
+    b.select = () => b;
+    b.single = async () => result;
+    mockFrom.mockImplementation(() => b);
+    return calls;
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  it('update sends only changed fields and returns the mapped view', async () => {
+    const calls = mockUpdateDelete({
+      data: {
+        id: EVT,
+        school_calendar_id: 'cal-1',
+        title: 'New title',
+        description: null,
+        event_type: 'meeting',
+        start_datetime: '2026-09-10T08:00:00Z',
+        end_datetime: '2026-09-10T09:00:00Z',
+        all_day: false,
+        location: null,
+        target_audience: 'school',
+        target_class_id: null,
+      },
+      error: null,
+    });
+    const updated = await calendarService.updateCalendarEvent(EVT, { title: 'New title' });
+    expect(updated.title).toBe('New title');
+    const upd = calls.find((c) => c.op === 'update');
+    expect(upd?.payload).toEqual({ title: 'New title' });
+    expect(calls).toContainEqual({ op: 'eq', table: 'calendar_events', col: 'id', val: EVT });
+  });
+
+  it('update rejects garbage ids and class-audience without a class', async () => {
+    await expect(calendarService.updateCalendarEvent('x', { title: 'T' })).rejects.toThrow(
+      /valid event id/
+    );
+    await expect(
+      calendarService.updateCalendarEvent(EVT, { audience: 'class', targetClassId: null })
+    ).rejects.toThrow(/require a target class/);
+  });
+
+  it('delete issues a scoped delete', async () => {
+    const calls = mockUpdateDelete({ data: null, error: null });
+    await calendarService.deleteCalendarEvent(EVT);
+    expect(calls).toContainEqual({ op: 'delete', table: 'calendar_events' });
+    expect(calls).toContainEqual({ op: 'eq', table: 'calendar_events', col: 'id', val: EVT });
+  });
+
+  it('delete rejects garbage ids', async () => {
+    await expect(calendarService.deleteCalendarEvent('nope')).rejects.toThrow(/valid event id/);
+  });
+});
