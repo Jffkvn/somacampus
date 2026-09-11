@@ -179,3 +179,58 @@ describe('expense category fail-closed contract', () => {
     );
   });
 });
+
+describe('fee dossier club enrolments', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    forceProductionEnv();
+  });
+  afterEach(() => {
+    restoreEnv();
+  });
+
+  it('returns activity name + charge + clearance per enrolment', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'activity_enrolments') {
+        return {
+          select: () => ({ eq: () =>
+            Promise.resolve({
+              data: [
+                { activity_id: 'act-1', status: 'enrolled', charge_id: 'chg-1', activity: { name: 'Football' } },
+                { activity_id: 'act-2', status: 'enrolled', charge_id: null, activity: { name: 'Chess' } },
+              ],
+              error: null,
+            }),
+          }),
+        };
+      }
+      if (table === 'student_charges') {
+        return {
+          select: () => ({ in: () =>
+            Promise.resolve({ data: [{ id: 'chg-1', amount: 150000 }], error: null }),
+          }),
+        };
+      }
+      if (table === 'activity_clearances') {
+        return {
+          select: () => ({ eq: () =>
+            Promise.resolve({ data: [{ activity_id: 'act-1', status: 'cleared' }], error: null }),
+          }),
+        };
+      }
+      return chain({ data: [], error: null });
+    });
+    const clubs = await financeService.getStudentClubEnrolments('STU');
+    expect(clubs).toEqual([
+      { activityName: 'Football', status: 'enrolled', chargeAmount: 150000, clearance: 'cleared' },
+      { activityName: 'Chess', status: 'enrolled', chargeAmount: null, clearance: 'pending_review' },
+    ]);
+  });
+
+  it('degrades to [] on read failure (profile still renders)', async () => {
+    mockFrom.mockImplementation(() => {
+      throw new Error('RLS denied');
+    });
+    await expect(financeService.getStudentClubEnrolments('STU')).resolves.toEqual([]);
+  });
+});
