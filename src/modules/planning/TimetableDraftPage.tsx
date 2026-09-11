@@ -27,6 +27,7 @@ import {
   type ScheduledAssignment,
 } from './timetableSolverService';
 import { timetablePolicyService } from './timetablePolicyService';
+import { TimetableWizard } from './TimetableWizard';
 import type {
   TimetableSubjectPreference,
   TimetableConstraintScorecard,
@@ -139,6 +140,7 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
 
   // Step 1: Allocation Actions & State
   const [showManualModal, setShowManualModal] = useState(false);
+  const [guidedMode, setGuidedMode] = useState(true);
   const [manualClassId, setManualClassId] = useState('');
   const [manualSubjectId, setManualSubjectId] = useState('');
   const [manualTeacherId, setManualTeacherId] = useState('');
@@ -794,6 +796,22 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
           <p className="text-sm text-slate-500">
             Authoritative Academic Workflow: Official Staff Teaching Subjects → Teaching Allocations → Deterministic CSP Solver.
           </p>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setGuidedMode(true)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${guidedMode ? 'bg-[#002b36] text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:text-slate-900'}`}
+            >
+              Guide me (recommended)
+            </button>
+            <button
+              type="button"
+              onClick={() => setGuidedMode(false)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${!guidedMode ? 'bg-[#002b36] text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:text-slate-900'}`}
+            >
+              Advanced controls
+            </button>
+          </div>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
             <div className="p-3 bg-white border border-slate-200 rounded-xl">
               <p className="font-bold text-slate-900">Step 1 — Who teaches what</p>
@@ -1008,6 +1026,10 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
         </div>
       )}
 
+      {guidedMode ? (
+        <TimetableWizard schoolId={schoolId} />
+      ) : (
+        <>
       {/* ========================================================================= */}
       {/* STEP 1: TEACHING ALLOCATIONS (THE PLANNING MEETING)                      */}
       {/* ========================================================================= */}
@@ -1452,6 +1474,8 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
             </Card>
           )}
         </div>
+      )}
+        </>
       )}
 
       {/* ========================================================================= */}
