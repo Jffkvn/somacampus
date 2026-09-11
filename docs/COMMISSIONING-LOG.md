@@ -3,7 +3,7 @@
 > Running record of end-to-end flows verified against the LIVE database by real
 > user testing (Principal, Bursar) + targeted live probes. A flow is PASS only
 > when the real UI operation succeeds live — never from unit tests alone.
-> Last updated: 2026-09-11 (branch ux/commissioning-pass).
+> Last updated: 2026-09-11 (branch ux/commissioning-pass, UX items 1-3 done, 4-5 pending retest).
 
 ## PASS (live-verified)
 
@@ -22,6 +22,9 @@
 | 11 | Add store items | 2026-09-11 | Worked once identity resolved. |
 | 12 | Create calendar events | 2026-09-11 | Dead feature: zero write policies existed. Added leadership policies + real `target_class_id` (`...04`). |
 | 13 | Create announcements | 2026-09-11 | Worked once identity resolved; AI-draft review path used as designed. |
+| 14 | Calendar edit + delete | 2026-09-11 | Missing UI (policies existed). Edit reuses create modal; delete with confirm. Code + live probe pending your retest. |
+| 15 | Announcement edit/cancel/delete + multi-audience | 2026-09-11 | Missing UI + `additional_audiences` column (`...06` live). Cancel = expire (history kept); delete = principal-only. Code + live probe pending your retest. |
+| 16 | Timetable weights/dashboard/guide | 2026-09-11 | Dashboard was stale until reload (now refreshes on save). Weights + builder steps explained in plain English. No logic changed. |
 
 ## FIXED (code + live, merged to main)
 
