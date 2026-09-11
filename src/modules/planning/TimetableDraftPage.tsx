@@ -1026,7 +1026,7 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
         </div>
       )}
 
-      {guidedMode ? (
+      {guidedMode && activeStep !== 'schedule' ? (
         <TimetableWizard schoolId={schoolId} />
       ) : (
         <>

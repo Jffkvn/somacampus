@@ -162,7 +162,8 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
     try {
       setIsSaving(true);
       setError(null);
-      for (const r of rows) {
+      const savedRows = [...rows];
+      for (const r of savedRows) {
         const saved = await timetablePolicyService.saveTeachingAllocation({
           schoolId,
           academicYearId: yearId,
@@ -174,14 +175,33 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
           allocationSource: 'human',
           proposalReason: 'Timetable wizard staffing step.',
         });
-        r.allocationId = (saved as any).id;
-        r.status = (saved as any).status;
+        r.allocationId = (saved as any).id ?? (saved as any)?.id;
+        r.status = 'reviewed';
       }
-      const ids = rows.map((r) => r.allocationId).filter(Boolean) as string[];
+      const ids = savedRows.map((r) => r.allocationId).filter(Boolean) as string[];
       if (ids.length > 0 && currentEmployeeId) {
         await timetablePolicyService.approveTeachingAllocationsAtomic(ids, currentEmployeeId);
       }
+      // Reload authoritative state (ids + approved status come from the DB,
+      // never from local mutation) and verify every row before advancing.
       await load();
+      const verify = await timetablePolicyService.getTeachingAllocations(schoolId);
+      const byKey = new Map(
+        ((verify ?? []) as any[]).map((a) => [`${a.classId}|${a.subjectId}`, a])
+      );
+      const lacking = rows
+        .filter((r) => {
+          const m = byKey.get(`${r.classId}|${r.subjectId}`);
+          return !(m && m.status === 'approved' && m.id);
+        })
+        .map((r) => `${r.className} — ${r.subjectName}`);
+      if (lacking.length > 0) {
+        setError(
+          `Saved, but these rows did not come back approved — resolve before generating: ${lacking.join('; ')}.`
+        );
+        setIsSaving(false);
+        return;
+      }
       setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save staffing.');
@@ -195,9 +215,23 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
       setIsSolving(true);
       setError(null);
       setGenSummary(null);
-      const approved = rows.filter((r) => r.status === 'approved' && r.allocationId);
-      if (approved.length < rows.length) {
-        setError('Some rows are not approved yet. Approve every row in Step 2 first.');
+      // Refresh authoritative state first: never generate from stale rows.
+      const fresh = await timetablePolicyService.getTeachingAllocations(schoolId);
+      const byKey = new Map(
+        ((fresh ?? []) as any[]).map((a) => [`${a.classId}|${a.subjectId}`, a])
+      );
+      const synced = rows.map((r) => {
+        const m = byKey.get(`${r.classId}|${r.subjectId}`);
+        return m ? { ...r, allocationId: m.id, status: m.status } : r;
+      });
+      setRows(synced);
+      const approved = synced.filter((r) => r.status === 'approved' && r.allocationId);
+      if (approved.length < synced.length) {
+        const lacking = synced
+          .filter((r) => !(r.status === 'approved' && r.allocationId))
+          .map((r) => `${r.className} — ${r.subjectName}`)
+          .join('; ');
+        setError(`Not ready to generate — these rows are not approved yet: ${lacking}. Fix them in Step 2 first.`);
         setIsSolving(false);
         return;
       }
