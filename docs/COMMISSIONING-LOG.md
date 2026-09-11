@@ -40,6 +40,7 @@
 ## PASS update (2026-09-11)
 
 | 17 | Save teaching allocation | Root cause found + unblocked: `academic_years`/`terms` had RLS with zero policies → reads [] → `academicYearId` empty → guard blamed visible fields. Fixed by `20260922000007` policies; seeded year 2026-2027 + Terms 1–3; guard now names the missing piece field-by-field. Pending your retest with Stage 6 / Mathematics / Anthony / 4. |
+| 18 | Guided timetable wizard | 2026-09-11 | New `TimetableWizard`: Foundation (year/terms/classes/subjects status + inline create) → Staffing (inline grid, qualified-only dropdowns, auto-fill, approve) → Generate (plain-English result) → Publish chain. Mounted as Guide-me default on builder; classic as Advanced. Wizard render tests 3/3. |
 
 ## OPEN (user-reported, queued)
 
