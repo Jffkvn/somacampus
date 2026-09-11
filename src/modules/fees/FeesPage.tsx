@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { formatCurrency } from '../../lib/utils';
 import { DollarSign, Upload, Search, CheckCircle2, AlertCircle, PlusCircle, Receipt, X, FileText } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/authContext';
 import { studentService, StudentDirectoryRow } from '../students/studentService';
 
@@ -266,9 +266,12 @@ export const FeesPage: React.FC = () => {
                   return (
                     <tr key={acc.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3.5 px-4">
-                        <span className="font-semibold text-slate-900 block">
+                        <Link
+                          to={`/fees/${acc.studentId}`}
+                          className="font-semibold text-brand-teal hover:underline block"
+                        >
                           {s?.name || 'Student'}
-                        </span>
+                        </Link>
                         <span className="text-xs text-slate-500 font-mono">
                           {s?.admissionNumber || '—'}
                         </span>
@@ -481,6 +484,12 @@ export const FeesPage: React.FC = () => {
                 <p className="text-xs text-slate-500">
                   Admission: {activeStatement.admissionNumber} • {activeStatement.className}
                 </p>
+                <Link
+                  to={`/fees/${activeStatement.studentId}`}
+                  className="text-xs font-semibold text-brand-teal hover:underline"
+                >
+                  Open full fee profile →
+                </Link>
               </div>
               <button
                 onClick={() => setActiveStatement(null)}

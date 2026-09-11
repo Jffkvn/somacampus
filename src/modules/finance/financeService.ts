@@ -417,4 +417,55 @@ export const financeService = {
       throw new Error('Failed to fetch student fee statement', { cause: err });
     }
   },
+
+  /**
+   * Club/activity enrolments for the fee dossier: activity name, linked
+   * charge amount (if any), and operational clearance. Degrades to [] on
+   * read failure (profile still renders) — never throws.
+   */
+  async getStudentClubEnrolments(
+    studentId: string
+  ): Promise<
+    Array<{ activityName: string; status: string; chargeAmount: number | null; clearance: string }>
+  > {
+    if (isMockEnv()) return [];
+    try {
+      const { data: enrols, error: enrolErr } = await supabase
+        .from('activity_enrolments')
+        .select('activity_id, status, charge_id, activity:school_activities(name)')
+        .eq('student_id', studentId);
+      if (enrolErr) throw enrolErr;
+      const rows = Array.isArray(enrols) ? enrols : [];
+      const chargeIds = rows.map((r: any) => r.charge_id).filter(Boolean);
+      let chargeAmounts = new Map<string, number>();
+      if (chargeIds.length > 0) {
+        const { data: charges } = await supabase
+          .from('student_charges')
+          .select('id, amount')
+          .in('id', chargeIds);
+        for (const c of (charges as any[]) || []) {
+          chargeAmounts.set(c.id, Number(c.amount));
+        }
+      }
+      const { data: clearances } = await supabase
+        .from('activity_clearances')
+        .select('activity_id, status')
+        .eq('student_id', studentId);
+      const clearanceByActivity = new Map(
+        ((clearances as any[]) || []).map((c) => [c.activity_id, c.status])
+      );
+      return rows.map((r: any) => {
+        const act = Array.isArray(r.activity) ? r.activity[0] : r.activity;
+        return {
+          activityName: act?.name ?? 'Activity',
+          status: r.status,
+          chargeAmount: r.charge_id ? chargeAmounts.get(r.charge_id) ?? null : null,
+          clearance: clearanceByActivity.get(r.activity_id) ?? 'pending_review',
+        };
+      });
+    } catch (err) {
+      console.warn('Failed to load club enrolments:', err);
+      return [];
+    }
+  },
 };

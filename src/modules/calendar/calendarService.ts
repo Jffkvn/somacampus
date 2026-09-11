@@ -293,6 +293,71 @@ export const calendarService = {
   },
 
   /**
+   * Update a calendar event. Leadership-only via RLS
+   * (calendar_events_leadership_write); all other roles get a DB denial.
+   */
+  async updateCalendarEvent(
+    eventId: string,
+    patch: Partial<{
+      title: string;
+      description: string | null;
+      eventType: CalendarEventType;
+      startDatetime: string;
+      endDatetime: string;
+      allDay: boolean;
+      location: string | null;
+      audience: CalendarAudience;
+      targetClassId: string | null;
+    }>
+  ): Promise<CalendarEvent> {
+    if (!isUUID(eventId)) {
+      throw new Error('calendarService.updateCalendarEvent: valid event id required.');
+    }
+    if (patch.audience === 'class' && !isUUID(patch.targetClassId)) {
+      throw new Error(
+        'calendarService.updateCalendarEvent: class-audience events require a target class.'
+      );
+    }
+    const row: Record<string, unknown> = {};
+    if (patch.title !== undefined) row.title = patch.title.trim();
+    if (patch.description !== undefined) row.description = patch.description?.trim() || null;
+    if (patch.eventType !== undefined) row.event_type = patch.eventType;
+    if (patch.startDatetime !== undefined) row.start_datetime = patch.startDatetime;
+    if (patch.endDatetime !== undefined) row.end_datetime = patch.endDatetime;
+    if (patch.allDay !== undefined) row.all_day = patch.allDay;
+    if (patch.location !== undefined) row.location = patch.location?.trim() || null;
+    if (patch.audience !== undefined) row.target_audience = patch.audience;
+    if (patch.targetClassId !== undefined) row.target_class_id = patch.targetClassId || null;
+    if (Object.keys(row).length === 0) {
+      throw new Error('calendarService.updateCalendarEvent: nothing to update.');
+    }
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .update(row)
+      .eq('id', eventId)
+      .select('*')
+      .single();
+    if (error || !data) {
+      throw new Error(`calendarService.updateCalendarEvent: ${error?.message || 'update failed'}`);
+    }
+    return toCalendarEventView(data);
+  },
+
+  /**
+   * Delete a calendar event. Leadership-only via RLS; history is
+   * operational (not financial/evidence), so hard delete is acceptable.
+   */
+  async deleteCalendarEvent(eventId: string): Promise<void> {
+    if (!isUUID(eventId)) {
+      throw new Error('calendarService.deleteCalendarEvent: valid event id required.');
+    }
+    const { error } = await supabase.from('calendar_events').delete().eq('id', eventId);
+    if (error) {
+      throw new Error(`calendarService.deleteCalendarEvent: ${error.message}`);
+    }
+  },
+
+  /**
    * Seeds upcoming sample events for the school term.
    */
   async seedDefaultEvents(schoolId: string): Promise<CalendarEvent[]> {

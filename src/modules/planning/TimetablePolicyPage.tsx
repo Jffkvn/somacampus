@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Clock,
   BookOpen,
@@ -67,8 +67,7 @@ export const TimetablePolicyPage: React.FC = () => {
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  useEffect(() => {
-    async function load() {
+  const loadAll = useCallback(async () => {
       try {
         setIsLoading(true);
         const { data: schools } = await supabase.from('schools').select('id').limit(1);
@@ -143,9 +142,11 @@ export const TimetablePolicyPage: React.FC = () => {
       } finally {
         setIsLoading(false);
       }
-    }
-    load();
   }, []);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   const handleAddOfficialSubject = async (teacherId: string) => {
     const subjectId = selectedSubjectToAdd[teacherId];
@@ -196,6 +197,8 @@ export const TimetablePolicyPage: React.FC = () => {
       );
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
+      // Recompute the dashboard from the just-saved rules so limits update immediately.
+      await loadAll();
     } catch (err) {
       console.error('Failed to save policy rules:', err);
     }
@@ -532,9 +535,16 @@ export const TimetablePolicyPage: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-xs text-slate-500">
-              Set preferred scheduling windows for core subjects. High-priority preferences are prioritized by the solver.
-            </p>
+            <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-900 space-y-1">
+              <p className="font-bold">How scheduling preferences work</p>
+              <p>
+                <span className="font-semibold">Time window</span> tells the solver when a subject
+                may be placed (morning, afternoon, or any time).{' '}
+                <span className="font-semibold">Weight (1–10, default 5)</span> tells the solver
+                how hard to fight for that window: a weight-9 subject gets its preferred window
+                before a weight-3 subject when both compete for the same period.
+              </p>
+            </div>
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
               {subjects.map((sub) => {
                 const pref = preferences.find((p) => p.subjectId === sub.id);
@@ -578,7 +588,7 @@ export const TimetablePolicyPage: React.FC = () => {
                         <option value="AFTERNOON">Afternoon (11:30–15:15)</option>
                       </select>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1" title="Higher number = solver prioritises this subject's time window first (1–10, default 5)">
                         <span className="text-[11px] text-slate-400">Weight:</span>
                         <input
                           type="number"
@@ -683,7 +693,9 @@ export const TimetablePolicyPage: React.FC = () => {
           </CardHeader>
           <CardContent className="pt-0 space-y-4">
             <p className="text-xs text-slate-500">
-              Real-time monitoring across physical school periods and Online Learning Centre sessional teaching.
+              Live monitoring across physical periods and Online Centre sessions, measured against the
+              limits saved under Workload &amp; Hours. Saving new limits refreshes this dashboard immediately.
+              Status OK means within limits; APPROACHING_CAP means near a limit; OVER_CAP means a limit is breached.
             </p>
 
             <div className="overflow-x-auto border border-slate-200 rounded-xl">

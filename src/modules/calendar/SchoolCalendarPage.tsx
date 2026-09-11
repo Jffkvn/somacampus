@@ -68,6 +68,7 @@ export const SchoolCalendarPage: React.FC = () => {
   const { schoolId, role } = useAuth();
   const effectiveSchoolId = schoolId || '22222222-2222-2222-2222-222222222222';
   const isStaff = ['teacher', 'admin', 'principal', 'head_teacher', 'super_admin'].includes(role);
+  const canManage = ['admin', 'principal'].includes(role);
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,6 +77,9 @@ export const SchoolCalendarPage: React.FC = () => {
 
   // Modal & action states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -125,6 +129,48 @@ export const SchoolCalendarPage: React.FC = () => {
     }
   };
 
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setLocation('');
+    setAllDay(false);
+    setEventType('assembly');
+    setAudience('school');
+    setEditingEvent(null);
+  };
+
+  const openEditModal = (ev: CalendarEvent) => {
+    setEditingEvent(ev);
+    setTitle(ev.title);
+    setDescription(ev.description ?? '');
+    setLocation(ev.location ?? '');
+    setEventType(ev.eventType);
+    setAudience(ev.audience);
+    const s = new Date(ev.startDatetime);
+    const en = new Date(ev.endDatetime);
+    setStartDate(s.toISOString().split('T')[0]);
+    setStartTime(s.toISOString().slice(11, 16));
+    setEndDate(en.toISOString().split('T')[0]);
+    setEndTime(en.toISOString().slice(11, 16));
+    setAllDay(ev.allDay);
+    setFormError(null);
+    setIsCreateModalOpen(true);
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!window.confirm('Delete this calendar event? This cannot be undone.')) return;
+    try {
+      setDeletingId(id);
+      setActionError(null);
+      await calendarService.deleteCalendarEvent(id);
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to delete event.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
@@ -143,25 +189,38 @@ export const SchoolCalendarPage: React.FC = () => {
         ? new Date(`${endDate || startDate}T23:59:59`).toISOString()
         : new Date(`${endDate || startDate}T${endTime}:00`).toISOString();
 
-      const newEv = await calendarService.createCalendarEvent({
-        schoolId: effectiveSchoolId,
-        title: title.trim(),
-        description: description.trim() || null,
-        eventType,
-        startDatetime,
-        endDatetime,
-        allDay,
-        location: location.trim() || null,
-        audience,
-      });
-
-      setEvents((prev) => [...prev, newEv].sort((a, b) => new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime()));
+      if (editingEvent) {
+        const updated = await calendarService.updateCalendarEvent(editingEvent.id, {
+          title: title.trim(),
+          description: description.trim() || null,
+          eventType,
+          startDatetime,
+          endDatetime,
+          allDay,
+          location: location.trim() || null,
+          audience,
+        });
+        setEvents((prev) =>
+          prev
+            .map((ev) => (ev.id === updated.id ? updated : ev))
+            .sort((a, b) => new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime())
+        );
+      } else {
+        const newEv = await calendarService.createCalendarEvent({
+          schoolId: effectiveSchoolId,
+          title: title.trim(),
+          description: description.trim() || null,
+          eventType,
+          startDatetime,
+          endDatetime,
+          allDay,
+          location: location.trim() || null,
+          audience,
+        });
+        setEvents((prev) => [...prev, newEv].sort((a, b) => new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime()));
+      }
       setIsCreateModalOpen(false);
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setLocation('');
-      setAllDay(false);
+      resetForm();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create calendar event.');
     } finally {
@@ -252,7 +311,10 @@ export const SchoolCalendarPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={() => {
+              resetForm();
+              setIsCreateModalOpen(true);
+            }}
               className="gap-1.5 bg-[#002b36] hover:bg-[#003847] text-white"
             >
               <Plus className="w-4 h-4" />
@@ -331,6 +393,27 @@ export const SchoolCalendarPage: React.FC = () => {
                             {e.description}
                           </p>
                         )}
+                        {canManage && (
+                          <div className="flex items-center gap-2 mt-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditModal(e)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={deletingId === e.id}
+                              onClick={() => handleDeleteEvent(e.id)}
+                            >
+                              {deletingId === e.id ? 'Deleting…' : 'Delete'}
+                            </Button>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   );
@@ -338,6 +421,12 @@ export const SchoolCalendarPage: React.FC = () => {
               </div>
             </section>
           ))}
+        </div>
+      )}
+
+      {actionError && (
+        <div role="alert" className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 font-medium">
+          {actionError}
         </div>
       )}
 
@@ -523,7 +612,7 @@ export const SchoolCalendarPage: React.FC = () => {
               className="bg-[#002b36] hover:bg-[#003847] text-white gap-1.5"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Save Event
+              {editingEvent ? 'Save Changes' : 'Save Event'}
             </Button>
           </div>
         </form>

@@ -4,7 +4,7 @@ import { AlertCircle, ArrowRight, CheckCircle2, FileText, Search, Users, XCircle
 import { admissionService, type AdmissionApplicationRow } from './admissionService';
 import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusPill, type StatusVariant } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -188,7 +188,7 @@ export const AdmissionsQueuePage: React.FC = () => {
           onAction={() => window.location.assign('/students/new')}
         />
       ) : (
-        <div className="grid lg:grid-cols-2 gap-6 items-start">
+        <div className="max-w-3xl">
           <Card>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
@@ -224,27 +224,49 @@ export const AdmissionsQueuePage: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card>
-            {!selected ? (
-              <CardContent className="p-8 text-center">
-                <p className="text-sm text-slate-500">Select an application to review it.</p>
-              </CardContent>
-            ) : (
-              <>
-                <CardHeader>
+          {selected && (
+            <div
+              className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Review application for ${selected.pupilName}`}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setSelectedId(null);
+                  setActionError(null);
+                }
+              }}
+            >
+              <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <div className="sticky top-0 bg-white/95 backdrop-blur px-6 pt-5 pb-4 border-b border-slate-100 flex items-start justify-between gap-3">
                   <div>
-                    <CardTitle>{selected.pupilName}</CardTitle>
-                    <CardDescription>
-                      Applied {selected.createdAt ? selected.createdAt.slice(0, 10) : 'recently'}
-                      {selected.dob ? ` • born ${selected.dob}` : ''}
-                      {selected.classId
-                        ? ` • Target: ${availableClasses.find((c) => c.id === selected.classId)?.name || 'Class Assigned'}`
-                        : ' • No class assigned yet'}
-                    </CardDescription>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Admission decision</p>
+                    <h2 className="text-xl font-extrabold text-slate-900">{selected.pupilName}</h2>
                   </div>
-                  <StatusPill status={statusVariant(selected.status)} label={selected.status} />
-                </CardHeader>
-                <CardContent className="space-y-5">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <StatusPill status={statusVariant(selected.status)} label={selected.status} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedId(null);
+                        setActionError(null);
+                      }}
+                      aria-label="Close review"
+                      className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+                <div className="px-6 py-5">
+                  <p className="text-xs text-slate-500 mb-4">
+                    Applied {selected.createdAt ? selected.createdAt.slice(0, 10) : 'recently'}
+                    {selected.dob ? ` • born ${selected.dob}` : ''}
+                    {selected.classId
+                      ? ` • Target: ${availableClasses.find((c) => c.id === selected.classId)?.name || 'Class Assigned'}`
+                      : ' • No class assigned yet'}
+                  </p>
+                  <div className="space-y-5">
                   {approvedStudentId && (
                     <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
                       <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
@@ -418,10 +440,11 @@ export const AdmissionsQueuePage: React.FC = () => {
                       </div>
                     </div>
                   )}
-                </CardContent>
-              </>
-            )}
-          </Card>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -36,6 +36,7 @@ export interface Announcement {
   priority: AnnouncementPriority;
   audience: AnnouncementAudience;
   targetClassId: string | null;
+  additionalAudiences: AnnouncementAudience[];
   requiresAcknowledgement: boolean;
   publishedBy: string | null;
   publishedAt: string;
@@ -54,6 +55,7 @@ export interface CreateAnnouncementInput {
   priority?: AnnouncementPriority;
   requiresAcknowledgement?: boolean;
   targetClassId?: string | null;
+  additionalAudiences?: AnnouncementAudience[];
   publishedBy?: string | null;
   expiresAt?: string | null;
   /**
@@ -80,6 +82,7 @@ export function toAnnouncementView(row: any): Announcement {
     priority: row.priority ?? 'normal',
     audience: row.target_audience ?? 'school',
     targetClassId: row.target_class_id ?? null,
+    additionalAudiences: Array.isArray(row.additional_audiences) ? row.additional_audiences : [],
     requiresAcknowledgement: row.requires_acknowledgement ?? false,
     publishedBy: row.published_by ?? null,
     publishedAt: row.published_at,
@@ -155,6 +158,9 @@ export const announcementService = {
         priority: input.priority ?? 'normal',
         requires_acknowledgement: input.requiresAcknowledgement ?? false,
         target_class_id: input.audience === 'class' ? input.targetClassId : null,
+        additional_audiences: (input.additionalAudiences ?? []).filter(
+          (a) => a !== input.audience
+        ),
         published_by: input.publishedBy ?? null,
         expires_at: input.expiresAt ?? null,
         is_ai_drafted: input.isAiDrafted ?? false,
@@ -184,6 +190,86 @@ export const announcementService = {
       console.warn('createAnnouncement fan-out failed (announcement unaffected):', err);
     }
     return published;
+  },
+
+  /**
+   * Edit a published announcement (admin/principal via RLS manage policy).
+   * Audience changes re-target the feed; additional audiences replace.
+   */
+  async updateAnnouncement(
+    announcementId: string,
+    actorRole: UserRole,
+    patch: Partial<{
+      title: string;
+      body: string;
+      audience: AnnouncementAudience;
+      additionalAudiences: AnnouncementAudience[];
+      targetClassId: string | null;
+      priority: AnnouncementPriority;
+      requiresAcknowledgement: boolean;
+      expiresAt: string | null;
+    }>
+  ): Promise<Announcement> {
+    if (isMockEnv()) throw new Error('Announcements are unavailable in a mock environment.');
+    if (actorRole !== 'admin' && actorRole !== 'principal') {
+      throw new Error('Only admin or principal may edit announcements.');
+    }
+    const row: Record<string, unknown> = {};
+    if (patch.title !== undefined) row.title = patch.title.trim();
+    if (patch.body !== undefined) row.body = patch.body.trim();
+    if (patch.audience !== undefined) row.target_audience = patch.audience;
+    if (patch.additionalAudiences !== undefined) {
+      row.additional_audiences = patch.additionalAudiences.filter((a) => a !== patch.audience);
+    }
+    if (patch.targetClassId !== undefined) row.target_class_id = patch.targetClassId;
+    if (patch.priority !== undefined) row.priority = patch.priority;
+    if (patch.requiresAcknowledgement !== undefined) {
+      row.requires_acknowledgement = patch.requiresAcknowledgement;
+    }
+    if (patch.expiresAt !== undefined) row.expires_at = patch.expiresAt;
+    if (Object.keys(row).length === 0) {
+      throw new Error('updateAnnouncement: nothing to update.');
+    }
+    const { data, error } = await supabase
+      .from('school_announcements')
+      .update(row)
+      .eq('id', announcementId)
+      .select()
+      .single();
+    if (error || !data) {
+      throw new Error(`updateAnnouncement: ${error?.message || 'update failed'}`);
+    }
+    return toAnnouncementView(data);
+  },
+
+  /**
+   * Cancel = expire now. The row stays readable as history (isExpired);
+   * feeds hide it. Never a hard delete.
+   */
+  async cancelAnnouncement(announcementId: string, actorRole: UserRole): Promise<Announcement> {
+    if (isMockEnv()) throw new Error('Announcements are unavailable in a mock environment.');
+    if (actorRole !== 'admin' && actorRole !== 'principal') {
+      throw new Error('Only admin or principal may cancel announcements.');
+    }
+    return this.updateAnnouncement(announcementId, actorRole, {
+      expiresAt: new Date().toISOString(),
+    });
+  },
+
+  /**
+   * Hard delete. Principal-only at the client gate (RLS manage policy also
+   * allows admin — the client restricts to principal deliberately so that
+   * cancelling stays the default and deletion is exceptional).
+   */
+  async deleteAnnouncement(announcementId: string, actorRole: UserRole): Promise<void> {
+    if (isMockEnv()) throw new Error('Announcements are unavailable in a mock environment.');
+    if (actorRole !== 'principal') {
+      throw new Error('Only the principal may permanently delete announcements. Use cancel instead.');
+    }
+    const { error } = await supabase.from('school_announcements').delete().eq('id', announcementId);
+    if (error) {
+      throw new Error(`deleteAnnouncement: ${error.message}`);
+    }
   },
 
   /**

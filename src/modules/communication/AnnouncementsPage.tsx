@@ -60,6 +60,17 @@ export const AnnouncementsPage: React.FC = () => {
   const [points, setPoints] = useState('');
   const [isAiDraft, setIsAiDraft] = useState(false);
   const [audience, setAudience] = useState<AnnouncementAudience>('school');
+  const [extraAudiences, setExtraAudiences] = useState<AnnouncementAudience[]>([]);
+  // Edit modal state (reuses the same audience model)
+  const [editing, setEditing] = useState<Announcement | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editBody, setEditBody] = useState('');
+  const [editAudience, setEditAudience] = useState<AnnouncementAudience>('school');
+  const [editExtra, setEditExtra] = useState<AnnouncementAudience[]>([]);
+  const [editPriority, setEditPriority] = useState<AnnouncementPriority>('normal');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [actingId, setActingId] = useState<string | null>(null);
   const [targetClassId, setTargetClassId] = useState('');
   const [priority, setPriority] = useState<AnnouncementPriority>('normal');
   const [requiresAck, setRequiresAck] = useState(false);
@@ -131,6 +142,7 @@ export const AnnouncementsPage: React.FC = () => {
         title,
         body,
         audience,
+        additionalAudiences: extraAudiences,
         priority,
         requiresAcknowledgement: requiresAck,
         targetClassId: audience === 'class' ? targetClassId.trim() || null : null,
@@ -144,6 +156,7 @@ export const AnnouncementsPage: React.FC = () => {
       setPoints('');
       setIsAiDraft(false);
       setAudience('school');
+      setExtraAudiences([]);
       setTargetClassId('');
       setPriority('normal');
       setRequiresAck(false);
@@ -151,6 +164,64 @@ export const AnnouncementsPage: React.FC = () => {
       setFormError(err instanceof Error ? err.message : 'Could not publish announcement.');
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const openEdit = (a: Announcement) => {
+    setEditing(a);
+    setEditTitle(a.title);
+    setEditBody(a.body);
+    setEditAudience(a.audience);
+    setEditExtra(a.additionalAudiences ?? []);
+    setEditPriority(a.priority);
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing) return;
+    try {
+      setIsSavingEdit(true);
+      setEditError(null);
+      const updated = await announcementService.updateAnnouncement(editing.id, role, {
+        title: editTitle,
+        body: editBody,
+        audience: editAudience,
+        additionalAudiences: editExtra,
+        priority: editPriority,
+      });
+      setAnnouncements((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      setEditing(null);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Could not save changes.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleCancelAnnouncement = async (id: string) => {
+    if (!window.confirm('Cancel this announcement? It will expire immediately but stay in history.')) return;
+    try {
+      setActingId(id);
+      const updated = await announcementService.cancelAnnouncement(id, role);
+      setAnnouncements((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not cancel announcement.');
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id: string) => {
+    if (!window.confirm('Permanently delete this announcement? This cannot be undone. Cancel instead to keep history.')) return;
+    try {
+      setActingId(id);
+      await announcementService.deleteAnnouncement(id, role);
+      setAnnouncements((prev) => prev.filter((x) => x.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete announcement.');
+    } finally {
+      setActingId(null);
     }
   };
 
@@ -298,6 +369,28 @@ export const AnnouncementsPage: React.FC = () => {
                   </select>
                 </div>
               </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Also notify (in addition to the audience above)
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {AUDIENCES.filter((a) => a !== audience).map((a) => (
+                    <label key={a} className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={extraAudiences.includes(a)}
+                        onChange={(e) =>
+                          setExtraAudiences((prev) =>
+                            e.target.checked ? [...prev, a] : prev.filter((x) => x !== a)
+                          )
+                        }
+                        className="w-4 h-4 rounded"
+                      />
+                      {a}
+                    </label>
+                  ))}
+                </div>
+              </div>
               {audience === 'class' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
@@ -366,10 +459,39 @@ export const AnnouncementsPage: React.FC = () => {
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                   <span className="text-xs text-slate-400">
                     To {a.audience}
+                    {(a.additionalAudiences ?? []).length > 0 &&
+                      ` + ${(a.additionalAudiences ?? []).join(', ')}`}
                     {a.audience === 'class' && a.targetClassId ? ` • class ${a.targetClassId}` : ''}
                     {' • '}
                     {new Date(a.publishedAt).toLocaleDateString()}
                   </span>
+                  {canCreate && (
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openEdit(a)}>
+                        Edit
+                      </Button>
+                      {!a.isExpired && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={actingId === a.id}
+                          onClick={() => handleCancelAnnouncement(a.id)}
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                      {role === 'principal' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={actingId === a.id}
+                          onClick={() => handleDeleteAnnouncement(a.id)}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   {a.requiresAcknowledgement &&
                     (a.acknowledged ? (
                       <StatusPill
@@ -408,6 +530,91 @@ export const AnnouncementsPage: React.FC = () => {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+      {editing && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-slate-900">Edit announcement</h3>
+            {editError && <p className="text-sm text-red-700">{editError}</p>}
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Title</label>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full text-sm border border-slate-200 rounded-lg p-2.5"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Message</label>
+                <textarea
+                  rows={4}
+                  value={editBody}
+                  onChange={(e) => setEditBody(e.target.value)}
+                  className="w-full text-sm border border-slate-200 rounded-lg p-2.5"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Audience</label>
+                  <select
+                    value={editAudience}
+                    onChange={(e) => setEditAudience(e.target.value as AnnouncementAudience)}
+                    className="w-full text-sm border border-slate-200 rounded-lg p-2.5"
+                  >
+                    {AUDIENCES.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Priority</label>
+                  <select
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value as AnnouncementPriority)}
+                    className="w-full text-sm border border-slate-200 rounded-lg p-2.5"
+                  >
+                    {PRIORITIES.map((pr) => (
+                      <option key={pr} value={pr}>
+                        {pr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-700 uppercase mb-1">Also notify</span>
+                <div className="flex flex-wrap gap-2">
+                  {AUDIENCES.filter((a) => a !== editAudience).map((a) => (
+                    <label key={a} className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={editExtra.includes(a)}
+                        onChange={(e) =>
+                          setEditExtra((prev) =>
+                            e.target.checked ? [...prev, a] : prev.filter((x) => x !== a)
+                          )
+                        }
+                        className="w-4 h-4 rounded"
+                      />
+                      {a}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" type="button" onClick={() => setEditing(null)}>
+                  Close
+                </Button>
+                <Button variant="primary" type="submit" isLoading={isSavingEdit}>
+                  Save changes
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
