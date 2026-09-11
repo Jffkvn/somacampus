@@ -695,23 +695,36 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
         throw new Error('Term or School ID is missing.');
       }
 
-      const { data: ttRow, error: ttErr } = await supabase
-        .from('timetables')
-        .insert({
-          school_id: schoolId,
-          term_id: termId,
-          name: `Term Master Schedule (Generated ${new Date().toLocaleDateString()})`,
-          status: 'reviewed',
-          is_ai_generated: true,
-          base_timetable_id: selectedBaseTimetableId || null,
-          constraint_scorecard: scorecard,
-          ai_explanation: `Generated using deterministic constraint solver. ${scorecard?.softPreferenceScore ?? 100}% soft preference satisfaction.`,
-        })
-        .select()
-        .single();
+      // Privileged writes go through the leadership-gated SECURITY DEFINER RPC:
+      // RLS on timetables/timetable_entries is SELECT-only by design. The RPC
+      // creates the timetable and every entry in one transaction and carries
+      // the solver scorecard so approve_timetable_atomic can enforce the
+      // zero-hard-violations gate.
+      const entriesPayload = assignments.map((a) => ({
+        class_id: a.classId,
+        stream_id: a.streamId ?? null,
+        subject_id: a.subjectId,
+        teacher_id: a.teacherId,
+        day_of_week: a.slot.dayOfWeek,
+        start_time: a.slot.startTime,
+        end_time: a.slot.endTime,
+      }));
+      const { data: timetableId, error: createErr } = await supabase.rpc(
+        'create_timetable_with_entries',
+        {
+          p_school_id: schoolId,
+          p_term_id: termId,
+          p_name: `Term Master Schedule (Generated ${new Date().toLocaleDateString()})`,
+          p_entries: entriesPayload,
+          p_scorecard: scorecard ?? null,
+          p_base_timetable_id: selectedBaseTimetableId || null,
+          p_is_ai_generated: true,
+        }
+      );
 
-      if (ttErr) throw ttErr;
-      setActiveTimetableId(ttRow.id);
+      if (createErr) throw createErr;
+      if (!timetableId) throw new Error('Timetable creation returned no id.');
+      setActiveTimetableId(timetableId);
       setTimetableStatus('reviewed');
     } catch (err: any) {
       console.error('Error submitting for review:', err);
