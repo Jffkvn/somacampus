@@ -59,8 +59,23 @@ async function resolveMyPersonId(): Promise<string | null> {
   return row?.id ?? null;
 }
 
+
+const isMockEnv = (): boolean =>
+  process.env.NODE_ENV === 'test' ||
+  !import.meta.env.VITE_SUPABASE_URL ||
+  import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
+  import.meta.env.VITE_SUPABASE_URL.includes('mock');
+
+/** Structural demo terms for clearly-marked mock envs (tests, no-backend demos). */
+const MOCK_TERMS: FeeTerm[] = [
+  { id: 'term-1', name: 'Term 1', academicYearId: 'ay-2026-2027', isCurrent: true },
+  { id: 'term-2', name: 'Term 2', academicYearId: 'ay-2026-2027', isCurrent: false },
+  { id: 'term-3', name: 'Term 3', academicYearId: 'ay-2026-2027', isCurrent: false },
+];
+
 export const feeSetupService = {
   async getTerms(schoolId: string): Promise<FeeTerm[]> {
+    if (isMockEnv()) return MOCK_TERMS;
     const { data, error } = await supabase
       .from('terms')
       .select('id, name, academic_year_id, is_current, academic_years!inner(school_id)')
@@ -80,6 +95,11 @@ export const feeSetupService = {
     classes: FeeClass[];
     structures: FeeStructureRow[];
   }> {
+    if (isMockEnv()) {
+      // Honest mock empties: the grid renders its no-classes state; the mock
+      // backend page shells (tests) only assert structure, never fake prices.
+      return { categories: [], classes: [], structures: [] };
+    }
     const [classRes, catRes, structRes] = await Promise.all([
       supabase.from('classes').select('id, name').eq('school_id', schoolId).order('name'),
       supabase
@@ -137,6 +157,7 @@ export const feeSetupService = {
       resetToDraft?: boolean;
     }>,
   ): Promise<void> {
+    if (isMockEnv()) throw new Error('Saving fees requires a live connection.');
     const personId = await resolveMyPersonId();
     for (const e of edits) {
       if (e.structureId) {
@@ -177,6 +198,7 @@ export const feeSetupService = {
     approve: boolean,
     note?: string,
   ): Promise<{ updated: number }> {
+    if (isMockEnv()) throw new Error('Approving fees requires a live connection.');
     const { data, error } = await supabase.rpc('set_fee_structure_approval', {
       p_school_id: schoolId,
       p_structure_ids: structureIds,
@@ -192,6 +214,7 @@ export const feeSetupService = {
     termId: string,
     structureIds: string[],
   ): Promise<{ charges_created: number; students: number; structures: number }> {
+    if (isMockEnv()) throw new Error('Applying fees requires a live connection.');
     const { data, error } = await supabase.rpc('generate_charges_from_structures', {
       p_school_id: schoolId,
       p_term_id: termId,

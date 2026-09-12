@@ -27,6 +27,12 @@ const isMockEnv = (): boolean =>
 
 import { activityFixtureStore } from './fixtures/activityFixtures';
 
+/** Latest/first active class enrolment for a student embed (array or object form). */
+function firstEnrolment(embedded: unknown): any {
+  const arr = Array.isArray(embedded) ? embedded : embedded ? [embedded] : [];
+  return arr[0] ?? null;
+}
+
 /**
  * Server-side allowlist constructor for the Teacher Financial Privacy Firewall.
  * ONLY operational fields are emitted. Financial settlement data (amounts,
@@ -73,6 +79,79 @@ export function toParticipantProjection(input: {
 
 export const activityService = {
   /**
+   * Create a new school activity (club). Leadership/finance only — RLS
+   * enforces has_school_finance_access for writes; the teacher firewall means
+   * the UI never shows the form to teachers.
+   */
+  async createActivity(payload: {
+    schoolId: string;
+    academicYearId: string;
+    termId: string;
+    name: string;
+    category: 'sports' | 'arts' | 'academic_club' | 'excursion' | 'special_service';
+    isPaid: boolean;
+    feeAmount: number;
+    capacity?: number | null;
+  }): Promise<SchoolActivity> {
+    if (isMockEnv()) {
+      throw new Error('Activity creation requires a live connection.');
+    }
+    const { data, error } = await supabase
+      .from('school_activities')
+      .insert({
+        school_id: payload.schoolId,
+        academic_year_id: payload.academicYearId,
+        term_id: payload.termId,
+        name: payload.name.trim(),
+        category: payload.category,
+        is_paid: payload.isPaid,
+        fee_amount: payload.isPaid ? payload.feeAmount : 0,
+        capacity: payload.capacity ?? null,
+        status: 'active',
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    const a: any = data;
+    return {
+      id: a.id,
+      schoolId: a.school_id,
+      academicYearId: a.academic_year_id,
+      termId: a.term_id,
+      name: a.name,
+      category: a.category,
+      isPaid: a.is_paid,
+      feeAmount: Number(a.fee_amount),
+      leadTeacherId: a.lead_teacher_id,
+      capacity: a.capacity,
+      status: a.status,
+      createdAt: a.created_at,
+    };
+  },
+
+  /**
+   * Bulk-enrol pupils into an activity. Paid activities are billed through
+   * the fees platform by enroll_students_in_activity (one charge per pupil
+   * per club; re-running never double-bills). Returns the server's counts.
+   */
+  async enrollStudents(
+    schoolId: string,
+    activityId: string,
+    studentIds: string[],
+  ): Promise<{ enrolled: number; billed: number; already_billed: number }> {
+    if (isMockEnv()) {
+      throw new Error('Enrolment requires a live connection.');
+    }
+    const { data, error } = await supabase.rpc('enroll_students_in_activity', {
+      p_school_id: schoolId,
+      p_activity_id: activityId,
+      p_student_ids: studentIds,
+    });
+    if (error) throw error;
+    return data as { enrolled: number; billed: number; already_billed: number };
+  },
+
+  /**
    * List all school activities
    */
   async getActivities(schoolId: string, termId?: string): Promise<SchoolActivity[]> {
@@ -84,6 +163,20 @@ export const activityService = {
       if (termId) query = query.eq('term_id', termId);
       const { data, error } = await query;
       if (error) throw error;
+      const ids = (data || []).map((a: any) => a.id);
+      const counts = new Map<string, number>();
+      if (ids.length > 0) {
+        const { data: enrolRows, error: enrolErr } = await supabase
+          .from('activity_enrolments')
+          .select('activity_id')
+          .in('activity_id', ids)
+          .eq('status', 'enrolled');
+        if (!enrolErr) {
+          for (const row of (enrolRows || []) as any[]) {
+            counts.set(row.activity_id, (counts.get(row.activity_id) ?? 0) + 1);
+          }
+        }
+      }
       return (data || []).map((a: any) => ({
         id: a.id,
         schoolId: a.school_id,
@@ -97,6 +190,7 @@ export const activityService = {
         capacity: a.capacity,
         status: a.status,
         createdAt: a.created_at,
+        enrolledCount: counts.get(a.id) ?? 0,
       }));
     } catch (err) {
       throw new Error('Failed to fetch school activities', { cause: err });
@@ -190,29 +284,52 @@ export const activityService = {
       if (!activityRow) return [];
       if (schoolId && activityRow.school_id !== schoolId) return [];
 
-      let enrolQuery = supabase
+      // activity_enrolments carries only institutional columns (student_id,
+      // charge_id, status); names come from students/people. The previous
+      // query selected student_name/class_name/stream_name - columns that do
+      // not exist on the live table (same phantom-column class as F2).
+      const enrolQuery = supabase
         .from('activity_enrolments')
-        .select('student_id, student_name, class_name, stream_name')
+        .select('student_id, status')
         .eq('activity_id', activityId);
-      if (schoolId) enrolQuery = enrolQuery.eq('school_id', schoolId);
+      if (schoolId) enrolQuery.eq('school_id', schoolId);
       const { data: enrolRows, error: enrolError } = await enrolQuery;
       if (enrolError) throw enrolError;
+      const enrolList = (enrolRows || []) as any[];
 
-      let clrQuery = supabase
+      const clrQuery = supabase
         .from('activity_clearances')
         .select('student_id, status, basis, valid_until, operational_note')
         .eq('activity_id', activityId);
-      if (schoolId) clrQuery = clrQuery.eq('school_id', schoolId);
+      if (schoolId) clrQuery.eq('school_id', schoolId);
       const { data: clrRows, error: clrError } = await clrQuery;
       if (clrError) throw clrError;
 
-      return (enrolRows || []).map((enr: any) => {
+      const studentIds = [...new Set(enrolList.map((e) => String(e.student_id)))];
+      let nameByStudent = new Map<string, { name: string; className: string }>();
+      if (studentIds.length > 0) {
+        const { data: studentRows, error: studentError } = await supabase
+          .from('students')
+          .select('id, admission_number, person:people!students_person_id_fkey(first_name, last_name), student_enrolments(class_id, classes(id, name))')
+          .in('id', studentIds)
+          .eq('student_enrolments.status', 'active');
+        if (studentError) throw studentError;
+        for (const s of (studentRows || []) as any[]) {
+          const person = Array.isArray(s.person) ? s.person[0] : s.person;
+          const name = person ? `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim() : s.admission_number ?? 'Student';
+          const enrol = firstEnrolment(s.student_enrolments);
+          const cls = enrol ? (Array.isArray(enrol.classes) ? enrol.classes[0] : enrol.classes) : null;
+          nameByStudent.set(String(s.id), { name: name || 'Student', className: cls?.name ?? 'General' });
+        }
+      }
+
+      return enrolList.map((enr: any) => {
         const clearance = (clrRows || []).find((c: any) => c.student_id === enr.student_id);
+        const names = nameByStudent.get(String(enr.student_id));
         return toParticipantProjection({
           studentId: enr.student_id,
-          studentName: enr.student_name,
-          className: enr.class_name,
-          streamName: enr.stream_name,
+          studentName: names?.name,
+          className: names?.className,
           activityId,
           activityName: (activityRow as any)?.name,
           status: clearance?.status || 'pending_review',
