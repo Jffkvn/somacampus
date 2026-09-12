@@ -566,11 +566,31 @@ export const timetablePolicyService = {
     };
 
     let result;
-    if (input.id) {
+    // Pair upsert: exactly one live row per (school, year, class, subject)
+    // is enforced by teaching_allocations_pair_unique. Without an explicit
+    // id, adopt the existing live row for update instead of inserting a
+    // duplicate.
+    let effectiveId = input.id;
+    if (!effectiveId) {
+      const { data: existing, error: existingErr } = await supabase
+        .from('teaching_allocations')
+        .select('id')
+        .eq('school_id', input.schoolId)
+        .eq('academic_year_id', input.academicYearId)
+        .eq('class_id', input.classId)
+        .eq('subject_id', input.subjectId)
+        .neq('status', 'archived')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingErr) throw existingErr;
+      effectiveId = (existing as any)?.id;
+    }
+    if (effectiveId) {
       const { data, error } = await supabase
         .from('teaching_allocations')
         .update(payload)
-        .eq('id', input.id)
+        .eq('id', effectiveId)
         .select('*, classes(name), subjects(name), employees!teaching_allocations_teacher_id_fkey(id, person_id, people(first_name, last_name))')
         .single();
       if (error) throw error;

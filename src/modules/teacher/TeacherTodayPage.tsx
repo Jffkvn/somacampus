@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { teacherService } from './teacherService';
 import { TeacherTodayViewModel, ClassResponsibility } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
@@ -57,29 +57,32 @@ export const TeacherTodayPage: React.FC = () => {
   const [correctionStudentId, setCorrectionStudentId] = useState<string | null>(null);
   const [correctionError, setCorrectionError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadData() {
-      // The workspace belongs to the signed-in teacher — never a hardcoded
-      // identity (that once served one teacher's day to every teacher).
-      if (!user?.email) {
-        setIsLoading(false);
-        return;
-      }
-      try {
-        setIsLoading(true);
-        const result = await teacherService.getTeacherToday(user.email, toLocalYYYYMMDD(new Date()));
-        setData(result);
-      } catch (err) {
-        // Fail closed with an honest error (e.g. non-teaching staff opening
-        // this route): never an eternal spinner.
-        console.error('Failed to load teacher today data', err);
-        setLoadError(err instanceof Error ? err.message : 'Could not load your workspace.');
-      } finally {
-        setIsLoading(false);
-      }
+  const loadData = useCallback(async () => {
+    // The workspace belongs to the signed-in teacher — never a hardcoded
+    // identity (that once served one teacher's day to every teacher).
+    if (!user?.email) {
+      setIsLoading(false);
+      return;
     }
-    loadData();
+    try {
+      setIsLoading(true);
+      setLoadError(null);
+      const result = await teacherService.getTeacherToday(user.email, toLocalYYYYMMDD(new Date()));
+      setData(result);
+    } catch (err) {
+      // Fail closed with an honest error (e.g. non-teaching staff opening
+      // this route): never an eternal spinner. Retry offered for transient
+      // network failures (fixture fallbacks were removed).
+      console.error('Failed to load teacher today data', err);
+      setLoadError(err instanceof Error ? err.message : 'Could not load your workspace.');
+    } finally {
+      setIsLoading(false);
+    }
   }, [user?.email]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleClockIn = async () => {
     if (!data) return;
@@ -204,7 +207,15 @@ export const TeacherTodayPage: React.FC = () => {
               <p className="text-sm text-slate-500">{loadError}</p>
               <p className="text-xs text-slate-400">
                 If you believe you should have a staff record, please contact the school administrator.
+                If this looks like a network hiccup, try again.
               </p>
+              <button
+                type="button"
+                onClick={loadData}
+                className="mt-1 px-4 py-2 text-sm font-bold text-white bg-[#002b36] rounded-lg hover:bg-[#003847]"
+              >
+                Try again
+              </button>
             </CardContent>
           </Card>
         </div>

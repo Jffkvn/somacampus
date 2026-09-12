@@ -103,7 +103,13 @@ describe('Official Teaching Subjects & Teaching Allocation Architecture', () => 
         if (table === 'teaching_allocations') {
           const chain: any = {};
           chain.insert = vi.fn().mockReturnValue(chain);
+          chain.update = vi.fn().mockReturnValue(chain);
           chain.select = vi.fn().mockReturnValue(chain);
+          chain.eq = vi.fn().mockReturnValue(chain);
+          chain.neq = vi.fn().mockReturnValue(chain);
+          chain.order = vi.fn().mockReturnValue(chain);
+          chain.limit = vi.fn().mockReturnValue(chain);
+          chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
           chain.single = vi.fn().mockResolvedValue({
             data: {
               id: 'alloc-1',
