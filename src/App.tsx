@@ -5,6 +5,7 @@ import { TeacherTodayPage } from './modules/teacher/TeacherTodayPage';
 import { SchoolDashboardPage } from './modules/leadership/SchoolDashboardPage';
 import { LiveLessonsMonitorPage } from './modules/leadership/LiveLessonsMonitorPage';
 import { FeesPage } from './modules/fees/FeesPage';
+import { FeeSetupPage } from './modules/fees/FeeSetupPage';
 import { FeeProfilePage } from './modules/fees/FeeProfilePage';
 import { ModulePlaceholder } from './components/ui/ModulePlaceholder';
 import { LoginPage } from './modules/auth/LoginPage';
@@ -105,6 +106,7 @@ export const App: React.FC = () => {
             <Route path="teacher/today" element={<TeacherTodayPage />} />
             <Route path="dashboard/school" element={<RequireAccess path="/dashboard/school"><SchoolDashboardPage /></RequireAccess>} />
             <Route path="fees" element={<RequireAccess path="/fees"><FeesPage /></RequireAccess>} />
+            <Route path="fees/setup" element={<RequireAccess path="/fees/setup"><FeeSetupPage /></RequireAccess>} />
             <Route path="fees/:studentId" element={<RequireAccess path="/fees"><FeeProfilePage /></RequireAccess>} />
 
           {/* Teacher Secondary Routes */}

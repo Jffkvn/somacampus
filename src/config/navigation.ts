@@ -91,6 +91,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     icon: DollarSign,
     roles: ['bursar', 'admin', 'principal'],
     subItems: [
+      { label: 'Fee Setup', href: '/fees/setup', roles: ['bursar', 'admin', 'principal'] },
       { label: 'Fee Accounts', href: '/fees', roles: ['bursar', 'admin', 'principal'] },
       { label: 'Operating Expenses', href: '/expenses', roles: ['bursar', 'admin', 'principal'] },
       { label: 'Payroll Engine', href: '/payroll', roles: ['bursar', 'admin', 'principal'] },

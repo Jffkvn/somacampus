@@ -295,14 +295,18 @@ export const FeesPage: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <StatusPill
                           status={
-                            acc.clearanceStatus === 'cleared'
+                            acc.assessedAmount <= 0
+                              ? 'neutral'
+                              : acc.clearanceStatus === 'cleared'
                               ? 'success'
                               : acc.clearanceStatus === 'partial'
                               ? 'warning'
                               : 'critical'
                           }
                           label={
-                            acc.clearanceStatus === 'cleared'
+                            acc.assessedAmount <= 0
+                              ? 'Not yet billed'
+                              : acc.clearanceStatus === 'cleared'
                               ? 'Cleared'
                               : acc.clearanceStatus === 'partial'
                               ? 'Partial'

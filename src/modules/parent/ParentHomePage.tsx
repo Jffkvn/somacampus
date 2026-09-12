@@ -576,6 +576,9 @@ export const ParentHomePage: React.FC = () => {
                       </ul>
                     </div>
                   )}
+                  <p className="text-[11px] text-slate-400 border-t border-slate-100 pt-3">
+                    Note: after the school receives a payment, it can take up to 48 hours for it to appear here.
+                  </p>
                 </>
               )}
             </CardContent>
