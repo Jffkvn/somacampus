@@ -686,6 +686,91 @@ export const teacherService = {
    * Fetches the enrolled student roster for a class/stream.
    */
   /**
+   * The signed-in teacher's own week: every entry of the ACTIVE published
+   * timetable assigned to them, Monday-Friday. Read-only — the master
+   * timetable builder stays a leadership tool.
+   */
+  async getTeacherWeek(teacherEmailOrId: string): Promise<TimetableEntry[]> {
+    const isMockEnv = !import.meta.env.VITE_SUPABASE_URL ||
+      import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
+      import.meta.env.VITE_SUPABASE_URL.includes('mock');
+
+    if (isMockEnv) {
+      return [...INITIAL_TEACHER_SCHEDULE];
+    }
+
+    // Resolve the employee exactly like getTeacherToday (email-based,
+    // fail-closed — no hardcoded fallback ids).
+    const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    let teacherId = teacherEmailOrId;
+    if (!isUUID(teacherId)) {
+      const { data: personData, error: personError } = await supabase
+        .from('people')
+        .select('id')
+        .eq('email', teacherEmailOrId)
+        .maybeSingle();
+      if (personError) throw personError;
+      const personRow = Array.isArray(personData) ? personData[0] : personData;
+      if (!personRow) throw new Error(`No staff record found for ${teacherEmailOrId}.`);
+      const { data: empRow, error: empError } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('person_id', personRow.id)
+        .limit(2);
+      if (empError) throw empError;
+      const employee = Array.isArray(empRow) ? empRow[0] : empRow;
+      if (!employee) throw new Error(`No employee record found for ${teacherEmailOrId}.`);
+      teacherId = employee.id;
+    }
+
+    const { data, error } = await supabase
+      .from('timetable_entries')
+      .select('id, timetable_id, class_id, stream_id, subject_id, teacher_id, room_name, day_of_week, start_time, end_time, timetables!inner(is_active, school_id), subjects(id,name), classes(id,name), streams(id,name), teacher:employees!timetable_entries_teacher_id_fkey(id, people(first_name,last_name))')
+      .eq('timetables.is_active', true)
+      .eq('timetables.school_id', '22222222-2222-2222-2222-222222222222')
+      .in('day_of_week', [1, 2, 3, 4, 5])
+      .eq('teacher_id', teacherId)
+      .order('day_of_week')
+      .order('start_time');
+    if (error) throw error;
+
+    return ((data ?? []) as any[])
+      .map((r) => {
+        const dowNum = Number(r.day_of_week);
+        if (!Number.isInteger(dowNum) || dowNum < 1 || dowNum > 5) return null;
+        const subj = Array.isArray(r.subjects) ? r.subjects[0] : r.subjects;
+        const cls = Array.isArray(r.classes) ? r.classes[0] : r.classes;
+        const stm = Array.isArray(r.streams) ? r.streams[0] : r.streams;
+        const tch = Array.isArray(r.teacher) ? r.teacher[0] : r.teacher;
+        const person = tch ? (Array.isArray(tch.people) ? tch.people[0] : tch.people) : null;
+        const tt = Array.isArray(r.timetables) ? r.timetables[0] : r.timetables;
+        const streamName = stm?.name;
+        const className = cls?.name ?? 'Class';
+        return {
+          id: r.id,
+          timetableId: r.timetable_id,
+          schoolId: tt?.school_id ?? '22222222-2222-2222-2222-222222222222',
+          classId: r.class_id,
+          className: streamName ? `${className} ${streamName}` : className,
+          streamId: r.stream_id ?? undefined,
+          streamName: streamName ?? undefined,
+          subjectId: r.subject_id,
+          subjectName: subj?.name ?? 'Lesson',
+          teacherId: r.teacher_id,
+          teacherName: person?.first_name
+            ? `${person.first_name}${person.last_name ? ` ${person.last_name}` : ''}`
+            : 'Teacher',
+          roomName: r.room_name ?? undefined,
+          dayOfWeek: dowNum,
+          startTime: toHHMM(r.start_time) ?? '00:00',
+          endTime: toHHMM(r.end_time) ?? '00:00',
+        } as TimetableEntry;
+      })
+      .filter((e): e is TimetableEntry => e !== null)
+      .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
+  },
+
+  /**
    * Roster for the daily register modal, pre-filled with the statuses already
    * recorded for `date` (D4: previously every child defaulted to 'present',
    * so reopening a recorded day contradicted the dashboard card).

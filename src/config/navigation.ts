@@ -67,6 +67,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
       { label: 'Timetable & Teaching Policies', href: '/planning/policies', roles: ['admin', 'principal'] },
       { label: 'Timetable Builder', href: '/planning/timetable/builder', roles: ['admin', 'principal'] },
       { label: 'School Activities & Sports', href: '/activities', roles: ['teacher', 'admin', 'principal'] },
+      { label: 'My Week', href: '/teacher/week', roles: ['teacher', 'admin', 'principal'] },
       { label: 'Master Timetable', href: '/timetable', roles: ['teacher', 'admin', 'principal'] },
       { label: 'School Calendar', href: '/calendar' },
       { label: 'Class & Streams', href: '/classes', roles: ['admin', 'principal'] },

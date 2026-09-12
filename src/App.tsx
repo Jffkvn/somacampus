@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { TeacherTodayPage } from './modules/teacher/TeacherTodayPage';
+import { TeacherWeekPage } from './modules/teacher/TeacherWeekPage';
 import { SchoolDashboardPage } from './modules/leadership/SchoolDashboardPage';
 import { LiveLessonsMonitorPage } from './modules/leadership/LiveLessonsMonitorPage';
 import { FeesPage } from './modules/fees/FeesPage';
@@ -113,6 +114,7 @@ export const App: React.FC = () => {
 
             {/* Core Phase 1 Established Domains */}
             <Route path="teacher/today" element={<TeacherTodayPage />} />
+            <Route path="teacher/week" element={<RequireAccess path="/teacher/week"><TeacherWeekPage /></RequireAccess>} />
             <Route path="dashboard/school" element={<RequireAccess path="/dashboard/school"><SchoolDashboardPage /></RequireAccess>} />
             <Route path="fees" element={<RequireAccess path="/fees"><FeesPage /></RequireAccess>} />
             <Route path="fees/setup" element={<RequireAccess path="/fees/setup"><FeeSetupPage /></RequireAccess>} />

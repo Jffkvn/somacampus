@@ -46,6 +46,7 @@ export const TeacherTodayPage: React.FC = () => {
   const { user } = useAuth();
   const [data, setData] = useState<TeacherTodayViewModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isClockingIn, setIsClockingIn] = useState(false);
 
   // Daily Class Attendance Modal State
@@ -54,6 +55,7 @@ export const TeacherTodayPage: React.FC = () => {
   const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
   const [correctionReason, setCorrectionReason] = useState('');
   const [correctionStudentId, setCorrectionStudentId] = useState<string | null>(null);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -68,7 +70,10 @@ export const TeacherTodayPage: React.FC = () => {
         const result = await teacherService.getTeacherToday(user.email, toLocalYYYYMMDD(new Date()));
         setData(result);
       } catch (err) {
+        // Fail closed with an honest error (e.g. non-teaching staff opening
+        // this route): never an eternal spinner.
         console.error('Failed to load teacher today data', err);
+        setLoadError(err instanceof Error ? err.message : 'Could not load your workspace.');
       } finally {
         setIsLoading(false);
       }
@@ -102,6 +107,7 @@ export const TeacherTodayPage: React.FC = () => {
 
   const handleOpenAttendanceModal = async (cr: ClassResponsibility) => {
     setAttendanceModalClass(cr);
+    setCorrectionError(null);
     setCorrectionReason('');
     setCorrectionStudentId(null);
     try {
@@ -131,7 +137,8 @@ export const TeacherTodayPage: React.FC = () => {
 
       const isCorrection = !!attendanceModalClass.todayDailyAttendance?.isRecorded;
       if (isCorrection && correctionStudentId && !correctionReason) {
-        alert('Please provide an audit reason for the attendance correction.');
+        // Inline validation: window.alert blocks embedded browsers and assistive tech.
+        setCorrectionError('Please provide an audit reason for the changed status.');
         setIsSubmittingAttendance(false);
         return;
       }
@@ -188,6 +195,21 @@ export const TeacherTodayPage: React.FC = () => {
   };
 
   if (isLoading || !data) {
+    if (!isLoading && loadError) {
+      return (
+        <div className="p-8 max-w-xl mx-auto">
+          <Card>
+            <CardContent className="p-6 text-center space-y-3">
+              <p className="text-lg font-bold text-slate-900">This workspace is for teaching staff</p>
+              <p className="text-sm text-slate-500">{loadError}</p>
+              <p className="text-xs text-slate-400">
+                If you believe you should have a staff record, please contact the school administrator.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
     return <LoadingState label="Loading today's teaching workspace..." />;
   }
 
@@ -674,6 +696,10 @@ export const TeacherTodayPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+              )}
+
+              {correctionError && (
+                <p className="text-xs font-semibold text-rose-700" role="alert">{correctionError}</p>
               )}
 
               <div className="space-y-2">
