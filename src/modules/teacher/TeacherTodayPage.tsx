@@ -633,6 +633,7 @@ export const TeacherTodayPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setAttendanceModalClass(null)}
+                aria-label="Close register"
                 className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100"
               >
                 <X className="w-5 h-5" />
@@ -691,6 +692,8 @@ export const TeacherTodayPage: React.FC = () => {
                         <button
                           key={st}
                           onClick={() => handleStatusChange(student.id, st)}
+                          aria-label={`${student.name} — mark ${st}`}
+                          aria-pressed={student.status === st}
                           className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${
                             student.status === st
                               ? st === 'present'

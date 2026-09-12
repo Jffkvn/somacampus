@@ -19,8 +19,9 @@
     "seed:demo:check": "node scripts/validate-seed.mjs scripts/seed-demo-school.sql",
     "verify:trust": "node .agents/skills/somacampus-verify/scripts/detect-mock-rot.mjs",
     "verify:contracts": "node .agents/skills/somacampus-verify/scripts/audit-db-contracts.mjs",
+    "verify:columns": "node .agents/skills/somacampus-verify/scripts/check-service-columns.mjs",
     "verify:migrations": "node .agents/skills/somacampus-verify/scripts/check-migration-sync.mjs",
-    "verify:all": "npm run verify:contracts && npm run verify:migrations && npm run typecheck && npm test"
+    "verify:all": "npm run verify:contracts && npm run verify:columns && npm run verify:migrations && npm run typecheck && npm test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.0",

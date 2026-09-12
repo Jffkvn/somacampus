@@ -633,15 +633,15 @@ export const studentService = {
         try {
           const { data: feeData } = await supabase
             .from('student_fee_accounts')
-            .select('total_billed, total_paid, current_balance')
+            .select('assessed_amount, paid_amount, balance')
             .eq('student_id', studentId)
             .maybeSingle();
 
           if (feeData) {
             finance = {
-              totalBilled: Number(feeData.total_billed ?? 0),
-              totalPaid: Number(feeData.total_paid ?? 0),
-              balance: Number(feeData.current_balance ?? 0),
+              totalBilled: Number(feeData.assessed_amount ?? 0),
+              totalPaid: Number(feeData.paid_amount ?? 0),
+              balance: Number(feeData.balance ?? 0),
             };
           }
         } catch (err) {

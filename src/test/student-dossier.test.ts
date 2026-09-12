@@ -218,9 +218,9 @@ describe('Student Dossier & Lifecycle (Slice 1 Task 3)', () => {
     tableResponses['student_fee_accounts'] = {
       data: {
         id: 'sfa-1',
-        total_billed: 1500000,
-        total_paid: 1000000,
-        current_balance: 500000,
+        assessed_amount: 1500000,
+        paid_amount: 1000000,
+        balance: 500000,
       },
       error: null,
     };

@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { Users, GraduationCap, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { toLocalYYYYMMDD } from '../teacher/scheduleUtils';
 import { moneyMovementService } from '../finance/moneyMovementService';
@@ -75,7 +75,7 @@ export const SchoolDashboardPage: React.FC = () => {
   }
 
   const latestTrend = data.attendanceTrend[data.attendanceTrend.length - 1];
-  const staffSubValue = latestTrend ? `${latestTrend.staffRate}% staff present` : 'No attendance yet';
+  const staffSubValue = latestTrend ? `${latestTrend.staffRate}% clocked in on ${latestTrend.day}` : 'No clock-in data yet';
   const completionSubValue =
     data.stats.lessonsExpected > 0
       ? `${Math.round((data.stats.lessonsCompleted / data.stats.lessonsExpected) * 100)}% completion rate`
@@ -161,7 +161,7 @@ export const SchoolDashboardPage: React.FC = () => {
                   <BarChart data={data.attendanceTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <YAxis domain={[80, 100]} tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
                     <Tooltip
                       contentStyle={{
                         borderRadius: '12px',
@@ -169,8 +169,9 @@ export const SchoolDashboardPage: React.FC = () => {
                         boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
                       }}
                     />
-                    <Bar dataKey="studentRate" name="Student Rate %" fill="#006c8b" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="staffRate" name="Staff Presence %" fill="#10b981" radius={[6, 6, 0, 0]} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="studentRate" name="Student attendance %" fill="#006c8b" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="staffRate" name="Staff clock-in %" fill="#10b981" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

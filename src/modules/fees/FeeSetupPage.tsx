@@ -366,6 +366,7 @@ export const FeeSetupPage: React.FC = () => {
                           type="text"
                           inputMode="numeric"
                           placeholder="amount"
+                          aria-label={`Fill all classes - ${cat.name} amount`}
                           className="w-24 px-2 py-0.5 border border-slate-200 rounded-lg text-xs normal-case"
                           onBlur={(e) => fillColumn(cat.id, e.target.value)}
                           onKeyDown={(e) => {
@@ -408,6 +409,7 @@ export const FeeSetupPage: React.FC = () => {
                               type="text"
                               inputMode="numeric"
                               placeholder="—"
+                              aria-label={`${cls.name} ${cat.name} amount`}
                               value={edits[key] ?? (amount !== null && amount > 0 ? String(amount) : '')}
                               onChange={(e) => setEdit(cls.id, cat.id, e.target.value.replace(/[^0-9.]/g, ''))}
                               className="w-32 px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal"
