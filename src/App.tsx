@@ -82,6 +82,15 @@ export const RequireAccess: React.FC<{ path: string; children: React.ReactNode }
   return <>{children}</>;
 };
 
+/** Role-aware landing: '/' and unknown paths land each role on its own home. */
+const RoleLanding: React.FC = () => {
+  const { role, isLoading } = useAuth();
+  if (isLoading) {
+    return <LoadingState label="Loading your workspace..." />;
+  }
+  return <Navigate to={getRoleLandingRoute(role)} replace />;
+};
+
 export const App: React.FC = () => {
   return (
     <AuthProvider>
@@ -99,8 +108,8 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           >
-            {/* Default landing redirects to Teacher Today */}
-            <Route index element={<Navigate to="/teacher/today" replace />} />
+            {/* Role-aware landing */}
+            <Route index element={<RoleLanding />} />
 
             {/* Core Phase 1 Established Domains */}
             <Route path="teacher/today" element={<TeacherTodayPage />} />
@@ -338,7 +347,7 @@ export const App: React.FC = () => {
           />
 
           {/* Fallback 404 handler */}
-          <Route path="*" element={<Navigate to="/teacher/today" replace />} />
+          <Route path="*" element={<RoleLanding />} />
         </Route>
         </Routes>
       </BrowserRouter>

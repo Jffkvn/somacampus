@@ -32,6 +32,7 @@ export const FeesPage: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [activeStatement, setActiveStatement] = useState<StudentFeeStatement | null>(null);
   const [lastReceipt, setLastReceipt] = useState<FeePayment | null>(null);
+  const [unallocatedCredit, setUnallocatedCredit] = useState(0);
 
   // Form state for rapid intake
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -54,11 +55,13 @@ export const FeesPage: React.FC = () => {
         setPupils([]);
         return;
       }
-      const [accs, dir] = await Promise.all([
+      const [accs, dir, unalloc] = await Promise.all([
         financeService.getStudentFeeAccounts(schoolId, ''),
         studentService.getStudentDirectory(schoolId),
+        financeService.getUnallocatedCredit(schoolId),
       ]);
       setAccounts(accs);
+      setUnallocatedCredit(unalloc);
       const opts = dir.map((d: StudentDirectoryRow) => ({
         id: d.studentId,
         name: d.fullName,
@@ -223,6 +226,18 @@ export const FeesPage: React.FC = () => {
           icon={DollarSign}
         />
       </div>
+
+      {/* Unallocated credit: money received but not matched to any bill line */}
+      {unallocatedCredit > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            <strong>{formatCurrency(unallocatedCredit)}</strong> received from parents is not yet matched to any bill
+            line (typically overpayment or a payment that arrived before fees were billed). It is kept as credit on the
+            pupil's account — allocate it from the pupil's statement or refund at the office.
+          </span>
+        </div>
+      )}
 
       {/* Accounts Ledger Card */}
       <Card>

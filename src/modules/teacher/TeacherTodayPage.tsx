@@ -105,7 +105,7 @@ export const TeacherTodayPage: React.FC = () => {
     setCorrectionReason('');
     setCorrectionStudentId(null);
     try {
-      const students = await teacherService.getClassStudents(cr.classId, cr.streamId);
+      const students = await teacherService.getClassStudents(cr.classId, cr.streamId, data?.date);
       if (students && students.length > 0) {
         setRoster(students);
       }
@@ -162,7 +162,7 @@ export const TeacherTodayPage: React.FC = () => {
                   todayDailyAttendance: {
                     sessionId: res.id,
                     isRecorded: true,
-                    recordedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    recordedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
                     recordedByTeacherId: data.teacherId,
                     recordedByTeacherName: data.teacherName,
                     isRecordedByClassTeacher: data.teacherId === c.classTeacherId,

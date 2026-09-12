@@ -129,6 +129,31 @@ export const financeService = {
   },
 
   /**
+   * Money received from parents that no bill line has been matched against
+   * yet (overpayments / payments arriving before charges exist). Surfaced on
+   * the ledger so it is never silently forgotten.
+   */
+  async getUnallocatedCredit(schoolId: string): Promise<number> {
+    if (isMockEnv()) {
+      return financeFixtureStore.payments
+        .filter((p) => p.unallocatedAmount && p.unallocatedAmount > 0)
+        .reduce((sum, p) => sum + p.unallocatedAmount, 0);
+    }
+    try {
+      const { data, error } = await supabase
+        .from('fee_payments')
+        .select('unallocated_amount')
+        .eq('school_id', schoolId)
+        .neq('status', 'reversed');
+      if (error) throw error;
+      return ((data || []) as any[]).reduce((sum, p) => sum + Number(p.unallocated_amount ?? 0), 0);
+    } catch (err) {
+      console.warn('Failed to load unallocated credit:', err);
+      return 0;
+    }
+  },
+
+  /**
    * Fast intake recording of a real-world payment (bank deposit, mobile money, cash)
    * Automatically executes the multi-target allocation engine.
    */

@@ -188,7 +188,7 @@ export const teacherService = {
             todayDailyAttendance = {
               sessionId: sessionData.id,
               isRecorded: true,
-              recordedAt: new Date(sessionData.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              recordedAt: new Date(sessionData.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
               recordedByTeacherId: sessionData.recorded_by_teacher_id,
               recordedByTeacherName: recorderName,
               isRecordedByClassTeacher: sessionData.recorded_by_teacher_id === ct.teacher_id,
@@ -685,7 +685,16 @@ export const teacherService = {
   /**
    * Fetches the enrolled student roster for a class/stream.
    */
-  async getClassStudents(classId: string, streamId?: string): Promise<Array<{ id: string; admissionNumber: string; name: string; status: 'present' | 'absent' | 'late' | 'excused' }>> {
+  /**
+   * Roster for the daily register modal, pre-filled with the statuses already
+   * recorded for `date` (D4: previously every child defaulted to 'present',
+   * so reopening a recorded day contradicted the dashboard card).
+   */
+  async getClassStudents(
+    classId: string,
+    streamId: string | undefined,
+    date?: string
+  ): Promise<Array<{ id: string; admissionNumber: string; name: string; status: 'present' | 'absent' | 'late' | 'excused' }>> {
     const isMockEnv = !import.meta.env.VITE_SUPABASE_URL ||
       import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
       import.meta.env.VITE_SUPABASE_URL.includes('mock');
@@ -693,6 +702,8 @@ export const teacherService = {
     if (isMockEnv) {
       return [...INITIAL_STUDENT_ROSTER];
     }
+
+    const fallback = () => [...INITIAL_STUDENT_ROSTER];
 
     try {
       let query = supabase
@@ -712,7 +723,32 @@ export const teacherService = {
 
       const { data, error } = await query;
       if (error || !data || data.length === 0) {
-        return [...INITIAL_STUDENT_ROSTER];
+        return fallback();
+      }
+
+      // Recorded statuses for this date, if a session exists.
+      const recorded = new Map<string, 'present' | 'absent' | 'late' | 'excused'>();
+      if (date) {
+        let sessionQuery = supabase
+          .from('student_attendance_sessions')
+          .select('id')
+          .eq('class_id', classId)
+          .eq('date', date)
+          .limit(1);
+        if (streamId) sessionQuery = sessionQuery.eq('stream_id', streamId);
+        const { data: sessionRows } = await sessionQuery;
+        const sessionId = ((sessionRows ?? []) as any[])[0]?.id;
+        if (sessionId) {
+          const { data: recordRows, error: recErr } = await supabase
+            .from('student_attendance_records')
+            .select('student_id, status')
+            .eq('session_id', sessionId);
+          if (!recErr) {
+            for (const r of (recordRows ?? []) as any[]) {
+              recorded.set(String(r.student_id), r.status);
+            }
+          }
+        }
       }
 
       return data.map((d: any) => {
@@ -722,11 +758,11 @@ export const teacherService = {
           id: st.id,
           admissionNumber: st.admission_number,
           name: `${p.first_name} ${p.last_name}`,
-          status: 'present' as const,
+          status: recorded.get(String(st.id)) ?? ('present' as const),
         };
       });
     } catch {
-      return [...INITIAL_STUDENT_ROSTER];
+      return fallback();
     }
   },
 };

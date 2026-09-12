@@ -42,22 +42,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      // Await role resolution before clearing isLoading: consumers (role-aware
+      // landing, route gates) must never see the fail-closed fallback role as
+      // if it were the resolved one.
       if (session?.user) {
-        void applyServerIdentity(session.user);
+        await applyServerIdentity(session.user);
       }
       setIsLoading(false);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        void applyServerIdentity(session.user);
+        // INITIAL_SESSION fires alongside getSession: awaiting here too keeps
+        // isLoading true until the role is resolved (see getSession above).
+        await applyServerIdentity(session.user);
       }
       setIsLoading(false);
     });
