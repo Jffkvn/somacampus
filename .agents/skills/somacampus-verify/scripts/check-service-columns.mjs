@@ -90,21 +90,17 @@ function parseCreateTable(sql, file) {
 
 function parseAlterAddColumn(sql, file) {
   // ALTER statements may add several columns in one statement
-  // (ADD COLUMN a TEXT, ADD COLUMN b TEXT, ...). Attribute every ADD COLUMN
-  // to the most recent ALTER TABLE target.
-  let currentTable = null;
-  const alterRe = /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-zA-Z_]\w*)/gi;
+  // (ADD COLUMN a TEXT, ADD COLUMN b TEXT, ...) and may wrap across lines.
+  // Split into statements at semicolons first, then attribute every
+  // ADD COLUMN to the statement's ALTER TABLE target.
+  const alterRe = /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-zA-Z_]\w*)/i;
   const addRe = /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z_]\w*)/gi;
-  for (const line of sql.split('\n')) {
-    const am = alterRe.exec(line) || (line.includes('ALTER TABLE') ? null : null);
-    if (am) currentTable = am[1];
-    if (!currentTable) continue;
-    if (/ADD\s+COLUMN/i.test(line)) {
-      for (const m of line.matchAll(addRe)) {
-        ensure(currentTable).add(m[1]);
-      }
+  for (const stmt of sql.split(';')) {
+    const am = alterRe.exec(stmt);
+    if (!am) continue;
+    for (const m of stmt.matchAll(addRe)) {
+      ensure(am[1]).add(m[1]);
     }
-    if (/;\s*$/.test(line)) currentTable = null; // statement ends
   }
 }
 
