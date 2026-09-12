@@ -106,6 +106,9 @@ export const assignmentService = {
       .from('assignments')
       .select('*, classes(name), streams(name), subjects(name), teacher:employees!assignments_teacher_id_fkey(people(first_name, last_name))')
       .eq('school_id', schoolId)
+      // Archived assignments are retired from the teacher's working list;
+      // detail links still resolve via getAssignmentDetail.
+      .neq('status', 'archived')
       .order('created_at', { ascending: false });
 
     if (filter?.classId) {

@@ -168,6 +168,7 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
 
   const [activeTimetableId, setActiveTimetableId] = useState<string | null>(null);
   const [timetableStatus, setTimetableStatus] = useState<TimetableStatus>('published');
+  const [governanceTargetName, setGovernanceTargetName] = useState('');
   const [assignments, setAssignments] = useState<ScheduledAssignment[]>(DEFAULT_MOCK_ASSIGNMENTS);
   const [scorecard, setScorecard] = useState<TimetableConstraintScorecard | null>(null);
   const [diagnostics, setDiagnostics] = useState<ConstraintConflictDiagnostic | null>(null);
@@ -262,22 +263,35 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
           setAllocations(allocList);
 
           try {
-            const { data: activeTt } = await supabase
+            // Governance target: prefer the newest non-archived timetable that
+            // still needs leadership action (draft/reviewed/approved) so a
+            // submitted week is never lost after navigating away; fall back to
+            // the active published week.
+            const { data: ttCandidates, error: ttCandidatesErr } = await supabase
               .from('timetables')
-              .select('id, name, status, is_active')
+              .select('id, name, status, is_active, updated_at')
               .eq('school_id', sId)
-              .eq('is_active', true)
-              .maybeSingle();
+              .neq('status', 'archived')
+              .order('updated_at', { ascending: false })
+              .limit(4);
+            if (ttCandidatesErr) throw ttCandidatesErr;
 
-            if (activeTt) {
-              setActiveTimetableId(activeTt.id);
-              if (activeTt.status) {
-                setTimetableStatus(activeTt.status as TimetableStatus);
+            const activeTt = (ttCandidates ?? []).find((t: any) => t.is_active);
+            const pendingTt = (ttCandidates ?? []).find(
+              (t: any) => !t.is_active && t.status && t.status !== 'published',
+            );
+            const governanceTarget = pendingTt ?? activeTt;
+
+            if (governanceTarget) {
+              setActiveTimetableId(governanceTarget.id);
+              if (governanceTarget.status) {
+                setTimetableStatus(governanceTarget.status as TimetableStatus);
               }
+              setGovernanceTargetName(governanceTarget.name ?? '');
               const { data: activeEntries } = await supabase
                 .from('timetable_entries')
                 .select('id, day_of_week, start_time, end_time, room_name, classes(id, name), subjects(id, name), teacher:employees(id, people(first_name, last_name))')
-                .eq('timetable_id', activeTt.id);
+                .eq('timetable_id', governanceTarget.id);
 
               if (activeEntries && activeEntries.length > 0) {
                 const loaded: ScheduledAssignment[] = activeEntries.map((e: any) => {
@@ -1250,6 +1264,11 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
               <p className="text-[11px] text-slate-500">
                 Deterministic CSP constraint solver enforces 0 hard violations before leadership approval.
               </p>
+              {governanceTargetName && (
+                <p className="text-[11px] text-slate-400">
+                  Loaded: {governanceTargetName}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-2.5">

@@ -8,6 +8,7 @@
  *      hit ON CONFLICT DO NOTHING and hide mistakes).
  *   3. Dangling foreign keys: any UUID in a *_id column that is never defined
  *      as an `id` in any INSERT in the file.
+ *   4. TEST_-prefixed titles/names: demo data must never ship test artifacts.
  *
  * Usage: node scripts/validate-seed.mjs [path/to/seed.sql]
  */
@@ -138,6 +139,10 @@ for (const m of sql.matchAll(insertRe)) {
         ids.set(val, (ids.get(val) ?? 0) + 1);
       } else if (col.endsWith('_id') && STRICT_UUID.test(val)) {
         references.push({ table, col, val });
+      }
+      // --- 4. TEST_ pollution guard: the demo seed must never ship test artifacts ---
+      if ((col === 'title' || col === 'name') && /^TEST_/i.test(val)) {
+        errors.push(`${table}: seeded ${col} looks like a test artifact: '${val}' (demo data must not use the TEST_ prefix)`);
       }
     });
   }
