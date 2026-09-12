@@ -169,6 +169,8 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
   const [activeTimetableId, setActiveTimetableId] = useState<string | null>(null);
   const [timetableStatus, setTimetableStatus] = useState<TimetableStatus>('published');
   const [governanceTargetName, setGovernanceTargetName] = useState('');
+  const [loadedScorecard, setLoadedScorecard] = useState<TimetableConstraintScorecard | null>(null);
+  const [approveNote, setApproveNote] = useState('');
   const [assignments, setAssignments] = useState<ScheduledAssignment[]>(DEFAULT_MOCK_ASSIGNMENTS);
   const [scorecard, setScorecard] = useState<TimetableConstraintScorecard | null>(null);
   const [diagnostics, setDiagnostics] = useState<ConstraintConflictDiagnostic | null>(null);
@@ -269,7 +271,7 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
             // the active published week.
             const { data: ttCandidates, error: ttCandidatesErr } = await supabase
               .from('timetables')
-              .select('id, name, status, is_active, updated_at')
+              .select('id, name, status, is_active, updated_at, constraint_scorecard')
               .eq('school_id', sId)
               .neq('status', 'archived')
               .order('updated_at', { ascending: false })
@@ -288,6 +290,7 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
                 setTimetableStatus(governanceTarget.status as TimetableStatus);
               }
               setGovernanceTargetName(governanceTarget.name ?? '');
+              setLoadedScorecard((governanceTarget as any).constraint_scorecard ?? null);
               const { data: activeEntries } = await supabase
                 .from('timetable_entries')
                 .select('id, day_of_week, start_time, end_time, room_name, classes(id, name), subjects(id, name), teacher:employees(id, people(first_name, last_name))')
@@ -754,7 +757,13 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
         throw new Error('No active timetable ID to approve.');
       }
 
-      await timetablePolicyService.approveTimetableAtomic(activeTimetableId, currentEmployeeId);
+      // Attestation rule: a timetable with no solver scorecard needs an
+      // explicit leadership bypass note (enforced server-side too).
+      if (!loadedScorecard && !approveNote.trim()) {
+        throw new Error('This timetable has no solver scorecard - add a bypass note describing why you are approving it without one.');
+      }
+
+      await timetablePolicyService.approveTimetableAtomic(activeTimetableId, currentEmployeeId, approveNote.trim() || undefined);
       setTimetableStatus('approved');
     } catch (err: any) {
       console.error('Error approving timetable:', err);
@@ -1285,10 +1294,21 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
               )}
 
               {timetableStatus === 'reviewed' && (
-                <Button variant="secondary" size="sm" onClick={handleApproveTimetable}>
-                  <Check className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                  Approve Timetable
-                </Button>
+                <div className="flex items-center gap-2">
+                  {!loadedScorecard && (
+                    <input
+                      value={approveNote}
+                      onChange={(e) => setApproveNote(e.target.value)}
+                      placeholder="Bypass note (no solver scorecard) - required"
+                      aria-label="Scorecard bypass note"
+                      className="w-64 text-xs border border-amber-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                    />
+                  )}
+                  <Button variant="secondary" size="sm" onClick={handleApproveTimetable}>
+                    <Check className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                    Approve Timetable
+                  </Button>
+                </div>
               )}
 
               {timetableStatus === 'approved' && (

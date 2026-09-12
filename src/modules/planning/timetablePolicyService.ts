@@ -283,10 +283,12 @@ export const timetablePolicyService = {
   async approveTimetableAtomic(
     timetableId: string,
     approvedByEmployeeId: string,
+    note?: string,
   ): Promise<{ success: boolean; timetableId: string; status: string }> {
     const { data, error } = await supabase.rpc('approve_timetable_atomic', {
       p_timetable_id: timetableId,
       p_approved_by: approvedByEmployeeId,
+      p_note: note ?? null,
     });
 
     if (error) {
