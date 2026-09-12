@@ -262,6 +262,10 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
       setGenDetail(((result.diagnostics as any)?.bottlenecks ?? []).map((b: any) => b.description ?? JSON.stringify(b)).slice(0, 8));
       setDraftPreview(result.assignments ?? []);
       (window as any).__wizardAssignments = result.assignments ?? [];
+      // The scorecard rides with the submission: approve/publish enforce the
+      // zero-hard-violations gate from constraint_scorecard, so a wizard week
+      // must never be stored without it.
+      (window as any).__wizardScorecard = result.scorecard ?? null;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Schedule generation failed.');
     } finally {
@@ -295,6 +299,7 @@ export const TimetableWizard: React.FC<{ schoolId: string }> = ({ schoolId }) =>
           p_term_id: terms[0]?.id ?? null,
           p_name: `Term Master Schedule (Wizard ${new Date().toLocaleDateString()})`,
           p_entries: entriesPayload,
+          p_scorecard: (window as any).__wizardScorecard ?? null,
         }
       );
       if (createErr) throw createErr;
