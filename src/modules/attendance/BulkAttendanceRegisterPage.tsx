@@ -181,7 +181,7 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
   };
 
   if (isLoading) {
-    return <LoadingState label="Loading morning attendance roster..." />;
+    return <LoadingState variant="table" rows={6} label="Loading morning attendance roster..." />;
   }
 
   if (!classDetail) {
@@ -436,23 +436,43 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
               </div>
             ))}
           </div>
-
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-b-2xl">
-            <span className="text-xs text-slate-500">
-              {stats.present} present out of {stats.total} total pupils
-            </span>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleSubmit}
-              isLoading={isSubmitting}
-              leftIcon={<Save className="w-4 h-4" />}
-            >
-              Submit Morning Register
-            </Button>
-          </div>
         </CardContent>
       </Card>
+
+      {/* Sticky Floating Tally & Action Bar */}
+      <div className="sticky bottom-4 z-30 p-3.5 bg-white/95 backdrop-blur-md border border-slate-200 shadow-lg rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-bottom-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-semibold text-slate-700 mr-1">Tally:</span>
+          <span className="px-2.5 py-1 rounded-full bg-slate-100 font-bold text-slate-700">
+            Total {stats.total}
+          </span>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-100/80 font-bold text-emerald-800">
+            ✓ Present {stats.present}
+          </span>
+          <span className="px-2.5 py-1 rounded-full bg-red-100/80 font-bold text-red-800">
+            ✕ Absent {stats.absent}
+          </span>
+          {(stats.late > 0 || stats.excused > 0) && (
+            <span className="px-2.5 py-1 rounded-full bg-amber-100/80 font-bold text-amber-800">
+              ⏱ Late/Excused {stats.late + stats.excused}
+            </span>
+          )}
+          <span className="px-2.5 py-1 rounded-full bg-teal-100/80 font-bold text-teal-900">
+            {stats.rate}% Rate
+          </span>
+        </div>
+
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={handleSubmit}
+          isLoading={isSubmitting}
+          leftIcon={<Save className="w-4 h-4" />}
+          className="w-full sm:w-auto shadow-sm"
+        >
+          Submit Morning Register
+        </Button>
+      </div>
     </div>
   );
 };

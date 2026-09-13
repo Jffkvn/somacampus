@@ -105,9 +105,25 @@ function mockLiveSuccess() {
     if (table === 'people') {
       return mockChain(table, { id: TEST_ACTOR_ID });
     }
-    // payroll_tax_configurations / employee_payroll_profiles / leave / advance lists
-    if (table === 'payroll_tax_configurations' || table === 'employee_payroll_profiles') {
+    if (table === 'payroll_tax_configurations') {
       return mockChain(table, []);
+    }
+    if (table === 'employee_payroll_profiles') {
+      return mockChain(table, [
+        {
+          id: 'prof-1',
+          school_id: 's1',
+          employee_id: 'emp-1',
+          effective_from: '2026-01-01',
+          effective_to: null,
+          base_salary: 1500000,
+          currency: 'UGX',
+          employee: {
+            person: { first_name: 'Sarah', last_name: 'Namukasa' },
+            role: 'teacher',
+          },
+        },
+      ]);
     }
     return mockChain(table, table.includes('payroll') || table.includes('leave') || table.includes('advance') ? [] : { id: 'row-1' });
   });

@@ -124,7 +124,7 @@ export const FeesPage: React.FC = () => {
   };
 
   if (isLoading && accounts.length === 0) {
-    return <LoadingState label="Loading fee accounts & clearance ledgers..." />;
+    return <LoadingState variant="table" rows={8} label="Loading fee accounts & clearance ledgers..." />;
   }
 
   const filteredAccounts = accounts.filter((acc) => {
