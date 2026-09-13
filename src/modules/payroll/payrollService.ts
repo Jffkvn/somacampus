@@ -377,6 +377,69 @@ export const payrollService = {
   },
 
   /**
+   * Preview eligible employee profiles for a given period before creating a run.
+   */
+  async getEligibleProfilesPreview(
+    schoolId: string,
+    periodId: string,
+  ): Promise<{ count: number; estimatedBaseSalary: number; employeeNames: string[] }> {
+    if (isMockEnv()) {
+      const count = payrollFixtureStore.profiles.length;
+      const estimatedBaseSalary = payrollFixtureStore.profiles.reduce((s, p) => s + (p.baseSalary || 0), 0);
+      return { count, estimatedBaseSalary, employeeNames: payrollFixtureStore.profiles.map((p) => p.employeeName || 'Staff Member') };
+    }
+
+    try {
+      let periodEnd: string | null = null;
+      const { data: periodRow } = await supabase
+        .from('payroll_periods')
+        .select('period_end')
+        .eq('id', periodId)
+        .maybeSingle();
+      periodEnd = (periodRow as any)?.period_end ?? null;
+
+      let query = supabase
+        .from('employee_payroll_profiles')
+        .select(`
+          employee_id,
+          base_salary,
+          effective_from,
+          effective_to,
+          employee:employees(
+            id,
+            status,
+            person:people(first_name, last_name)
+          )
+        `)
+        .eq('school_id', schoolId);
+
+      if (periodEnd) {
+        query = query.lte('effective_from', periodEnd).order('effective_from', { ascending: false });
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const activeRows = (data || []).filter((r: any) => !r.employee || r.employee.status === 'active');
+      const effective = selectEffectiveProfiles(activeRows, periodEnd);
+      const total = effective.reduce((s: number, p: any) => s + Number(p.base_salary || 0), 0);
+      const names = effective.map((p: any) => {
+        const person = p.employee?.person;
+        return person ? `${person.first_name} ${person.last_name}` : 'Staff Member';
+      });
+
+      return {
+        count: effective.length,
+        estimatedBaseSalary: total,
+        employeeNames: names,
+      };
+    } catch (err) {
+      console.warn('Failed to fetch eligible profiles preview', err);
+      return { count: 0, estimatedBaseSalary: 0, employeeNames: [] };
+    }
+  },
+
+  /**
    * Create a new draft run for a period and compute items using buildPayrollItem
    */
   async createAndCalculateDraftRun(schoolId: string, periodId: string): Promise<SchoolPayrollRun> {
@@ -473,6 +536,19 @@ export const payrollService = {
     const taxConfig = await resolveEffectiveTaxConfig(schoolId);
     const ctx = toComputationContext(taxConfig);
 
+    // 0. Idempotency guard: prevent creating duplicate active draft runs for the same period
+    const { data: existingRuns } = await supabase
+      .from('school_payroll_runs')
+      .select('id, status, run_number')
+      .eq('school_id', schoolId)
+      .eq('period_id', periodId);
+    if (Array.isArray(existingRuns) && existingRuns.length > 0) {
+      const activeExisting = existingRuns.filter((r: any) => r && r.status && r.status !== 'cancelled');
+      if (activeExisting.length > 0) {
+        throw new Error(`A payroll run already exists for this period (#${activeExisting[0].run_number} - ${activeExisting[0].status.toUpperCase()}). Duplicate runs for the same period are prevented.`);
+      }
+    }
+
     // M3: effective-dated profile selection. Multiple rows per employee
     // (historical + current) are expected; mapping every row would emit
     // duplicate (payroll_run_id, employee_id) item rows and violate the
@@ -504,6 +580,11 @@ export const payrollService = {
     if (profilesError) throw profilesError;
 
     const effectiveProfiles = selectEffectiveProfiles((profileRows || []) as any[], periodEnd);
+
+    // Refuse 0-staff runs: an empty payroll run indicates a period/profile date mismatch
+    if (effectiveProfiles.length === 0) {
+      throw new Error('Cannot create payroll run: 0 eligible employee payroll profiles found for this period. Please verify that active staff have compensation profiles covering this period.');
+    }
 
     const computed = effectiveProfiles.map((p: any) =>
       computePayrollItem(
