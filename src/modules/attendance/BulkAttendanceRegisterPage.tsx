@@ -9,6 +9,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuth } from '../../lib/authContext';
+import { resolveMyEmployeeId } from '../auth/identity';
 import { classesService, type ClassDetailData, type ClassSummary, type EnrolledStudentRosterItem } from '../classes/classesService';
 import { teacherService } from '../teacher/teacherService';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
@@ -29,7 +30,7 @@ interface AttendanceDraftEntry {
 
 export const BulkAttendanceRegisterPage: React.FC = () => {
   const { classId: paramClassId } = useParams<{ classId: string }>();
-  const { schoolId, user } = useAuth();
+  const { schoolId } = useAuth();
   const effectiveSchoolId = schoolId ?? PILOT_SCHOOL_ID;
 
   const [availableClasses, setAvailableClasses] = useState<ClassSummary[]>([]);
@@ -42,6 +43,25 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!effectiveSchoolId) {
+      setMyEmployeeId(null);
+      return;
+    }
+    let cancelled = false;
+    resolveMyEmployeeId(effectiveSchoolId)
+      .then((id) => {
+        if (!cancelled) setMyEmployeeId(id);
+      })
+      .catch(() => {
+        if (!cancelled) setMyEmployeeId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveSchoolId]);
 
   useEffect(() => {
     async function loadClasses() {
@@ -139,7 +159,8 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
         remarks: e.remarks.trim() || undefined,
       }));
 
-      const teacherId = classDetail.classTeacher?.teacherId || user?.id || '99999999-9999-9999-9999-999999999991';
+      const teacherId = classDetail.classTeacher?.teacherId || myEmployeeId || '99999999-9999-9999-9999-999999999991';
+      const recorderId = myEmployeeId || teacherId;
 
       await teacherService.recordDailyAttendance({
         schoolId: effectiveSchoolId,
@@ -147,7 +168,7 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
         streamId: selectedStreamId !== 'all' ? selectedStreamId : undefined,
         date: attendanceDate,
         classTeacherId: teacherId,
-        recordedByTeacherId: user?.id || teacherId,
+        recordedByTeacherId: recorderId,
         records: recordsToSubmit,
       });
 

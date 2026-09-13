@@ -12,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { Button } from '../../components/ui/Button';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { PayslipDocument } from './PayslipDocument';
+import { useAuth } from '../../lib/authContext';
 import {
   DollarSign,
   Calendar,
@@ -26,9 +27,14 @@ import {
   Smartphone,
 } from 'lucide-react';
 
+const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
+
 export const PayrollDashboardPage: React.FC = () => {
+  const { schoolId } = useAuth();
+  const effectiveSchoolId = schoolId ?? PILOT_SCHOOL_ID;
+
   const [periods, setPeriods] = useState<PayrollPeriod[]>([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('period-2026-09');
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
   const [activeRun, setActiveRun] = useState<SchoolPayrollRun | null>(null);
   const [items, setItems] = useState<SchoolPayrollItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,17 +44,29 @@ export const PayrollDashboardPage: React.FC = () => {
   async function loadData() {
     try {
       setIsLoading(true);
-      const prds = await payrollService.getPayrollPeriods('school-default');
+      const prds = await payrollService.getPayrollPeriods(effectiveSchoolId);
       setPeriods(prds);
 
-      const periodId = selectedPeriodId || prds[0]?.id;
-      const allRuns = await payrollService.getPayrollRuns('school-default', periodId);
+      const periodId = (selectedPeriodId && prds.some((p) => p.id === selectedPeriodId))
+        ? selectedPeriodId
+        : (prds[0]?.id || '');
 
-      if (allRuns.length > 0) {
-        const details = await payrollService.getPayrollRunDetails(allRuns[0].id);
-        if (details) {
-          setActiveRun(details.run);
-          setItems(details.items);
+      if (periodId !== selectedPeriodId && periodId) {
+        setSelectedPeriodId(periodId);
+      }
+
+      if (periodId) {
+        const allRuns = await payrollService.getPayrollRuns(effectiveSchoolId, periodId);
+
+        if (allRuns.length > 0) {
+          const details = await payrollService.getPayrollRunDetails(allRuns[0].id);
+          if (details) {
+            setActiveRun(details.run);
+            setItems(details.items);
+          }
+        } else {
+          setActiveRun(null);
+          setItems([]);
         }
       } else {
         setActiveRun(null);
@@ -63,12 +81,17 @@ export const PayrollDashboardPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [selectedPeriodId]);
+  }, [selectedPeriodId, effectiveSchoolId]);
 
   const handleCreateDraftRun = async () => {
+    const periodToRun = selectedPeriodId || periods[0]?.id;
+    if (!periodToRun) {
+      alert('No payroll period available to run');
+      return;
+    }
     try {
       setIsProcessing(true);
-      await payrollService.createAndCalculateDraftRun('school-default', selectedPeriodId);
+      await payrollService.createAndCalculateDraftRun(effectiveSchoolId, periodToRun);
       await loadData();
     } catch (err: any) {
       alert(err?.message || 'Failed to create run');

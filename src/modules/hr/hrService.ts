@@ -466,13 +466,13 @@ export const hrService = {
     if (error) return false;
     await writeFinancialAudit({
       schoolId: (current as any)?.school_id ?? 'school-default',
-      entityType: 'leave_request',
-      entityId: requestId,
-      action: status,
-      reason: reason ?? `decideLeaveRequest ${status}`,
-      previousData: { status: (current as any)?.status ?? 'pending' },
-      newData: { id: requestId, status, decided_by: callerUserId },
-    });
+        entityType: 'leave_request',
+        entityId: requestId,
+        action: status,
+        reason: reason ?? `decideLeaveRequest ${status}`,
+        previousData: { status: (current as any)?.status ?? 'pending' },
+        newData: { id: requestId, status, decided_by: callerUserId },
+      });
     return true;
   },
 
@@ -513,12 +513,12 @@ export const hrService = {
     await writeFinancialAudit({
       schoolId: (current as any)?.school_id ?? 'school-default',
       entityType: 'staff_advance',
-      entityId: advanceId,
-      action: status,
-      reason: reason ?? `decideAdvanceRequest ${status}`,
-      previousData: { status: (current as any)?.status ?? 'pending' },
-      newData: { id: advanceId, status, decided_by: callerUserId },
-    });
+        entityId: advanceId,
+        action: status,
+        reason: reason ?? `decideAdvanceRequest ${status}`,
+        previousData: { status: (current as any)?.status ?? 'pending' },
+        newData: { id: advanceId, status, decided_by: callerUserId },
+      });
     return true;
   },
 

@@ -36,6 +36,7 @@ export interface MyHRPageProps {
 const DEMO_EMPLOYEE_ID = 'emp-teacher-1';
 const DEMO_EMPLOYEE_NAME = 'Sarah Nabwire';
 const DEMO_SCHOOL_ID = 'school-default';
+const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
 
 function isMockEnv(): boolean {
   return (
@@ -49,7 +50,7 @@ function isMockEnv(): boolean {
 export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   const location = useLocation();
   const { schoolId: authSchoolId, fullName } = useAuth();
-  const schoolId = authSchoolId ?? DEMO_SCHOOL_ID;
+  const schoolId = authSchoolId ?? (isMockEnv() ? DEMO_SCHOOL_ID : PILOT_SCHOOL_ID);
 
   const activeTab: 'leave' | 'advances' | 'payslips' = propSection || (
     location.pathname.includes('/advances')

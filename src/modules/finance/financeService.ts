@@ -71,7 +71,7 @@ export const financeService = {
    * Invariant: student_fee_accounts is a derived summary, never the mutable primary authority.
    */
   async getStudentFeeAccounts(schoolId: string, termId: string = 'term-1'): Promise<StudentFeeAccount[]> {
-    if (isMockEnv() || schoolId === 'school-default') {
+    if (isMockEnv()) {
       return financeFixtureStore.studentsMetadata.map((stu) => {
         const studentCharges = financeFixtureStore.charges.filter((c) => c.studentId === stu.id);
         const totalAssessed = studentCharges.reduce((sum, c) => sum + c.amount, 0);

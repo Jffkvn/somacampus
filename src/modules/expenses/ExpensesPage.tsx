@@ -147,12 +147,13 @@ export const ExpensesPage: React.FC = () => {
     }
   };
 
-  const handleAddCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddCategory = async (e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
     if (!schoolId) {
       setFormError('No school selected. Sign in before creating categories.');
       return;
     }
+    if (!newCategoryName.trim()) return;
     try {
       setIsAddingCategory(true);
       setFormError(null);
@@ -411,19 +412,29 @@ export const ExpensesPage: React.FC = () => {
                       + New category
                     </button>
                   ) : (
-                    <form onSubmit={handleAddCategory} className="mt-1.5 flex gap-2">
+                    <div className="mt-1.5 flex gap-2">
                       <input
                         type="text"
-                        required
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCategory(e);
+                          }
+                        }}
                         placeholder="e.g. Water & Sanitation"
                         className="flex-1 text-sm border border-slate-200 rounded-lg p-2"
                       />
-                      <Button variant="secondary" type="submit" disabled={isAddingCategory}>
+                      <Button
+                        variant="secondary"
+                        type="button"
+                        disabled={isAddingCategory}
+                        onClick={handleAddCategory}
+                      >
                         {isAddingCategory ? 'Adding…' : 'Add'}
                       </Button>
-                    </form>
+                    </div>
                   )}
                 </div>
               </div>
@@ -508,7 +519,7 @@ export const ExpensesPage: React.FC = () => {
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                <Button variant="secondary" onClick={() => setShowModal(false)}>
+                <Button variant="secondary" type="button" onClick={() => setShowModal(false)}>
                   Cancel
                 </Button>
                 <Button variant="primary" type="submit" isLoading={isSaving}>

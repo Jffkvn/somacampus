@@ -307,7 +307,7 @@ export const payrollService = {
         .select(`
           *,
           employee:employees(
-            job_title,
+            role,
             person:people(first_name, last_name)
           )
         `)
@@ -345,7 +345,7 @@ export const payrollService = {
           payrollRunId: item.payroll_run_id,
           employeeId: item.employee_id,
           employeeName: `${firstName} ${lastName}`.trim() || 'Staff Member',
-          jobTitle: item.employee?.job_title,
+          jobTitle: item.employee?.role,
           grossSalary: Number(item.gross_salary || 0),
           overtimeHours: Number(item.overtime_hours || 0),
           overtimeAmount: Number(item.overtime_amount || 0),
@@ -656,15 +656,17 @@ export const payrollService = {
       .update(updatePayload)
       .eq('id', runId);
     if (error) return false;
-    await writeFinancialAudit({
-      schoolId: currentSchoolId ?? 'school-default',
-      entityType: 'payroll_run',
-      entityId: runId,
-      action: `status:${nextStatus}`,
-      reason: `updateRunStatus ${runId} -> ${nextStatus}`,
-      previousData: previousStatus ? { status: previousStatus } : null,
-      newData: { id: runId, status: nextStatus },
-    });
+    if (currentSchoolId) {
+      await writeFinancialAudit({
+        schoolId: currentSchoolId,
+        entityType: 'payroll_run',
+        entityId: runId,
+        action: `status:${nextStatus}`,
+        reason: `updateRunStatus ${runId} -> ${nextStatus}`,
+        previousData: previousStatus ? { status: previousStatus } : null,
+        newData: { id: runId, status: nextStatus },
+      });
+    }
     return true;
   },
 
