@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { ToastProvider } from '../components/ui/Toast';
 
 vi.mock('../lib/supabase', () => ({
   supabase: { from: vi.fn() },
@@ -107,17 +108,18 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('C4: rejected status transition surfaces an alert', () => {
-  it('alerts naming the attempted transition when updateRunStatus returns false', async () => {
+describe('C4: rejected status transition surfaces a toast', () => {
+  it('toasts naming the attempted transition when updateRunStatus returns false', async () => {
     restoreMockEnv();
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
     const statusSpy = vi
       .spyOn(payrollService, 'updateRunStatus')
       .mockResolvedValue(false);
 
     render(
       <MemoryRouter>
-        <PayrollDashboardPage />
+        <ToastProvider>
+          <PayrollDashboardPage />
+        </ToastProvider>
       </MemoryRouter>
     );
 
@@ -131,11 +133,9 @@ describe('C4: rejected status transition surfaces an alert', () => {
       expect(statusSpy).toHaveBeenCalled();
     });
     await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalled();
+      expect(screen.getByText('Status update rejected')).toBeInTheDocument();
     });
-    const msg = String(alertSpy.mock.calls[0][0]);
-    expect(msg).toMatch(/under_review/);
-    expect(msg).toMatch(/reject/i);
+    expect(screen.getByText(/under_review/)).toBeInTheDocument();
   });
 });
 

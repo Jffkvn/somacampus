@@ -13,6 +13,8 @@ import { Button } from '../../components/ui/Button';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { PayslipDocument } from './PayslipDocument';
 import { useAuth } from '../../lib/authContext';
+import { useToast } from '../../components/ui/Toast';
+import { SlideToConfirm } from '../../components/ui/SlideToConfirm';
 import {
   DollarSign,
   Calendar,
@@ -33,6 +35,7 @@ const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
 
 export const PayrollDashboardPage: React.FC = () => {
   const { schoolId } = useAuth();
+  const toast = useToast();
   const effectiveSchoolId = schoolId ?? PILOT_SCHOOL_ID;
 
   const [periods, setPeriods] = useState<PayrollPeriod[]>([]);
@@ -125,11 +128,18 @@ export const PayrollDashboardPage: React.FC = () => {
       const ok = await payrollService.updateRunStatus(activeRun.id, nextStatus);
       if (ok) {
         await loadData();
+        toast.success(
+          nextStatus === 'finalized' ? 'Payroll locked' : `Run ${nextStatus.replace('_', ' ')}`,
+          `Status is now ${nextStatus.replace('_', ' ')}.`
+        );
       } else {
-        alert(`Payroll status update to '${nextStatus}' was rejected by the server. The run status was not changed.`);
+        toast.error(
+          'Status update rejected',
+          `Server refused '${nextStatus}'. Run status unchanged.`
+        );
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to update run status');
+      toast.error('Failed to update run status', err?.message);
     } finally {
       setIsProcessing(false);
     }
@@ -270,24 +280,19 @@ export const PayrollDashboardPage: React.FC = () => {
                   </Button>
                 )}
                 {activeRun.status === 'under_review' && (
-                  <Button
-                    variant="primary"
-                    onClick={() => handleAdvanceStatus('approved')}
+                  <SlideToConfirm
+                    label="Approve Payroll Run"
                     isLoading={isProcessing}
-                  >
-                    Approve Payroll Run
-                  </Button>
+                    onConfirm={() => handleAdvanceStatus('approved')}
+                  />
                 )}
                 {activeRun.status === 'approved' && (
-                  <Button
-                    variant="primary"
-                    leftIcon={<Lock className="w-4 h-4" />}
-                    onClick={() => handleAdvanceStatus('finalized')}
+                  <SlideToConfirm
+                    label="Finalize & Lock Run"
                     isLoading={isProcessing}
-                    className="bg-emerald-700 hover:bg-emerald-800"
-                  >
-                    Finalize & Lock Run
-                  </Button>
+                    onConfirm={() => handleAdvanceStatus('finalized')}
+                    className="bg-emerald-700"
+                  />
                 )}
               </div>
             </div>

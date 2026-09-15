@@ -10,6 +10,7 @@ import { formatCurrency } from '../../lib/utils';
 import { DollarSign, Upload, Search, CheckCircle2, AlertCircle, PlusCircle, Receipt, X, FileText, Wallet } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/authContext';
+import { useToast } from '../../components/ui/Toast';
 import { studentService, StudentDirectoryRow } from '../students/studentService';
 
 interface PupilOption {
@@ -22,6 +23,7 @@ interface PupilOption {
 export const FeesPage: React.FC = () => {
   const navigate = useNavigate();
   const { schoolId } = useAuth();
+  const toast = useToast();
   const [accounts, setAccounts] = useState<StudentFeeAccount[]>([]);
   const [pupils, setPupils] = useState<PupilOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,8 +113,13 @@ export const FeesPage: React.FC = () => {
       setLastReceipt(pmt);
       setShowPaymentModal(false);
       await loadData();
+      toast.success(
+        'Payment recorded',
+        `Receipt ${pmt.paymentReference || pmt.id} · ${formatCurrency(pmt.amount)} allocated automatically.`
+      );
     } catch (err: any) {
       setPaymentError(err?.message || 'Failed to record payment');
+      toast.error('Payment not recorded', err?.message);
     } finally {
       setIsSubmitting(false);
     }

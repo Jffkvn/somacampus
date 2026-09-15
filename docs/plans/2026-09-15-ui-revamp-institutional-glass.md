@@ -1,7 +1,8 @@
 # SomaCampus UI Revamp Plan — Institutional Glass
 
 **Date:** 2026-09-15  
-**Status:** Plan only — not started  
+**Status:** P0 + P1 complete · P2/P3 open  
+**Last updated:** 2026-09-15 (SlideToConfirm + Toasts)  
 **Sources:** SmoothUI · Bencho · Amicro · Best Designs on X · macOS Liquid Glass · live repo audit  
 **North star:** Calm school OS (macOS-adjacent chrome) — not a dark marketing playground
 
@@ -51,28 +52,26 @@
 
 ## 4. Phased roadmap
 
-### P0 — Make the system honest (before more polish)
+### P0 — Make the system honest (before more polish) — **DONE**
 
-| Item | Detail |
-|---|---|
-| **U0a Motion engine** | Pick **one**: install `tailwindcss-animate` **or** Motion. Un-break all dead `animate-in` / `fade-in` / `zoom-in-95` classes. |
-| **U0b Modal** | Enter + exit animation, **focus trap**, Escape to close, `aria-modal`. |
-| **U0c Reduced motion** | Global guard; no infinite spinners that ignore it where avoidable. |
-| **U0d Exit criteria** | No dead animate utilities; modal keyboard path tested; `npm test` + design-system suite green. |
+| Item | Detail | Status |
+|---|---|---|
+| **U0a Motion engine** | Pick **one**: install `tailwindcss-animate` **or** Motion. Un-break all dead `animate-in` / `fade-in` / `zoom-in-95` classes. | Done (`tailwindcss-animate`) |
+| **U0b Modal** | Enter + exit animation, **focus trap**, Escape to close, `aria-modal`. | Done |
+| **U0c Reduced motion** | Global guard; no infinite spinners that ignore it where avoidable. | Done |
+| **U0d Exit criteria** | No dead animate utilities; modal keyboard path tested; `npm test` + design-system suite green. | Done |
 
-**Credentials:** unchanged (keep for testing). **Do not** spend U0 on login art.
+### P1 — System kit + chrome — **DONE**
 
-### P1 — System kit + chrome
-
-| Item | Detail |
-|---|---|
-| **Tokens** | Concentric radius scale (`xs…2xl`); elevation levels; unify TopHeader blur with `glass-panel` / `--glass-*`. |
-| **Print** | `@media print` for payslip + fee statement (strip blur/motion). |
-| **Number Flow** | StatCard values (attendance %, cash, payroll totals). Dependency-light / copy-port. |
-| **Sidebar** | Accordion + collapse springs; active item morph. |
-| **Command palette** | ⌘K — **narrow v1:** students, staff, primary routes. Expand later. |
-| **Slide-to-confirm** | One primitive; inventory: finalize payroll, submit register, approve/disburse. |
-| **Toasts** | Clear “Payment recorded · Receipt #…” style status. |
+| Item | Detail | Status |
+|---|---|---|
+| **Tokens** | Concentric radius scale (`xs…2xl`); elevation levels; unify TopHeader blur with `glass-panel` / `--glass-*`. | Done |
+| **Print** | `@media print` for payslip + fee statement (strip blur/motion). | Done |
+| **Number Flow** | StatCard values (attendance %, cash, payroll totals). Dependency-light / copy-port. | Done |
+| **Sidebar** | Accordion + collapse springs; active item morph. | Done (accordion spring) |
+| **Command palette** | ⌘K — **narrow v1:** students, staff, primary routes. Expand later. | Done (role-filtered nav) |
+| **Slide-to-confirm** | One primitive; inventory: finalize payroll, submit register, approve/disburse. | Done — payroll approve/finalize + attendance sticky submit |
+| **Toasts** | Clear “Payment recorded · Receipt #…” style status. | Done — fees, payroll, attendance |
 
 ### P2 — Workflow surfaces + bench
 
@@ -137,14 +136,14 @@ BEFORE external pilot / production
 
 ## 8. Success criteria
 
-| Area | Done when |
-|---|---|
-| Motion | Animations actually run; reduced-motion respected |
-| Modal | Keyboard-complete; exit visible |
-| KPIs | Number changes feel intentional |
-| Money UI | Cash vs allocated vs credit unmistakable |
-| Irreversible | Confirm gesture on payroll finalize / register submit |
-| Release | Demo credentials out of prod bundle + passwords rotated |
+| Area | Done when | Status |
+|---|---|---|
+| Motion | Animations actually run; reduced-motion respected | Yes |
+| Modal | Keyboard-complete; exit visible | Yes |
+| KPIs | Number changes feel intentional | Yes (count-up) |
+| Money UI | Cash vs allocated vs credit unmistakable | Partial (KPIs yes; layout not redesigned) |
+| Irreversible | Confirm gesture on payroll finalize / register submit | **Yes** (payroll + attendance) |
+| Release | Demo credentials out of prod bundle + passwords rotated | Not yet (testing keep) |
 
 ---
 
@@ -159,10 +158,20 @@ BEFORE external pilot / production
 ## 10. Summary order
 
 ```text
-P0  Motion real + Modal a11y + reduced-motion
-P1  Tokens + print + Number Flow + sidebar springs + ⌘K(narrow) + slide-confirm
+P0  Motion real + Modal a11y + reduced-motion          ✅ DONE
+P1  Tokens + print + Number Flow + sidebar + ⌘K
+    + slide-confirm + toasts                            ✅ DONE
 P2  Fees/payroll/attendance/hire polish + /design bench + morning brief (separate)
 P3  Dither (one) + dark brief cockpit + credential strip + rotate
 ```
 
 **Credentials:** keep for testing · remove before production · DEV-gate when convenient.
+
+## 11. Change log
+
+| Date | Change | PR / commit |
+|---|---|---|
+| 2026-09-15 | Plan written | `23417ce` |
+| 2026-09-15 | **P0** motion + Modal a11y + reduced-motion | PR #9 → `7aa8de5` |
+| 2026-09-15 | **P1** tokens, Number Flow, accordion, print, ⌘K, glass header | PR #10 → `04cdc74` |
+| 2026-09-15 | **P1 finish** SlideToConfirm (payroll approve/finalize, attendance submit) + Toasts (fees/payroll/attendance) | this PR |

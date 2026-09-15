@@ -15,6 +15,8 @@ import { teacherService } from '../teacher/teacherService';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { SlideToConfirm } from '../../components/ui/SlideToConfirm';
+import { useToast } from '../../components/ui/Toast';
 
 const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
 
@@ -31,6 +33,7 @@ interface AttendanceDraftEntry {
 export const BulkAttendanceRegisterPage: React.FC = () => {
   const { classId: paramClassId } = useParams<{ classId: string }>();
   const { schoolId } = useAuth();
+  const toast = useToast();
   const effectiveSchoolId = schoolId ?? PILOT_SCHOOL_ID;
 
   const [availableClasses, setAvailableClasses] = useState<ClassSummary[]>([]);
@@ -173,8 +176,14 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
       });
 
       setSaveSuccess(`Daily register successfully recorded for ${recordsToSubmit.length} students.`);
+      toast.success(
+        'Register submitted',
+        `${recordsToSubmit.length} pupils recorded for ${attendanceDate}.`
+      );
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Failed to record daily attendance.');
+      const msg = err instanceof Error ? err.message : 'Failed to record daily attendance.';
+      setLoadError(msg);
+      toast.error('Register not saved', msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -462,16 +471,12 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
           </span>
         </div>
 
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleSubmit}
+        <SlideToConfirm
+          label="Submit Morning Register"
           isLoading={isSubmitting}
-          leftIcon={<Save className="w-4 h-4" />}
-          className="w-full sm:w-auto shadow-sm"
-        >
-          Submit Morning Register
-        </Button>
+          onConfirm={handleSubmit}
+          className="w-full sm:w-auto min-w-[12rem]"
+        />
       </div>
     </div>
   );
