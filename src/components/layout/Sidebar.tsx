@@ -167,28 +167,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </button>
 
-              {/* Submenu Accordion */}
-              {!isCollapsed && isExpanded && (
-                <div className="pl-9 pr-2 py-1 space-y-1">
-                  {visibleSubItems.map((sub) => (
-                    <NavLink
-                      key={sub.href}
-                      to={sub.href}
-                      onClick={onMobileClose}
-                      className={({ isActive }) =>
-                        cn(
-                          'block px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150',
-                          isActive
-                            ? 'bg-brand-teal/30 text-white font-semibold border-l-2 border-brand-tealLight'
-                            : 'text-slate-400 hover:text-slate-100 hover:bg-white/5'
-                        )
-                      }
-                    >
-                      {sub.label}
-                    </NavLink>
-                  ))}
+              {/* Submenu Accordion — liquid height (P1) */}
+              <div
+                className={cn('nav-accordion', isExpanded && !isCollapsed && 'is-open')}
+                aria-hidden={!isExpanded || isCollapsed}
+              >
+                <div className="nav-accordion-inner">
+                  <div className="pl-9 pr-2 py-1 space-y-1">
+                    {visibleSubItems.map((sub) => (
+                      <NavLink
+                        key={sub.href}
+                        to={sub.href}
+                        onClick={onMobileClose}
+                        tabIndex={isCollapsed || !isExpanded ? -1 : undefined}
+                        className={({ isActive }) =>
+                          cn(
+                            'block px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150',
+                            isActive
+                              ? 'bg-brand-teal/30 text-white font-semibold border-l-2 border-brand-tealLight'
+                              : 'text-slate-400 hover:text-slate-100 hover:bg-white/5'
+                          )
+                        }
+                      >
+                        {sub.label}
+                      </NavLink>
+                    ))}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           );
         })}

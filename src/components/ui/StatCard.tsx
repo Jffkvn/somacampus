@@ -2,6 +2,7 @@ import React from 'react';
 import { cn } from '../../lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { parseStatValue, useCountUp } from '../../lib/numberFlow';
 
 export interface StatCardProps {
   label: string;
@@ -28,11 +29,16 @@ export const StatCard: React.FC<StatCardProps> = ({
   href,
   className,
 }) => {
+  const { numeric, format } = parseStatValue(value);
+  const animated = useCountUp(numeric ?? 0);
+  const display = numeric === null ? String(value) : format(animated);
+
   const content = (
     <div
       className={cn(
-        'p-5 bg-white rounded-2xl border border-slate-200/80 shadow-sm transition-all duration-150',
-        href && 'hover:shadow-md hover:border-slate-300 group cursor-pointer',
+        'p-5 bg-white rounded-2xl border border-slate-200/80 transition-all duration-150',
+        'shadow-[var(--elev-1,0_1px_2px_0_rgba(15,23,42,0.04))]',
+        href && 'hover:shadow-[var(--elev-2,0_4px_12px_-2px_rgba(15,23,42,0.08))] hover:border-slate-300 group cursor-pointer',
         className
       )}
     >
@@ -48,8 +54,8 @@ export const StatCard: React.FC<StatCardProps> = ({
       </div>
 
       <div className="mt-3 flex items-baseline justify-between">
-        <div className="text-2xl font-bold text-slate-900 tracking-tight">
-          {value}
+        <div className="text-2xl font-bold text-slate-900 tracking-tight tabular-nums">
+          {display}
         </div>
         {trend && (
           <div
