@@ -27,6 +27,7 @@ import { SchemeDetailPage } from './modules/planning/SchemeDetailPage';
 import { TimetablePolicyPage } from './modules/planning/TimetablePolicyPage';
 import { TimetableDraftPage } from './modules/planning/TimetableDraftPage';
 import { PayrollDashboardPage } from './modules/payroll/PayrollDashboardPage';
+import { DesignBenchPage } from './modules/admin/DesignBenchPage';
 import { MyHRPage } from './modules/hr/MyHRPage';
 import { ActivitiesPage } from './modules/activities/ActivitiesPage';
 import { AnnouncementsPage } from './modules/communication/AnnouncementsPage';
@@ -119,6 +120,10 @@ export const App: React.FC = () => {
             <Route path="fees" element={<RequireAccess path="/fees"><FeesPage /></RequireAccess>} />
             <Route path="fees/setup" element={<RequireAccess path="/fees/setup"><FeeSetupPage /></RequireAccess>} />
             <Route path="fees/:studentId" element={<RequireAccess path="/fees"><FeeProfilePage /></RequireAccess>} />
+            {/* P2 — dev-only design bench (Bencho); not in nav */}
+            {import.meta.env.DEV && (
+              <Route path="design" element={<DesignBenchPage />} />
+            )}
 
           {/* Teacher Secondary Routes */}
           <Route path="teacher/classes" element={<ClassesPage />} />

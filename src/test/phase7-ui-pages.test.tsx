@@ -80,9 +80,11 @@ describe('Phase 7 UI Pages & Components Suite', () => {
         expect(screen.getByText('Fee Accounts & Clearance')).toBeInTheDocument();
       });
 
-      expect(screen.getByText('Total Assessed')).toBeInTheDocument();
-      expect(screen.getByText('Collected Payments')).toBeInTheDocument();
-      expect(screen.getByText('Outstanding Balance')).toBeInTheDocument();
+      expect(screen.getByText('Cash Received')).toBeInTheDocument();
+      expect(screen.getByText('Allocated to invoices')).toBeInTheDocument();
+      expect(screen.getByText('Unallocated credit')).toBeInTheDocument();
+      expect(screen.getByText('Total assessed')).toBeInTheDocument();
+      expect(screen.getByText('Outstanding balance')).toBeInTheDocument();
       expect(screen.getByText('Student Accounts Ledger')).toBeInTheDocument();
 
       // Verify Rapid Intake Modal opens

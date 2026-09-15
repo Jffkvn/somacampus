@@ -236,8 +236,20 @@ export const PayrollDashboardPage: React.FC = () => {
 
       {activeRun ? (
         <>
-          {/* Active Run Lifecycle Status Banner */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+          {/* Active Run Lifecycle Status Banner — sealed when finalized (P2) */}
+          <div
+            className={`bg-white rounded-2xl p-5 space-y-4 transition-colors ${
+              activeRun.status === 'finalized'
+                ? 'border-2 border-emerald-600/40 shadow-[var(--elev-2)]'
+                : 'border border-slate-200 shadow-sm'
+            }`}
+          >
+            {activeRun.status === 'finalized' && (
+              <div className="flex items-center gap-2 -mt-1 mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-800">
+                <Lock className="w-3.5 h-3.5" />
+                Sealed — immutable calculation snapshot
+              </div>
+            )}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
