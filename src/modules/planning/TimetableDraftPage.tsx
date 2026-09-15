@@ -827,13 +827,12 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Header */}
+      {/* Header — P2: short H1 + status chips (was icon + long architecture title) */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              <Calendar className="w-7 h-7 text-brand-teal shrink-0" />
-              <span>School Timetable & Teaching Allocation Architecture</span>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+              School timetable
             </h1>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-xs ${
               timetableStatus === 'published'

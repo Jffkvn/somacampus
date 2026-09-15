@@ -7,8 +7,10 @@ import type {
   AnnouncementPriority,
 } from './announcementService';
 import { useAuth } from '../../lib/authContext';
+import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -255,14 +257,11 @@ export const AnnouncementsPage: React.FC = () => {
 
   return (
     <div className="p-6 sm:p-8 space-y-6 max-w-4xl mx-auto animate-in fade-in">
-      <div className="border-b border-slate-200 pb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-          Announcements & Broadcasts
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Targeted school announcements for staff, parents, students, and classes. In-app only.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Communication"
+        title="Announcements"
+        description="Targeted in-app broadcasts to staff, parents, students, or classes."
+      />
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800">
@@ -445,91 +444,108 @@ export const AnnouncementsPage: React.FC = () => {
         />
       ) : (
         <div className="space-y-4">
-          {announcements.map((a) => (
-            <Card key={a.id} className={a.isExpired ? 'opacity-60' : undefined}>
-              <CardContent>
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <h3 className="font-bold text-slate-900">{a.title}</h3>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <StatusPill status={priorityVariant(a.priority)} label={a.priority} />
-                    {a.isExpired && <StatusPill status="neutral" label="expired" />}
-                  </div>
-                </div>
-                <p className="text-sm text-slate-600 whitespace-pre-wrap">{a.body}</p>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-xs text-slate-400">
-                    To {a.audience}
-                    {(a.additionalAudiences ?? []).length > 0 &&
-                      ` + ${(a.additionalAudiences ?? []).join(', ')}`}
-                    {a.audience === 'class' && a.targetClassId ? ` • class ${a.targetClassId}` : ''}
-                    {' • '}
-                    {new Date(a.publishedAt).toLocaleDateString()}
-                  </span>
-                  {canCreate && (
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => openEdit(a)}>
-                        Edit
-                      </Button>
-                      {!a.isExpired && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={actingId === a.id}
-                          onClick={() => handleCancelAnnouncement(a.id)}
-                        >
-                          Cancel
-                        </Button>
-                      )}
-                      {role === 'principal' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={actingId === a.id}
-                          onClick={() => handleDeleteAnnouncement(a.id)}
-                        >
-                          Delete
-                        </Button>
-                      )}
+          {announcements.map((a) => {
+            const rail =
+              a.priority === 'emergency'
+                ? 'border-l-4 border-rose-500'
+                : a.priority === 'urgent'
+                ? 'border-l-4 border-amber-500'
+                : a.priority === 'important'
+                ? 'border-l-4 border-sky-500'
+                : 'border-l-4 border-transparent';
+            return (
+              <Card key={a.id} className={cn(a.isExpired ? 'opacity-60' : undefined, rail)}>
+                <CardContent className="pt-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-bold text-slate-900 tracking-tight">{a.title}</h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        To {a.audience}
+                        {(a.additionalAudiences ?? []).length > 0 &&
+                          ` + ${(a.additionalAudiences ?? []).join(', ')}`}
+                        {a.audience === 'class' && a.targetClassId ? ` · class ${a.targetClassId}` : ''}
+                        {' · '}
+                        {new Date(a.publishedAt).toLocaleDateString()}
+                      </p>
                     </div>
-                  )}
-                  {a.requiresAcknowledgement &&
-                    (a.acknowledged ? (
-                      <StatusPill
-                        status="success"
-                        label={a.myResponse ? `Acknowledged (${a.myResponse})` : 'Acknowledged'}
-                      />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusPill status={priorityVariant(a.priority)} label={a.priority} />
+                      {a.isExpired && <StatusPill status="neutral" label="expired" />}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-700 leading-relaxed max-w-prose whitespace-pre-wrap">
+                    {a.body}
+                  </p>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    {a.requiresAcknowledgement ? (
+                      a.acknowledged ? (
+                        <StatusPill
+                          status="success"
+                          label={a.myResponse ? `Acknowledged (${a.myResponse})` : 'Acknowledged'}
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={ackingId === a.id}
+                            onClick={() => handleAcknowledge(a.id, 'acknowledged')}
+                          >
+                            Acknowledge
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={ackingId === a.id}
+                            onClick={() => handleAcknowledge(a.id, 'yes')}
+                          >
+                            Yes
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={ackingId === a.id}
+                            onClick={() => handleAcknowledge(a.id, 'no')}
+                          >
+                            No
+                          </Button>
+                        </div>
+                      )
                     ) : (
+                      <span className="text-[11px] text-slate-400">No acknowledgement required</span>
+                    )}
+                    {canCreate && (
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={ackingId === a.id}
-                          onClick={() => handleAcknowledge(a.id, 'acknowledged')}
-                        >
-                          Acknowledge
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
+                          Edit
                         </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={ackingId === a.id}
-                          onClick={() => handleAcknowledge(a.id, 'yes')}
-                        >
-                          Yes
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={ackingId === a.id}
-                          onClick={() => handleAcknowledge(a.id, 'no')}
-                        >
-                          No
-                        </Button>
+                        {!a.isExpired && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={actingId === a.id}
+                            onClick={() => handleCancelAnnouncement(a.id)}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                        {role === 'principal' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={actingId === a.id}
+                            onClick={() => handleDeleteAnnouncement(a.id)}
+                          >
+                            Delete
+                          </Button>
+                        )}
                       </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
       {editing && (

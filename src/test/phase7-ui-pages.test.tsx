@@ -252,11 +252,11 @@ describe('Phase 7 UI Pages & Components Suite', () => {
         expect(screen.getByText('Executive Leadership Cockpit')).toBeInTheDocument();
       });
 
-      // Cash Flow card
-      expect(screen.getByText(/Money In vs. Money Out/i)).toBeInTheDocument();
+      // Cash Flow card (P2 hierarchy: one title, in/out as number heroes)
+      expect(screen.getByText(/Institutional cash flow/i)).toBeInTheDocument();
       expect(screen.getByText('Net Cash Movement')).toBeInTheDocument();
-      expect(screen.getByText('Money In')).toBeInTheDocument();
-      expect(screen.getByText('Money Out')).toBeInTheDocument();
+      expect(screen.getByText('Money in')).toBeInTheDocument();
+      expect(screen.getByText('Money out')).toBeInTheDocument();
       expect(screen.getByText('Staff Payroll Disbursed')).toBeInTheDocument();
       expect(screen.getByText('Operating Expenses (Lunch/Bills)')).toBeInTheDocument();
     });

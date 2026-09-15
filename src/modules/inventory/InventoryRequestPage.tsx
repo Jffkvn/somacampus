@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, ClipboardList, Plus, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Plus, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
 import {
@@ -11,6 +11,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { PageHeader } from '../../components/ui/PageHeader';
 
 const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
 
@@ -102,21 +103,17 @@ export const InventoryRequestPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <ClipboardList className="w-8 h-8 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Supply Requests</h1>
-          </div>
-          <p className="text-sm text-slate-500 mt-1">
-            Request classroom supplies from the school store and track your own requisitions.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Inventory"
+        title="Supply requests"
+        description="Request classroom supplies from the school store and track your requisitions."
+        actions={
+          <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        }
+      />
 
       {errorMessage && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 text-red-700 text-sm">
