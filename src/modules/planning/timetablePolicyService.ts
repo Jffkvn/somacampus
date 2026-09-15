@@ -484,7 +484,11 @@ export const timetablePolicyService = {
     if (filter?.classId) query = query.eq('class_id', filter.classId);
     if (filter?.subjectId) query = query.eq('subject_id', filter.subjectId);
     if (filter?.teacherId) query = query.eq('teacher_id', filter.teacherId);
-    if (filter?.status) query = query.eq('status', filter.status);
+    if (filter?.status) {
+      query = query.eq('status', filter.status);
+    } else {
+      query = query.neq('status', 'archived');
+    }
 
     const { data, error } = await query;
     if (error) throw error;

@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+import tailwindcssAnimate from 'tailwindcss-animate';
+
 export default {
   content: [
     "./index.html",
@@ -42,8 +44,22 @@ export default {
       spacing: {
         '18': '4.5rem',
         '22': '5.5rem',
-      }
+      },
+      keyframes: {
+        'modal-in': {
+          '0%': { opacity: '0', transform: 'scale(0.96) translateY(8px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        'modal-out': {
+          '0%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+          '100%': { opacity: '0', transform: 'scale(0.98) translateY(4px)' },
+        },
+      },
+      animation: {
+        'modal-in': 'modal-in 180ms cubic-bezier(0.32, 0.72, 0, 1)',
+        'modal-out': 'modal-out 140ms cubic-bezier(0.32, 0.72, 0, 1) forwards',
+      },
     },
   },
-  plugins: [],
+  plugins: [tailwindcssAnimate],
 };

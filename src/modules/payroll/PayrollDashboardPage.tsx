@@ -12,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { Button } from '../../components/ui/Button';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { PayslipDocument } from './PayslipDocument';
+import { useAuth } from '../../lib/authContext';
 import {
   DollarSign,
   Calendar,
@@ -24,35 +25,70 @@ import {
   Eye,
   Building2,
   Smartphone,
+  Users,
+  AlertCircle,
 } from 'lucide-react';
 
+const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
+
 export const PayrollDashboardPage: React.FC = () => {
+  const { schoolId } = useAuth();
+  const effectiveSchoolId = schoolId ?? PILOT_SCHOOL_ID;
+
   const [periods, setPeriods] = useState<PayrollPeriod[]>([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('period-2026-09');
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
   const [activeRun, setActiveRun] = useState<SchoolPayrollRun | null>(null);
   const [items, setItems] = useState<SchoolPayrollItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPayslipItem, setSelectedPayslipItem] = useState<SchoolPayrollItem | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [eligiblePreview, setEligiblePreview] = useState<{
+    count: number;
+    estimatedBaseSalary: number;
+    employeeNames: string[];
+  } | null>(null);
 
   async function loadData() {
     try {
       setIsLoading(true);
-      const prds = await payrollService.getPayrollPeriods('school-default');
+      const prds = await payrollService.getPayrollPeriods(effectiveSchoolId);
       setPeriods(prds);
 
-      const periodId = selectedPeriodId || prds[0]?.id;
-      const allRuns = await payrollService.getPayrollRuns('school-default', periodId);
+      // Default to current calendar month (e.g. '2026-09') if present, else first open period, else prds[0]
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const matchingCurrent = prds.find((p) => p.periodMonth === currentMonth);
+      const firstOpen = prds.find((p) => !p.isClosed);
+      const defaultPeriod = matchingCurrent || firstOpen || prds[0];
 
-      if (allRuns.length > 0) {
-        const details = await payrollService.getPayrollRunDetails(allRuns[0].id);
-        if (details) {
-          setActiveRun(details.run);
-          setItems(details.items);
+      const periodId = (selectedPeriodId && prds.some((p) => p.id === selectedPeriodId))
+        ? selectedPeriodId
+        : (defaultPeriod?.id || '');
+
+      if (periodId !== selectedPeriodId && periodId) {
+        setSelectedPeriodId(periodId);
+      }
+
+      if (periodId) {
+        const allRuns = await payrollService.getPayrollRuns(effectiveSchoolId, periodId);
+
+        if (allRuns.length > 0) {
+          const details = await payrollService.getPayrollRunDetails(allRuns[0].id);
+          if (details) {
+            setActiveRun(details.run);
+            setItems(details.items);
+            setEligiblePreview(null);
+          }
+        } else {
+          setActiveRun(null);
+          setItems([]);
+          // Fetch preview of eligible profiles for this period
+          const preview = await payrollService.getEligibleProfilesPreview(effectiveSchoolId, periodId);
+          setEligiblePreview(preview);
         }
       } else {
         setActiveRun(null);
         setItems([]);
+        setEligiblePreview(null);
       }
     } catch (err) {
       console.error('Failed to load payroll data', err);
@@ -63,12 +99,17 @@ export const PayrollDashboardPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [selectedPeriodId]);
+  }, [selectedPeriodId, effectiveSchoolId]);
 
   const handleCreateDraftRun = async () => {
+    const periodToRun = selectedPeriodId || periods[0]?.id;
+    if (!periodToRun) {
+      alert('No payroll period available to run');
+      return;
+    }
     try {
       setIsProcessing(true);
-      await payrollService.createAndCalculateDraftRun('school-default', selectedPeriodId);
+      await payrollService.createAndCalculateDraftRun(effectiveSchoolId, periodToRun);
       await loadData();
     } catch (err: any) {
       alert(err?.message || 'Failed to create run');
@@ -164,7 +205,7 @@ export const PayrollDashboardPage: React.FC = () => {
             >
               {periods.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.label} ({p.periodMonth})
+                  {p.label.includes(p.periodMonth) ? p.label : `${p.label} (${p.periodMonth})`}
                 </option>
               ))}
             </select>
@@ -438,11 +479,42 @@ export const PayrollDashboardPage: React.FC = () => {
                 Create a draft payroll run to pull active staff salary profiles, pending advance deductions, and calculate statutory PAYE and NSSF.
               </p>
             </div>
+
+            {/* Pre-Run Eligible Staff Preview */}
+            {eligiblePreview && (
+              eligiblePreview.count > 0 ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 max-w-md mx-auto text-left animate-in fade-in">
+                  <div className="flex items-center gap-2 text-emerald-800 font-semibold text-xs">
+                    <Users className="w-4 h-4 text-emerald-600" />
+                    <span>{eligiblePreview.count} Eligible Staff Members Ready for Payroll</span>
+                  </div>
+                  <p className="text-xs text-emerald-700 font-medium mt-1">
+                    Estimated Gross: {formatUGX(eligiblePreview.estimatedBaseSalary)}
+                  </p>
+                  <p className="text-[11px] text-emerald-600 mt-0.5 truncate">
+                    Staff: {eligiblePreview.employeeNames.slice(0, 4).join(', ')}
+                    {eligiblePreview.employeeNames.length > 4 ? ` +${eligiblePreview.employeeNames.length - 4} more` : ''}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 max-w-md mx-auto text-left animate-in fade-in">
+                  <div className="flex items-center gap-2 text-amber-800 font-semibold text-xs">
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                    <span>0 Eligible Staff Profiles for this Period</span>
+                  </div>
+                  <p className="text-xs text-amber-700 mt-1">
+                    No active staff compensation profiles cover this period. Switch to an active period or add salary profiles in Staff Dossier.
+                  </p>
+                </div>
+              )
+            )}
+
             <Button
               variant="primary"
               leftIcon={<PlusCircle className="w-4 h-4" />}
               onClick={handleCreateDraftRun}
               isLoading={isProcessing}
+              disabled={isProcessing || eligiblePreview?.count === 0}
             >
               Generate Draft Run
             </Button>

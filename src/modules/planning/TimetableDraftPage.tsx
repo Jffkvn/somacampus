@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar,
   Play,
@@ -14,6 +14,8 @@ import {
   Users,
   X,
   ChevronRight,
+  LayoutGrid,
+  Columns,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -28,6 +30,7 @@ import {
 } from './timetableSolverService';
 import { timetablePolicyService } from './timetablePolicyService';
 import { TimetableWizard } from './TimetableWizard';
+import { WeekGrid } from './WeekGrid';
 import type {
   TimetableSubjectPreference,
   TimetableConstraintScorecard,
@@ -172,6 +175,28 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
   const [loadedScorecard, setLoadedScorecard] = useState<TimetableConstraintScorecard | null>(null);
   const [approveNote, setApproveNote] = useState('');
   const [assignments, setAssignments] = useState<ScheduledAssignment[]>(DEFAULT_MOCK_ASSIGNMENTS);
+  const [scheduleLayout, setScheduleLayout] = useState<'grid' | 'cards'>('grid');
+
+  const bellPeriods = useMemo(() => {
+    const seen = new Set<number>();
+    const out: Array<{ periodNumber: number; startTime: string; endTime: string }> = [];
+    for (const s of timetableSolverService.generateStandardPeriods()) {
+      if (s.dayOfWeek === 1 && !seen.has(s.periodNumber)) {
+        seen.add(s.periodNumber);
+        out.push({ periodNumber: s.periodNumber, startTime: s.startTime, endTime: s.endTime });
+      }
+    }
+    return out;
+  }, []);
+
+  const filteredAssignments = useMemo(() => {
+    return assignments.filter((a) => {
+      if (filterClassId !== 'all' && a.classId !== filterClassId) return false;
+      if (filterTeacherId !== 'all' && a.teacherId !== filterTeacherId) return false;
+      return true;
+    });
+  }, [assignments, filterClassId, filterTeacherId]);
+
   const [scorecard, setScorecard] = useState<TimetableConstraintScorecard | null>(null);
   const [diagnostics, setDiagnostics] = useState<ConstraintConflictDiagnostic | null>(null);
   const [governanceError, setGovernanceError] = useState<string | null>(null);
@@ -983,7 +1008,7 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
 
           {/* Master Timetable Grid */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
               <div>
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-brand-teal" />
@@ -993,70 +1018,102 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
                   Active 5-day school-wide teaching schedule and room allocations
                 </CardDescription>
               </div>
-              <span className="text-xs font-bold text-slate-500">
-                {assignments.filter((a) => (filterClassId === 'all' || a.classId === filterClassId) && (filterTeacherId === 'all' || a.teacherId === filterTeacherId)).length} periods scheduled
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* View Mode Toggle: Wall Matrix vs Day Columns */}
+                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleLayout('grid')}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all ${
+                      scheduleLayout === 'grid'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5 text-brand-teal" />
+                    Wall Matrix
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleLayout('cards')}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all ${
+                      scheduleLayout === 'cards'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Columns className="w-3.5 h-3.5 text-slate-500" />
+                    Day Columns
+                  </button>
+                </div>
+                <span className="text-xs font-bold text-slate-500">
+                  {filteredAssignments.length} periods scheduled
+                </span>
+              </div>
             </CardHeader>
             <CardContent className="pt-4">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                {daysOfWeek.map((dayName, dayIdx) => {
-                  const dayNum = dayIdx + 1;
-                  const dayAssignments = assignments
-                    .filter((a) => {
-                      if (a.slot.dayOfWeek !== dayNum) return false;
-                      if (filterClassId !== 'all' && a.classId !== filterClassId) return false;
-                      if (filterTeacherId !== 'all' && a.teacherId !== filterTeacherId) return false;
-                      return true;
-                    })
-                    .sort((a, b) => a.slot.periodNumber - b.slot.periodNumber);
+              {scheduleLayout === 'grid' ? (
+                <WeekGrid
+                  assignments={filteredAssignments}
+                  periods={bellPeriods}
+                  defaultCompact={true}
+                />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {daysOfWeek.map((dayName, dayIdx) => {
+                    const dayNum = dayIdx + 1;
+                    const dayAssignments = filteredAssignments
+                      .filter((a) => a.slot.dayOfWeek === dayNum)
+                      .sort((a, b) => a.slot.periodNumber - b.slot.periodNumber);
 
-                  return (
-                    <div key={dayName} className="space-y-2">
-                      <div className="p-2.5 bg-slate-900 text-white rounded-lg text-center font-bold text-xs tracking-wide shadow-xs">
-                        {dayName}
-                      </div>
-                      <div className="space-y-2.5 min-h-[250px]">
-                        {dayAssignments.length === 0 ? (
-                          <div className="p-4 rounded-lg border border-dashed border-slate-200 text-center text-[11px] text-slate-400 italic">
-                            No scheduled lessons
-                          </div>
-                        ) : (
-                          dayAssignments.map((a, i) => (
-                            <div
-                              key={i}
-                              className={`p-3 rounded-xl border text-xs space-y-1.5 shadow-xs transition-all hover:shadow-sm ${
-                                a.slot.isMorning
-                                  ? 'bg-sky-50/70 border-sky-200 text-sky-950'
-                                  : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-black text-[11px] uppercase tracking-wider text-slate-600">
-                                  Period {a.slot.periodNumber}
-                                </span>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/80 border border-slate-200 text-slate-600">
-                                  {a.slot.startTime} - {a.slot.endTime}
-                                </span>
-                              </div>
-                              <p className="font-extrabold text-xs text-slate-900 leading-snug">
-                                {a.subjectName}
-                              </p>
-                              <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-slate-200/50">
-                                <span className="font-bold text-slate-700 bg-white/70 px-1.5 py-0.5 rounded border border-slate-100">
-                                  {a.className}
-                                </span>
-                                <span className="truncate max-w-[100px] text-slate-500 font-medium" title={a.teacherName}>
-                                  {a.teacherName}
-                                </span>
-                              </div>
+                    return (
+                      <div key={dayName} className="space-y-2">
+                        <div className="p-2.5 bg-slate-900 text-white rounded-lg text-center font-bold text-xs tracking-wide shadow-xs">
+                          {dayName}
+                        </div>
+                        <div className="space-y-2.5 min-h-[250px]">
+                          {dayAssignments.length === 0 ? (
+                            <div className="p-4 rounded-lg border border-dashed border-slate-200 text-center text-[11px] text-slate-400 italic">
+                              No scheduled lessons
                             </div>
-                          ))
-                        )}
+                          ) : (
+                            dayAssignments.map((a, i) => (
+                              <div
+                                key={i}
+                                className={`p-3 rounded-xl border text-xs space-y-1.5 shadow-xs transition-all hover:shadow-sm ${
+                                  a.slot.isMorning
+                                    ? 'bg-sky-50/70 border-sky-200 text-sky-950'
+                                    : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-black text-[11px] uppercase tracking-wider text-slate-600">
+                                    Period {a.slot.periodNumber}
+                                  </span>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/80 border border-slate-200 text-slate-600">
+                                    {a.slot.startTime} - {a.slot.endTime}
+                                  </span>
+                                </div>
+                                <p className="font-extrabold text-xs text-slate-900 leading-snug">
+                                  {a.subjectName}
+                                </p>
+                                <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-slate-200/50">
+                                  <span className="font-bold text-slate-700 bg-white/70 px-1.5 py-0.5 rounded border border-slate-100">
+                                    {a.className}
+                                  </span>
+                                  <span className="truncate max-w-[100px] text-slate-500 font-medium" title={a.teacherName}>
+                                    {a.teacherName}
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

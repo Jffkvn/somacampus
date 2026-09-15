@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { StatusPill } from '../components/ui/StatusPill';
 import { Button } from '../components/ui/Button';
 import { Card, CardTitle, CardContent } from '../components/ui/Card';
+import { Modal } from '../components/ui/Modal';
 import { teacherService } from '../modules/teacher/teacherService';
 import { leadershipService } from '../modules/leadership/leadershipService';
 import { feesService } from '../modules/fees/feesService';
@@ -39,6 +41,43 @@ describe('SomaCampus Design System & Tokens', () => {
     );
     expect(screen.getByText('Water Cycle Lesson')).toBeInTheDocument();
     expect(screen.getByText('Covered condensation and evaporation.')).toBeInTheDocument();
+  });
+});
+
+describe('Modal a11y & motion (P0)', () => {
+  function ModalHarness({ onClosed }: { onClosed?: () => void }) {
+    const [open, setOpen] = React.useState(true);
+    return (
+      <Modal
+        isOpen={open}
+        onClose={() => {
+          setOpen(false);
+          onClosed?.();
+        }}
+        title="Record Payment"
+      >
+        <button type="button">Confirm</button>
+      </Modal>
+    );
+  }
+
+  it('exposes dialog semantics and closes on Escape', async () => {
+    const onClosed = vi.fn();
+    render(<ModalHarness onClosed={onClosed} />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(screen.getByRole('heading', { name: 'Record Payment' })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClosed).toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('closes when close button is activated', async () => {
+    const onClosed = vi.fn();
+    render(<ModalHarness onClosed={onClosed} />);
+    fireEvent.click(screen.getByRole('button', { name: /close dialog/i }));
+    expect(onClosed).toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });
 

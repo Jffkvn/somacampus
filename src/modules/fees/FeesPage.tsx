@@ -7,7 +7,7 @@ import { StatusPill } from '../../components/ui/StatusPill';
 import { Button } from '../../components/ui/Button';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { formatCurrency } from '../../lib/utils';
-import { DollarSign, Upload, Search, CheckCircle2, AlertCircle, PlusCircle, Receipt, X, FileText } from 'lucide-react';
+import { DollarSign, Upload, Search, CheckCircle2, AlertCircle, PlusCircle, Receipt, X, FileText, Wallet } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/authContext';
 import { studentService, StudentDirectoryRow } from '../students/studentService';
@@ -85,6 +85,7 @@ export const FeesPage: React.FC = () => {
 
   const totalAssessed = accounts.reduce((sum, a) => sum + a.assessedAmount, 0);
   const totalCollected = accounts.reduce((sum, a) => sum + a.paidAmount, 0);
+  const totalCashReceived = totalCollected + unallocatedCredit;
   const totalOutstanding = accounts.reduce((sum, a) => sum + a.balance, 0);
   const clearancePercentage = totalAssessed > 0 ? ((totalCollected / totalAssessed) * 100).toFixed(1) : '0';
 
@@ -123,7 +124,7 @@ export const FeesPage: React.FC = () => {
   };
 
   if (isLoading && accounts.length === 0) {
-    return <LoadingState label="Loading fee accounts & clearance ledgers..." />;
+    return <LoadingState variant="table" rows={8} label="Loading fee accounts & clearance ledgers..." />;
   }
 
   const filteredAccounts = accounts.filter((acc) => {
@@ -197,8 +198,8 @@ export const FeesPage: React.FC = () => {
         </div>
       )}
 
-      {/* 4 Headline Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* 5 Headline Metrics: Transparent Financial Truth */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           label="Total Assessed"
           value={formatCurrency(totalAssessed)}
@@ -206,11 +207,25 @@ export const FeesPage: React.FC = () => {
           icon={DollarSign}
         />
         <StatCard
+          label="Cash Received"
+          value={formatCurrency(totalCashReceived)}
+          subValue="Bank & mobile money total"
+          icon={Wallet}
+          iconColor="text-teal-600"
+        />
+        <StatCard
           label="Collected Payments"
           value={formatCurrency(totalCollected)}
-          subValue="Reconciled to date"
+          subValue={`${clearancePercentage}% cleared to date`}
           icon={CheckCircle2}
           iconColor="text-emerald-600"
+        />
+        <StatCard
+          label="Unallocated Credit"
+          value={formatCurrency(unallocatedCredit)}
+          subValue="Pupil advance credit"
+          icon={Receipt}
+          iconColor="text-amber-600"
         />
         <StatCard
           label="Outstanding Balance"
@@ -218,12 +233,6 @@ export const FeesPage: React.FC = () => {
           subValue="Unpaid student arrears"
           icon={AlertCircle}
           iconColor="text-red-600"
-        />
-        <StatCard
-          label="Clearance Rate"
-          value={`${clearancePercentage}%`}
-          trend={{ value: 'Target: 85%', direction: 'neutral' }}
-          icon={DollarSign}
         />
       </div>
 
