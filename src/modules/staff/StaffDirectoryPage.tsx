@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { staffService } from './staffService';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardContent } from '../../components/ui/Card';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { StatusPill } from '../../components/ui/StatusPill';
+import { Sheet } from '../../components/ui/Sheet';
+import { HireStaffWizardPage } from './HireStaffWizardPage';
+import { useToast } from '../../components/ui/Toast';
 import {
   Users,
   Search,
@@ -22,6 +25,8 @@ const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
 
 export const StaffDirectoryPage: React.FC = () => {
   const { role, schoolId } = useAuth();
+  const toast = useToast();
+  const navigate = useNavigate();
   const activeSchoolId = schoolId || PILOT_SCHOOL_ID;
 
   const [staff, setStaff] = useState<StaffMemberSummary[]>([]);
@@ -30,6 +35,7 @@ export const StaffDirectoryPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'teaching' | 'support'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'on_leave' | 'terminated'>('all');
+  const [hireOpen, setHireOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -50,6 +56,22 @@ export const StaffDirectoryPage: React.FC = () => {
       }
     }
     load();
+  }, [activeSchoolId, typeFilter, statusFilter]);
+
+  const reload = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await staffService.listStaff(activeSchoolId, {
+        type: typeFilter,
+        status: statusFilter,
+      });
+      setStaff(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to reload staff directory.');
+    } finally {
+      setIsLoading(false);
+    }
   }, [activeSchoolId, typeFilter, statusFilter]);
 
   const filteredStaff = useMemo(() => {
@@ -90,13 +112,14 @@ export const StaffDirectoryPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <StatusPill status="info" label={`${filteredStaff.length} Members`} />
           {canHire && (
-            <Link
-              to="/staff/new"
+            <button
+              type="button"
+              onClick={() => setHireOpen(true)}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-brand-teal hover:bg-brand-tealDark rounded-xl shadow-sm transition-all"
             >
               <UserPlus className="w-4 h-4" />
               <span>Hire Staff</span>
-            </Link>
+            </button>
           )}
         </div>
       </div>
@@ -342,6 +365,31 @@ export const StaffDirectoryPage: React.FC = () => {
           })}
         </div>
       )}
+
+      {/* P2 — hire wizard as side sheet (page route /staff/new still available) */}
+      <Sheet
+        open={hireOpen}
+        onClose={() => {
+          setHireOpen(false);
+          void reload();
+        }}
+        title="Hire staff"
+        description="Appointment, compensation, and official subjects — one panel"
+        widthClassName="w-full max-w-3xl"
+      >
+        <HireStaffWizardPage
+          embedded
+          onClose={() => {
+            setHireOpen(false);
+            void reload();
+          }}
+          onHired={(empId) => {
+            setHireOpen(false);
+            toast.success('Staff hired', 'Open the dossier to review compensation and subjects.');
+            navigate(`/staff/${empId}`);
+          }}
+        />
+      </Sheet>
     </div>
   );
 };

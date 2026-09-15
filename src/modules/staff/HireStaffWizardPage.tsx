@@ -26,7 +26,20 @@ const inputClass =
   'w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/50 transition-all';
 const labelClass = 'block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5';
 
-export const HireStaffWizardPage: React.FC = () => {
+export interface HireStaffWizardPageProps {
+  /** Render inside a Sheet / overlay (no page chrome). */
+  embedded?: boolean;
+  /** Close handler when embedded (Cancel / backdrop). */
+  onClose?: () => void;
+  /** Called after successful hire when embedded. */
+  onHired?: (employeeId: string) => void;
+}
+
+export const HireStaffWizardPage: React.FC<HireStaffWizardPageProps> = ({
+  embedded = false,
+  onClose,
+  onHired,
+}) => {
   const navigate = useNavigate();
   const { role, schoolId } = useAuth();
   const activeSchoolId = schoolId || PILOT_SCHOOL_ID;
@@ -154,7 +167,11 @@ export const HireStaffWizardPage: React.FC = () => {
       };
 
       const newEmpId = await staffService.hireStaff(payload, role);
-      navigate(`/staff/${newEmpId}`);
+      if (embedded && onHired) {
+        onHired(newEmpId);
+      } else {
+        navigate(`/staff/${newEmpId}`);
+      }
     } catch (err: any) {
       console.error('Failed to hire staff member', err);
       setFormError(err.message || 'Failed to hire staff member.');
@@ -163,17 +180,30 @@ export const HireStaffWizardPage: React.FC = () => {
     }
   };
 
+  const handleCancel = () => {
+    if (embedded && onClose) onClose();
+    else navigate('/staff');
+  };
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300 pb-12">
+    <div
+      className={
+        embedded
+          ? 'space-y-5 pb-4 animate-in fade-in duration-200'
+          : 'max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300 pb-12'
+      }
+    >
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
         <div className="flex items-center gap-3">
-          <Link
-            to="/staff"
-            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
+          {!embedded && (
+            <Link
+              to="/staff"
+              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+          )}
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
               Hire New Staff Member
@@ -687,7 +717,7 @@ export const HireStaffWizardPage: React.FC = () => {
         <Button
           type="button"
           variant="outline"
-          onClick={step === 'Personal' ? () => navigate('/staff') : goBack}
+          onClick={step === 'Personal' ? handleCancel : goBack}
           disabled={isSubmitting}
         >
           {step === 'Personal' ? 'Cancel' : 'Back'}

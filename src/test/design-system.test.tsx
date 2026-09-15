@@ -5,6 +5,7 @@ import { StatusPill } from '../components/ui/StatusPill';
 import { Button } from '../components/ui/Button';
 import { Card, CardTitle, CardContent } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
+import { Sheet } from '../components/ui/Sheet';
 import { StatCard } from '../components/ui/StatCard';
 import { teacherService } from '../modules/teacher/teacherService';
 import { leadershipService } from '../modules/leadership/leadershipService';
@@ -84,6 +85,23 @@ describe('Modal a11y & motion (P0)', () => {
     render(<ModalHarness onClosed={onClosed} />);
     fireEvent.click(screen.getByRole('button', { name: /close dialog/i }));
     expect(onClosed).toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('Sheet exposes dialog semantics and Escape closes', async () => {
+    function SheetHarness() {
+      const [open, setOpen] = React.useState(true);
+      return (
+        <Sheet open={open} onClose={() => setOpen(false)} title="Hire staff">
+          <button type="button">Inside</button>
+        </Sheet>
+      );
+    }
+    render(<SheetHarness />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(screen.getByRole('heading', { name: 'Hire staff' })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });
