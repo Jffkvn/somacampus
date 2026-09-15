@@ -92,7 +92,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-30 h-18 bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-4 lg:px-8 flex items-center justify-between">
+    <header className="sticky top-0 z-30 h-18 glass-panel border-b border-slate-200/80 px-4 lg:px-8 flex items-center justify-between print:hidden" data-print="hide">
       {/* Left: Mobile hamburger & breadcrumb/school pill */}
       <div className="flex items-center gap-3">
         <button

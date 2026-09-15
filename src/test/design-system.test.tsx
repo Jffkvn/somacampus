@@ -5,6 +5,7 @@ import { StatusPill } from '../components/ui/StatusPill';
 import { Button } from '../components/ui/Button';
 import { Card, CardTitle, CardContent } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
+import { StatCard } from '../components/ui/StatCard';
 import { teacherService } from '../modules/teacher/teacherService';
 import { leadershipService } from '../modules/leadership/leadershipService';
 import { feesService } from '../modules/fees/feesService';
@@ -41,6 +42,12 @@ describe('SomaCampus Design System & Tokens', () => {
     );
     expect(screen.getByText('Water Cycle Lesson')).toBeInTheDocument();
     expect(screen.getByText('Covered condensation and evaporation.')).toBeInTheDocument();
+  });
+
+  it('StatCard renders numeric value with tabular nums for money KPIs', () => {
+    render(<StatCard label="Cash Received" value="UGX 5,200,000" />);
+    expect(screen.getByText(/5,200,000/)).toBeInTheDocument();
+    expect(screen.getByText('Cash Received')).toBeInTheDocument();
   });
 });
 
