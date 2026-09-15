@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { CommandPalette } from '../ui/CommandPalette';
+import { ToastProvider } from '../ui/Toast';
 import { UserRole, getRoleLandingRoute } from '../../config/permissions';
 import { useAuth } from '../../lib/authContext';
 
@@ -37,6 +38,7 @@ export const AppShell: React.FC = () => {
   };
 
   return (
+    <ToastProvider>
     <div className="min-h-screen bg-slate-50 text-slate-900 flex">
       {isMobileNavOpen && (
         <div
@@ -76,5 +78,6 @@ export const AppShell: React.FC = () => {
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} role={role} />
     </div>
+    </ToastProvider>
   );
 };
