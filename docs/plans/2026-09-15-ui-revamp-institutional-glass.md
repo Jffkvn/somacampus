@@ -176,4 +176,5 @@ P3  Dither (one) + dark brief cockpit + credential strip + rotate
 | 2026-09-15 | **P1** tokens, Number Flow, accordion, print, ⌘K, glass header | PR #10 → `04cdc74` |
 | 2026-09-15 | **P1 finish** SlideToConfirm (payroll approve/finalize, attendance submit) + Toasts (fees/payroll/attendance) | PR #11 → `17c38bd` |
 | 2026-09-15 | **P2 partial** Fees cash triad hierarchy, payroll sealed banner, DEV `/design` bench | PR #12 → `363bd37` |
-| 2026-09-15 | **P2 hire sheet** Sheet primitive + hire wizard as side sheet from staff directory | this PR |
+| 2026-09-15 | **P2 hire sheet** Sheet primitive + hire wizard as side sheet from staff directory | PR #13 → `31a10c6` |
+| 2026-09-15 | **Polish** PageHeader component; cash-flow header; staff list; announcement cards; timetable/inventory titles | this PR |

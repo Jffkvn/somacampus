@@ -234,22 +234,21 @@ export const SchoolDashboardPage: React.FC = () => {
 
         {/* Right Sidebar: Institutional Money Picture & Operational Alerts (1 Col) */}
         <div className="space-y-6">
-          {/* Institutional Cash Movement Card */}
+          {/* Institutional Cash Movement Card — P2 header hierarchy fix */}
           {moneyPicture && (
             <Card className="border-teal-100 bg-gradient-to-b from-teal-50/30 to-white">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-teal-800 flex items-center gap-1">
-                    <DollarSign className="w-3.5 h-3.5" /> Institutional Cash Flow
-                  </span>
-                  <span className="text-xs px-2 py-0.5 bg-teal-100 text-teal-800 rounded font-medium">
-                    {moneyPicture.termName}
-                  </span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base font-bold text-slate-900">
+                      Institutional cash flow
+                    </CardTitle>
+                    <CardDescription className="mt-0.5">
+                      {moneyPicture.termName} · In vs out for the term
+                    </CardDescription>
+                  </div>
+                  <DollarSign className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" aria-hidden />
                 </div>
-                <CardTitle className="text-base font-bold text-slate-900 mt-1">
-                  Money In vs. Money Out
-                </CardTitle>
-                <CardDescription>Operational cash balance for the term</CardDescription>
               </CardHeader>
               <CardContent className="pt-0 space-y-4">
                 {/* Net Operational Movement */}
@@ -265,25 +264,25 @@ export const SchoolDashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* In / Out Breakdown */}
+                {/* In / Out Breakdown — numbers are the color, labels stay ink */}
                 <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-100">
-                    <span className="text-emerald-800 font-semibold block">Money In</span>
-                    <span className="font-bold text-slate-900 text-sm block mt-0.5">
+                  <div className="p-2.5 rounded-lg bg-white border border-emerald-200/80">
+                    <span className="text-slate-600 font-medium block">Money in</span>
+                    <span className="font-bold text-emerald-700 text-sm block mt-0.5 tabular-nums">
                       {formatUGX(moneyPicture.moneyIn.totalCollected)}
                     </span>
                     <span className="text-slate-500 text-[11px] block mt-0.5">
-                      {moneyPicture.collectionRatePercentage}% collection rate
+                      {moneyPicture.collectionRatePercentage}% collected
                     </span>
                   </div>
 
-                  <div className="p-2.5 rounded-lg bg-rose-50/70 border border-rose-100">
-                    <span className="text-rose-800 font-semibold block">Money Out</span>
-                    <span className="font-bold text-slate-900 text-sm block mt-0.5">
+                  <div className="p-2.5 rounded-lg bg-white border border-rose-200/80">
+                    <span className="text-slate-600 font-medium block">Money out</span>
+                    <span className="font-bold text-rose-700 text-sm block mt-0.5 tabular-nums">
                       {formatUGX(moneyPicture.moneyOut.totalExpenditure)}
                     </span>
                     <span className="text-slate-500 text-[11px] block mt-0.5">
-                      Payroll & operations
+                      Payroll &amp; operations
                     </span>
                   </div>
                 </div>
