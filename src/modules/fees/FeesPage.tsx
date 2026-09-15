@@ -205,43 +205,52 @@ export const FeesPage: React.FC = () => {
         </div>
       )}
 
-      {/* 5 Headline Metrics: Transparent Financial Truth */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
-          label="Total Assessed"
-          value={formatCurrency(totalAssessed)}
-          subValue="Term 1 obligations"
-          icon={DollarSign}
-        />
-        <StatCard
-          label="Cash Received"
-          value={formatCurrency(totalCashReceived)}
-          subValue="Bank & mobile money total"
-          icon={Wallet}
-          iconColor="text-teal-600"
-        />
-        <StatCard
-          label="Collected Payments"
-          value={formatCurrency(totalCollected)}
-          subValue={`${clearancePercentage}% cleared to date`}
-          icon={CheckCircle2}
-          iconColor="text-emerald-600"
-        />
-        <StatCard
-          label="Unallocated Credit"
-          value={formatCurrency(unallocatedCredit)}
-          subValue="Pupil advance credit"
-          icon={Receipt}
-          iconColor="text-amber-600"
-        />
-        <StatCard
-          label="Outstanding Balance"
-          value={formatCurrency(totalOutstanding)}
-          subValue="Unpaid student arrears"
-          icon={AlertCircle}
-          iconColor="text-red-600"
-        />
-      </div>
+      {/* P2 — financial truth hierarchy: cash in hand first, then allocation split */}
+      <section aria-label="Cash and allocation summary" className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="sm:col-span-1 rounded-2xl border border-brand-teal/25 bg-brand-teal/5 p-5 shadow-[var(--elev-1)]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-brand-tealDark">
+                Cash Received
+              </span>
+              <Wallet className="w-4 h-4 text-brand-teal" />
+            </div>
+            <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums text-slate-900">
+              {formatCurrency(totalCashReceived)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">Bank &amp; mobile money · includes unallocated credit</p>
+          </div>
+          <StatCard
+            label="Allocated to invoices"
+            value={formatCurrency(totalCollected)}
+            subValue={`${clearancePercentage}% of assessed cleared`}
+            icon={CheckCircle2}
+            iconColor="text-emerald-600"
+          />
+          <StatCard
+            label="Unallocated credit"
+            value={formatCurrency(unallocatedCredit)}
+            subValue="Pupil advance · allocate or refund"
+            icon={Receipt}
+            iconColor="text-amber-600"
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <StatCard
+            label="Total assessed"
+            value={formatCurrency(totalAssessed)}
+            subValue="Term 1 obligations"
+            icon={DollarSign}
+          />
+          <StatCard
+            label="Outstanding balance"
+            value={formatCurrency(totalOutstanding)}
+            subValue="Unpaid student arrears"
+            icon={AlertCircle}
+            iconColor="text-red-600"
+          />
+        </div>
+      </section>
 
       {/* Unallocated credit: money received but not matched to any bill line */}
       {unallocatedCredit > 0 && (

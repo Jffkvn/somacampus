@@ -73,16 +73,16 @@
 | **Slide-to-confirm** | One primitive; inventory: finalize payroll, submit register, approve/disburse. | Done — payroll approve/finalize + attendance sticky submit |
 | **Toasts** | Clear “Payment recorded · Receipt #…” style status. | Done — fees, payroll, attendance |
 
-### P2 — Workflow surfaces + bench
+### P2 — Workflow surfaces + bench — **PARTIAL**
 
-| Item | Detail |
-|---|---|
-| **Fees** | Cash / Allocated / Unallocated as hero triad (already 5 KPIs — refine hierarchy). |
-| **Payroll** | Locked/finalized state more “sealed”; confirm gestures. |
-| **Attendance** | Keep sticky tally; confirm submit motion. |
-| **Hire wizard** | Prefer **sheets** over stacked modals. |
-| **Morning brief inbox** | Product feature (exceptions first) — **separate stream** from design-system PRs. |
-| **`/design` bench** | Dev-only live gallery; regression home for `design-system.test.tsx`. |
+| Item | Detail | Status |
+|---|---|---|
+| **Fees** | Cash / Allocated / Unallocated as hero triad (already 5 KPIs — refine hierarchy). | Done — hero cash + allocation split |
+| **Payroll** | Locked/finalized state more “sealed”; confirm gestures. | Done — sealed border + confirm (P1) |
+| **Attendance** | Keep sticky tally; confirm submit motion. | Done (P1) |
+| **Hire wizard** | Prefer **sheets** over stacked modals. | Not done |
+| **Morning brief inbox** | Product feature (exceptions first) — **separate stream** from design-system PRs. | Out of UI kit |
+| **`/design` bench** | Dev-only live gallery; regression home for `design-system.test.tsx`. | Done — `/design` DEV-gated |
 
 ### P3 — After commissioning freeze
 
@@ -174,4 +174,5 @@ P3  Dither (one) + dark brief cockpit + credential strip + rotate
 | 2026-09-15 | Plan written | `23417ce` |
 | 2026-09-15 | **P0** motion + Modal a11y + reduced-motion | PR #9 → `7aa8de5` |
 | 2026-09-15 | **P1** tokens, Number Flow, accordion, print, ⌘K, glass header | PR #10 → `04cdc74` |
-| 2026-09-15 | **P1 finish** SlideToConfirm (payroll approve/finalize, attendance submit) + Toasts (fees/payroll/attendance) | this PR |
+| 2026-09-15 | **P1 finish** SlideToConfirm (payroll approve/finalize, attendance submit) + Toasts (fees/payroll/attendance) | PR #11 → `17c38bd` |
+| 2026-09-15 | **P2 partial** Fees cash triad hierarchy, payroll sealed banner, DEV `/design` bench | this PR |
