@@ -239,7 +239,7 @@ export const CentreOpsPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
         eyebrow="Online Centre"
-        title="Centre operations"
+        title="Centre Operations"
         description={`Today's sessions, teaching load and contribution margin — signed in as ${role}.`}
         actions={
           <div className="flex items-center gap-3">

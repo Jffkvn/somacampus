@@ -70,7 +70,7 @@ export const StudentDirectoryPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
         eyebrow="Students & Learners"
-        title="Student directory"
+        title="Student Directory"
         description="Enrolled learners, class assignments, and student dossiers"
         chips={<StatusPill status="info" label={`${filtered.length} learners`} />}
         actions={

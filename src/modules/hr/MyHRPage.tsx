@@ -268,10 +268,10 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
         eyebrow="Staff HR Portal"
         title={
           activeTab === 'leave'
-            ? 'Leave & balances'
+            ? 'Leave & Balances'
             : activeTab === 'advances'
-            ? 'Salary advances'
-            : 'My payslips'
+            ? 'Salary Advances'
+            : 'My Payslips'
         }
         description={
           activeTab === 'leave'

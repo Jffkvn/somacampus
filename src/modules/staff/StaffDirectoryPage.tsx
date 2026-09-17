@@ -96,7 +96,7 @@ export const StaffDirectoryPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
         eyebrow="People & Operations"
-        title="Staff directory"
+        title="Staff Directory"
         description="Faculty appointments, subjects, and personnel dossiers"
         chips={<StatusPill status="info" label={`${filteredStaff.length} members`} />}
         actions={
@@ -325,7 +325,7 @@ export const StaffDirectoryPage: React.FC = () => {
           setHireOpen(false);
           void reload();
         }}
-        title="Hire staff"
+        title="Hire Staff"
         description="Appointment, compensation, and official subjects — one panel"
         widthClassName="w-full max-w-3xl"
       >

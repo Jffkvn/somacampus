@@ -132,7 +132,7 @@ export const CurriculumExplorerPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
         eyebrow="Institutional Standards"
-        title="Curriculum explorer"
+        title="Curriculum Explorer"
         description="Official learning objectives, progression strands, and prerequisites for Cambridge Primary."
         chips={
           <>

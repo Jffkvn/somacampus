@@ -153,7 +153,7 @@ export const HRApprovalsPage: React.FC = () => {
     <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-300">
       <PageHeader
         eyebrow="Administration"
-        title="HR operations & approvals"
+        title="HR Operations & Approvals"
         description="Review staff requests, maintain leave quotas, and configure compensation profiles."
         actions={
           activeTab === 'policies' ? (

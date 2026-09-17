@@ -24,7 +24,7 @@ export const DesignBenchPage: React.FC = () => {
     <div className="space-y-8 max-w-4xl">
       <PageHeader
         eyebrow="Design bench"
-        title="Institutional Glass primitives"
+        title="Institutional Glass Primitives"
         description="Live gallery for the design system. Dev-only — not in production navigation."
       />
 

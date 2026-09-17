@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { feeSetupService, FeeCategory, FeeClass, FeeStructureRow, FeeTerm } from '../finance/feeSetupService';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { formatCurrency } from '../../lib/utils';
 import { useAuth } from '../../lib/authContext';
@@ -270,14 +271,11 @@ export const FeeSetupPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header */}
-      <div className="pb-6 border-b border-slate-200/80">
-        <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">School Finance</span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">Fee Setup</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Set what each class pays per term. The Bursar drafts the amounts; the Principal approves before they reach students.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="School Finance"
+        title="Fee Setup"
+        description="Set what each class pays per term. The Bursar drafts the amounts; the Principal approves before they reach students."
+      />
 
       {/* Term picker */}
       <div className="flex flex-wrap items-center gap-2">

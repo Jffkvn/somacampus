@@ -62,7 +62,7 @@ export const TeacherWeekPage: React.FC = () => {
     <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in">
       <PageHeader
         eyebrow="My Teaching"
-        title="My week"
+        title="My Week"
         description="Your lessons from the school's active timetable, Monday to Friday. Read-only — timetable changes are made by school leadership."
       />
 

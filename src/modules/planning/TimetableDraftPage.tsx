@@ -832,7 +832,7 @@ export const TimetableDraftPage: React.FC<TimetableDraftPageProps> = ({ initialV
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              School timetable
+              School Timetable
             </h1>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-xs ${
               timetableStatus === 'published'

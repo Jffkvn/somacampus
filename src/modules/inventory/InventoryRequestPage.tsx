@@ -105,7 +105,7 @@ export const InventoryRequestPage: React.FC = () => {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <PageHeader
         eyebrow="Inventory"
-        title="Supply requests"
+        title="Supply Requests"
         description="Request classroom supplies from the school store and track your requisitions."
         actions={
           <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading}>
