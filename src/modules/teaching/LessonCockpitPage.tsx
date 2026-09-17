@@ -7,6 +7,7 @@ import { toHHMM, toLocalYYYYMMDD } from '../teacher/scheduleUtils';
 import { learningIntelligenceService } from '../intelligence/learningIntelligenceService';
 import type { LessonContext, LessonSubmission, PreLessonBriefing } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -227,18 +228,11 @@ export const LessonCockpitPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div>
-        <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-          Lesson Cockpit
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-          {context.className} • {context.subjectName}
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {context.startTime} – {context.endTime}
-          {context.roomName ? ` • ${context.roomName}` : ''} • {context.teacherName}
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Lesson Cockpit"
+        title={`${context.className} • ${context.subjectName}`}
+        description={`${context.startTime} – ${context.endTime}${context.roomName ? ` • ${context.roomName}` : ''} • ${context.teacherName}`}
+      />
 
       <Card>
         <CardHeader>

@@ -241,10 +241,10 @@ export const TeacherTodayPage: React.FC = () => {
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Top Greeting & Arrival Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
             Teacher Workspace
-          </span>
+          </p>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
             Good morning, {greetFirstName(data.teacherName)}
           </h1>

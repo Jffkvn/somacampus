@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { leadershipService, LeadershipDashboardViewModel } from './leadershipService';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { Users, GraduationCap, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink } from 'lucide-react';
@@ -88,19 +89,11 @@ export const SchoolDashboardPage: React.FC = () => {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Leadership Header Context */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-            Executive Leadership Cockpit
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            {data.schoolName}
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {data.academicTerm} • Operational & Academic Monitor
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Executive Leadership Cockpit"
+        title={data.schoolName}
+        description={`${data.academicTerm} · Operational & Academic Monitor`}
+      />
 
       {/* 4 Focused Headline Stat Cards (Meaningful hierarchy, NOT 12 small cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

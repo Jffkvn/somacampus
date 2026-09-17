@@ -10,6 +10,7 @@ import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusPill } from '../../components/ui/StatusPill';
 
 const PILOT_SCHOOL_ID = '22222222-2222-2222-2222-222222222222';
@@ -208,15 +209,11 @@ export const AdmitStudentPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 max-w-3xl">
-      <div className="pb-6 border-b border-slate-200/80">
-        <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Admissions</span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-          Admit Student
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Reception wizard — pupil details, guardians, documents, then review.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Admissions"
+        title="Admit student"
+        description="Reception wizard — pupil details, guardians, documents, then review."
+      />
 
       <div className="flex items-center gap-2">
         {STEPS.map((s, i) => (

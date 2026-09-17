@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { curriculumService } from './curriculumService';
 import type {
   CurriculumSubject,
@@ -129,28 +130,21 @@ export const CurriculumExplorerPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-              Institutional Standards
-            </span>
+      <PageHeader
+        eyebrow="Institutional Standards"
+        title="Curriculum explorer"
+        description="Official learning objectives, progression strands, and prerequisites for Cambridge Primary."
+        chips={
+          <>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">
               {activeVersion?.versionCode ?? '2026.1'}
             </span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
               Demonstration Fixture
             </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Curriculum Explorer
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Official learning objectives, progression strands, and prerequisites for Cambridge Primary.
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* 1. Subject Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar border-b border-slate-200">

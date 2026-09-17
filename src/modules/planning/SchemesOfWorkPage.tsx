@@ -11,6 +11,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { academicPlanningService } from './academicPlanningService';
 import { supabase } from '@/lib/supabase';
 import type { SchemeOfWork } from '@/types/domain';
@@ -151,35 +152,27 @@ export const SchemesOfWorkPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-              Academic Planning
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">
-              Term Planning
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Schemes of Work
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Term-long curriculum roadmaps, medium-term units, and teaching sequences.
-          </p>
-        </div>
-
-        <Button
-          variant="primary"
-          size="md"
-          onClick={() => setIsCreateModalOpen(true)}
-          className="bg-brand-teal hover:bg-teal-800 text-white self-start sm:self-auto flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Scheme of Work</span>
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Academic Planning"
+        title="Schemes of work"
+        description="Term-long curriculum roadmaps, medium-term units, and teaching sequences."
+        chips={
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">
+            Term Planning
+          </span>
+        }
+        actions={
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="bg-brand-teal hover:bg-teal-800 text-white flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Scheme of Work</span>
+          </Button>
+        }
+      />
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm text-xs">

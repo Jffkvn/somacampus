@@ -19,6 +19,7 @@ import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusPill, type StatusVariant } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 
@@ -139,23 +140,21 @@ export const ClassesPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Academics</span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Classes & Streams
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Manage academic stages, stream capacities, designated class teachers, and student rosters.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={() => setShowCreateClassModal(true)}>
+      <PageHeader
+        eyebrow="Academics"
+        title="Classes & Streams"
+        description="Manage academic stages, stream capacities, designated class teachers, and student rosters."
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setShowCreateClassModal(true)}
+          >
             Create Class
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {loadError && (
         <div className="flex items-start gap-2.5 p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700">

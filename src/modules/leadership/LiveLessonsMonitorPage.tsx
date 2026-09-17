@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getLiveLessonsMonitor, LiveLessonsMonitorResult } from './leadershipService';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { toLocalYYYYMMDD } from '../teacher/scheduleUtils';
@@ -63,15 +64,11 @@ export const LiveLessonsMonitorPage: React.FC = () => {
     if (loadError) {
       return (
         <div className="space-y-8 animate-in fade-in duration-300">
-          <div className="pb-6 border-b border-slate-200/80">
-            <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-              Academics • Live Monitor
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-              Live Lessons Monitor
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">{today} • Scheduled vs submitted periods</p>
-          </div>
+          <PageHeader
+            eyebrow="Academics • Live Monitor"
+            title="Live lessons monitor"
+            description={`${today} • Scheduled vs submitted periods`}
+          />
           <Card>
             <CardContent className="py-10 text-center space-y-3">
               <p className="text-sm font-semibold text-slate-900">Could not load today&apos;s periods.</p>

@@ -177,4 +177,5 @@ P3  Dither (one) + dark brief cockpit + credential strip + rotate
 | 2026-09-15 | **P1 finish** SlideToConfirm (payroll approve/finalize, attendance submit) + Toasts (fees/payroll/attendance) | PR #11 → `17c38bd` |
 | 2026-09-15 | **P2 partial** Fees cash triad hierarchy, payroll sealed banner, DEV `/design` bench | PR #12 → `363bd37` |
 | 2026-09-15 | **P2 hire sheet** Sheet primitive + hire wizard as side sheet from staff directory | PR #13 → `31a10c6` |
-| 2026-09-15 | **Polish** PageHeader component; cash-flow header; staff list; announcement cards; timetable/inventory titles | this PR |
+| 2026-09-15 | **Polish** PageHeader component; cash-flow header; staff list; announcement cards; timetable/inventory titles | PR #14 → `988a036` |
+| 2026-09-15 | **PageHeader sweep** All remaining module page titles (classes, admissions, students, HR, fees, online, curriculum, schemes, lesson cockpit, teacher week, etc.) | this PR |

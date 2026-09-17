@@ -7,6 +7,7 @@ import type { DayTimelineItem, OnlineDaySession } from './onlineTeachingService'
 import type { TimetableEntry } from '../../types/domain';
 import { useAuth } from '../../lib/authContext';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { StatusPill } from '../../components/ui/StatusPill';
 import type { StatusVariant } from '../../components/ui/StatusPill';
@@ -71,36 +72,30 @@ export const OnlineDayPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-            Online Teaching
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            My Teaching Day
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Physical periods and online sessions, merged chronologically.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal"
-            aria-label="Teaching day date"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<ArrowLeft className="w-4 h-4" />}
-            onClick={() => navigate('/teacher/today')}
-          >
-            Today
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Online Teaching"
+        title="My teaching day"
+        description="Physical periods and online sessions, merged chronologically."
+        actions={
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal"
+              aria-label="Teaching day date"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<ArrowLeft className="w-4 h-4" />}
+              onClick={() => navigate('/teacher/today')}
+            >
+              Today
+            </Button>
+          </div>
+        }
+      />
 
       {loadError && (
         <Card className="border-red-200 bg-red-50/60">

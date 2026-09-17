@@ -5,6 +5,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { formatCurrency } from '../../lib/utils';
 import { DollarSign, Upload, Search, CheckCircle2, AlertCircle, PlusCircle, Receipt, X, FileText, Wallet } from 'lucide-react';
@@ -148,39 +149,32 @@ export const FeesPage: React.FC = () => {
         </div>
       )}
       {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-            School Finance & Fee Accounting
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Fee Accounts & Clearance
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Real-time student fee charges, manual intake reconciliation & clearance tracking
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="primary"
-            leftIcon={<PlusCircle className="w-4 h-4" />}
-            onClick={() => {
-              setLastReceipt(null);
-              setShowPaymentModal(true);
-            }}
-          >
-            Record Payment
-          </Button>
-          <Button
-            variant="secondary"
-            leftIcon={<Upload className="w-4 h-4" />}
-            onClick={() => navigate('/fees/import')}
-          >
-            Import Bank / Telco Statement
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="School Finance & Fee Accounting"
+        title="Fee accounts & clearance"
+        description="Real-time charges, intake reconciliation & clearance tracking"
+        actions={
+          <>
+            <Button
+              variant="primary"
+              leftIcon={<PlusCircle className="w-4 h-4" />}
+              onClick={() => {
+                setLastReceipt(null);
+                setShowPaymentModal(true);
+              }}
+            >
+              Record Payment
+            </Button>
+            <Button
+              variant="secondary"
+              leftIcon={<Upload className="w-4 h-4" />}
+              onClick={() => navigate('/fees/import')}
+            >
+              Import Bank / Telco Statement
+            </Button>
+          </>
+        }
+      />
 
       {/* Success Notification Banner on Payment */}
       {lastReceipt && (

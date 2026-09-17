@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { teacherService } from './teacherService';
 import { TimetableEntry } from '../../types/domain';
 import { Card, CardContent } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../lib/authContext';
 import { Calendar, MapPin } from 'lucide-react';
@@ -59,14 +60,11 @@ export const TeacherWeekPage: React.FC = () => {
 
   return (
     <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in">
-      <div className="pb-6 border-b border-slate-200/80">
-        <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">My Teaching</span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">My Week</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Your lessons from the school's active timetable, Monday to Friday. Read-only — timetable changes are made by
-          school leadership.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="My Teaching"
+        title="My week"
+        description="Your lessons from the school's active timetable, Monday to Friday. Read-only — timetable changes are made by school leadership."
+      />
 
       {loadError ? (
         <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700">{loadError}</div>
