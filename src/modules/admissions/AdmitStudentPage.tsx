@@ -211,7 +211,7 @@ export const AdmitStudentPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300 max-w-3xl">
       <PageHeader
         eyebrow="Admissions"
-        title="Admit student"
+        title="Admit Student"
         description="Reception wizard — pupil details, guardians, documents, then review."
       />
 

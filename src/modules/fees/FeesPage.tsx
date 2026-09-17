@@ -151,7 +151,7 @@ export const FeesPage: React.FC = () => {
       {/* Top Header & Actions */}
       <PageHeader
         eyebrow="School Finance & Fee Accounting"
-        title="Fee accounts & clearance"
+        title="Fee Accounts & Clearance"
         description="Real-time charges, intake reconciliation & clearance tracking"
         actions={
           <>

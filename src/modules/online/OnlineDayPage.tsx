@@ -74,7 +74,7 @@ export const OnlineDayPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
         eyebrow="Online Teaching"
-        title="My teaching day"
+        title="My Teaching Day"
         description="Physical periods and online sessions, merged chronologically."
         actions={
           <div className="flex items-center gap-3">

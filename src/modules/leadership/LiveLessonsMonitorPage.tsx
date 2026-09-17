@@ -66,7 +66,7 @@ export const LiveLessonsMonitorPage: React.FC = () => {
         <div className="space-y-8 animate-in fade-in duration-300">
           <PageHeader
             eyebrow="Academics • Live Monitor"
-            title="Live lessons monitor"
+            title="Live Lessons Monitor"
             description={`${today} • Scheduled vs submitted periods`}
           />
           <Card>

@@ -168,7 +168,7 @@ export const ResourceLibraryPage: React.FC = () => {
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-in fade-in duration-300">
       <PageHeader
         eyebrow="Curriculum & Teaching Asset Engine"
-        title="Approved resource library"
+        title="Approved Resource Library"
         description="Search before generation: discover, preview, adapt, and reuse validated curriculum materials across teaching teams."
         chips={
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">

@@ -154,7 +154,7 @@ export const SchemesOfWorkPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
         eyebrow="Academic Planning"
-        title="Schemes of work"
+        title="Schemes of Work"
         description="Term-long curriculum roadmaps, medium-term units, and teaching sequences."
         chips={
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">

@@ -132,7 +132,7 @@ export const AdmissionsQueuePage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
         eyebrow="Admissions"
-        title="Admissions queue"
+        title="Admissions Queue"
         description="Review applications — approval creates the student record atomically."
         chips={
           <StatusPill
