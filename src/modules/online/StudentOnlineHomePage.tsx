@@ -3,6 +3,7 @@ import { onlineStudentService } from './onlineStudentService';
 import type { OnlineHome } from './onlineStudentService';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusPill } from '../../components/ui/StatusPill';
 import type { StatusVariant } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -99,17 +100,11 @@ export const StudentOnlineHomePage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="pb-6 border-b border-slate-200/80">
-        <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-          Online Learning
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-          Hi {displayName}
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Your upcoming sessions, assignments and teacher feedback.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Online Learning"
+        title={`Hi ${displayName}`}
+        description="Your upcoming sessions, assignments and teacher feedback."
+      />
 
       {loadError && (
         <Card className="border-red-200 bg-red-50/60">

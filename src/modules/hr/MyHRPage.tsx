@@ -14,6 +14,7 @@ import {
 } from '../../types/domain';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { PayslipDocument } from '../payroll/PayslipDocument';
@@ -263,49 +264,51 @@ export const MyHRPage: React.FC<MyHRPageProps> = ({ section: propSection }) => {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-              Staff HR Portal
-            </span>
-            <span className="text-xs text-slate-500 font-medium">{currentEmployeeName} (Senior Teacher)</span>
+      <PageHeader
+        eyebrow="Staff HR Portal"
+        title={
+          activeTab === 'leave'
+            ? 'Leave & balances'
+            : activeTab === 'advances'
+            ? 'Salary advances'
+            : 'My payslips'
+        }
+        description={
+          activeTab === 'leave'
+            ? 'Track statutory leave quotas, view effective balances, and submit requests for absence'
+            : activeTab === 'advances'
+            ? 'Request short-term salary advances within statutory policy limits and view active repayment schedules'
+            : 'View verified monthly payslips, statutory deductions, and net take-home pay records'
+        }
+        chips={
+          <span className="text-xs text-slate-500 font-medium">
+            {currentEmployeeName} (Senior Teacher)
+          </span>
+        }
+        actions={
+          <div className="flex items-center gap-3">
+            {activeTab === 'leave' && (
+              <Button
+                variant="primary"
+                leftIcon={<PlusCircle className="w-4 h-4" />}
+                onClick={() => setShowLeaveModal(true)}
+              >
+                Apply for Leave
+              </Button>
+            )}
+            {activeTab === 'advances' && (
+              <Button
+                variant="primary"
+                leftIcon={<DollarSign className="w-4 h-4" />}
+                onClick={() => setShowAdvanceModal(true)}
+                disabled={hasOpenAdvance}
+              >
+                {hasOpenAdvance ? 'Active Advance Open' : 'Request Advance'}
+              </Button>
+            )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            {activeTab === 'leave' && 'Leave & Balances'}
-            {activeTab === 'advances' && 'Salary Advances'}
-            {activeTab === 'payslips' && 'My Payslips'}
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {activeTab === 'leave' && 'Track statutory leave quotas, view effective balances, and submit requests for absence'}
-            {activeTab === 'advances' && 'Request short-term salary advances within statutory policy limits and view active repayment schedules'}
-            {activeTab === 'payslips' && 'View verified monthly payslips, statutory deductions, and net take-home pay records'}
-          </p>
-        </div>
-
-        {/* Action button based on active section */}
-        <div className="flex items-center gap-3">
-          {activeTab === 'leave' && (
-            <Button
-              variant="primary"
-              leftIcon={<PlusCircle className="w-4 h-4" />}
-              onClick={() => setShowLeaveModal(true)}
-            >
-              Apply for Leave
-            </Button>
-          )}
-          {activeTab === 'advances' && (
-            <Button
-              variant="primary"
-              leftIcon={<DollarSign className="w-4 h-4" />}
-              onClick={() => setShowAdvanceModal(true)}
-              disabled={hasOpenAdvance}
-            >
-              {hasOpenAdvance ? 'Active Advance Open' : 'Request Advance'}
-            </Button>
-          )}
-        </div>
-      </div>
+        }
+      />
 
       {/* TAB 1: LEAVE & BALANCES */}
       {activeTab === 'leave' && (

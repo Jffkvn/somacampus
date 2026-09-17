@@ -13,6 +13,7 @@ import { parentService, type ParentOnlineOverview } from './parentService';
 import type { ParentChildSummary, ParentChildOverview } from '../../types/domain';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusPill, type StatusVariant } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -236,10 +237,10 @@ export const ParentHomePage: React.FC = () => {
   if (children.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="pb-6 border-b border-slate-200/80">
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Family Portal</span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">Home &amp; Overview</h1>
-        </div>
+        <PageHeader
+          eyebrow="Family Portal"
+          title="Home & Overview"
+        />
         <EmptyState
           icon={Users}
           title="No linked children"
@@ -253,11 +254,11 @@ export const ParentHomePage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="pb-6 border-b border-slate-200/80">
-        <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Family Portal</span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">Home &amp; Overview</h1>
-        <p className="text-sm text-slate-500 mt-1">Learning progress, attendance, online learning, fees and activities for your {children.length > 1 ? 'children' : 'child'}.</p>
-      </div>
+      <PageHeader
+        eyebrow="Family Portal"
+        title="Home & Overview"
+        description={`Learning progress, attendance, online learning, fees and activities for your ${children.length > 1 ? 'children' : 'child'}.`}
+      />
 
       {children.length > 1 && (
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Select child">

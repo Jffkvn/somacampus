@@ -198,11 +198,11 @@ export const OnlineSessionCockpitPage: React.FC = () => {
       {/* Header: context, time, join link */}
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-brand-teal">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-teal">
               Online session cockpit
-            </span>
-            <CardTitle className="text-xl font-extrabold text-slate-900 mt-1">
+            </p>
+            <CardTitle className="text-xl font-extrabold text-slate-900 mt-1 truncate">
               {session.offeringTitle ?? 'Online session'}
             </CardTitle>
             <p className="text-xs text-slate-500 mt-1">{formatRange(session.scheduledStart, session.scheduledEnd)}</p>

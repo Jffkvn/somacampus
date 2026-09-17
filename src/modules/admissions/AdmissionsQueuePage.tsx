@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusPill, type StatusVariant } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -129,23 +130,22 @@ export const AdmissionsQueuePage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Admissions</span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Admissions Queue
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Review applications — approval creates the student record atomically.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <StatusPill status="pending" label={`${rows.filter((r) => r.status === 'pending').length} pending`} />
+      <PageHeader
+        eyebrow="Admissions"
+        title="Admissions queue"
+        description="Review applications — approval creates the student record atomically."
+        chips={
+          <StatusPill
+            status="pending"
+            label={`${rows.filter((r) => r.status === 'pending').length} pending`}
+          />
+        }
+        actions={
           <Link to="/students/new">
             <Button variant="primary" size="sm">Admit student</Button>
           </Link>
-        </div>
-      </div>
+        }
+      />
 
       {loadError && (
         <div className="flex items-start gap-2.5 p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700">

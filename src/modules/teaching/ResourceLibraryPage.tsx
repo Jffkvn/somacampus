@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../../lib/authContext';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusPill } from '../../components/ui/StatusPill';
 import type { AcademicResource } from './academicResources';
 import { resourceLibraryService } from './resourceLibraryService';
@@ -165,33 +166,22 @@ export const ResourceLibraryPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-in fade-in duration-300">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-brand-teal">
-              Curriculum & Teaching Asset Engine
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Cambridge Primary Aligned
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1 flex items-center gap-2.5">
-            <BookOpen className="w-7 h-7 text-brand-teal" />
-            Approved Resource Library
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Search before generation: discover, preview, adapt, and reuse validated curriculum materials across teaching teams.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
+      <PageHeader
+        eyebrow="Curriculum & Teaching Asset Engine"
+        title="Approved resource library"
+        description="Search before generation: discover, preview, adapt, and reuse validated curriculum materials across teaching teams."
+        chips={
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Cambridge Primary Aligned
+          </span>
+        }
+        actions={
           <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
             <Plus className="w-4 h-4 mr-1.5" />
             Submit Resource
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Success Banner */}
       {adaptSuccessMsg && (

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
 import { StatusPill } from '../../components/ui/StatusPill';
@@ -21,13 +22,11 @@ export const DesignBenchPage: React.FC = () => {
 
   return (
     <div className="space-y-8 max-w-4xl">
-      <div>
-        <p className="text-xs font-bold uppercase tracking-wider text-brand-teal">Design bench</p>
-        <h1 className="text-2xl font-extrabold text-slate-900 mt-0.5">Institutional Glass primitives</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Live gallery for the design system. Dev-only — not in production navigation.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Design bench"
+        title="Institutional Glass primitives"
+        description="Live gallery for the design system. Dev-only — not in production navigation."
+      />
 
       <Card>
         <CardHeader>

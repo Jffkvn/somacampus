@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { studentService, StudentDirectoryRow } from './studentService';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardContent } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Users, Search, ArrowRight, UserPlus, Filter } from 'lucide-react';
@@ -67,22 +68,13 @@ export const StudentDirectoryPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header with Title and Primary + Admit Student Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-            Students & Learners
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Student Directory
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Enrolled learners, class assignments, and student dossiers
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <StatusPill status="info" label={`${filtered.length} Learners`} />
-          {canAdmit && (
+      <PageHeader
+        eyebrow="Students & Learners"
+        title="Student directory"
+        description="Enrolled learners, class assignments, and student dossiers"
+        chips={<StatusPill status="info" label={`${filtered.length} learners`} />}
+        actions={
+          canAdmit ? (
             <Link
               to="/students/new"
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-brand-teal hover:bg-brand-tealDark rounded-xl shadow-sm transition-all"
@@ -90,9 +82,9 @@ export const StudentDirectoryPage: React.FC = () => {
               <UserPlus className="w-4 h-4" />
               <span>Admit Student</span>
             </Link>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row gap-3">

@@ -232,9 +232,9 @@ export const BulkAttendanceRegisterPage: React.FC = () => {
       <Card className="bg-gradient-to-br from-white to-slate-50/50">
         <CardContent className="p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Morning Register</span>
-              <h1 className="text-2xl font-extrabold text-slate-900 mt-0.5">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Morning Register</p>
+              <h1 className="text-2xl font-extrabold text-slate-900 mt-0.5 truncate">
                 {classDetail.name} Daily Attendance
               </h1>
               <p className="text-xs text-slate-500 mt-1">

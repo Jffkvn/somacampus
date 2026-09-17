@@ -18,6 +18,7 @@ import { hrService } from './hrService';
 import { LeaveRequest, StaffAdvance, LeaveType } from '../../types/domain';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 
@@ -150,19 +151,12 @@ export const HRApprovalsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-300">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">Administration</span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            HR Operations & Approvals
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Review staff requests, maintain school leave quotas, and configure compensation profiles.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeTab === 'policies' && (
+      <PageHeader
+        eyebrow="Administration"
+        title="HR operations & approvals"
+        description="Review staff requests, maintain leave quotas, and configure compensation profiles."
+        actions={
+          activeTab === 'policies' ? (
             <Button
               variant="primary"
               size="sm"
@@ -174,9 +168,9 @@ export const HRApprovalsPage: React.FC = () => {
             >
               Add Leave Type
             </Button>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
       {/* Notifications */}
       {actionSuccess && (

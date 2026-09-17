@@ -77,7 +77,7 @@ describe('Phase 7 UI Pages & Components Suite', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Fee Accounts & Clearance')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1, name: /Fee accounts & clearance/i })).toBeInTheDocument();
       });
 
       expect(screen.getByText('Cash Received')).toBeInTheDocument();
@@ -137,7 +137,7 @@ describe('Phase 7 UI Pages & Components Suite', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 1, name: 'Leave & Balances' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1, name: /Leave & balances/i })).toBeInTheDocument();
       });
 
       // Honest mock env: no seeded leave-type fakes, so no balance cards
@@ -160,7 +160,7 @@ describe('Phase 7 UI Pages & Components Suite', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 1, name: 'Salary Advances' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1, name: /Salary advances/i })).toBeInTheDocument();
       });
 
       expect(screen.getByText('Salary Advance Policy Guidelines')).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe('Phase 7 UI Pages & Components Suite', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 1, name: 'My Payslips' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1, name: /My payslips/i })).toBeInTheDocument();
       });
 
       expect(screen.getByText('My Official Salary Payslips')).toBeInTheDocument();

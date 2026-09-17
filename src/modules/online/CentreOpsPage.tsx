@@ -8,6 +8,7 @@ import type {
   ProgrammeEconomics,
 } from './centreOpsService';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
 import { StatusPill } from '../../components/ui/StatusPill';
@@ -236,31 +237,25 @@ export const CentreOpsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-            Online Centre
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Centre Operations
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Today's sessions, teaching load and contribution margin — signed in as {role}.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal"
-            aria-label="Centre day date"
-          />
-          <Button variant="outline" size="sm" onClick={() => { loadDay(); loadEconomics(); }}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Online Centre"
+        title="Centre operations"
+        description={`Today's sessions, teaching load and contribution margin — signed in as ${role}.`}
+        actions={
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal"
+              aria-label="Centre day date"
+            />
+            <Button variant="outline" size="sm" onClick={() => { loadDay(); loadEconomics(); }}>
+              Refresh
+            </Button>
+          </div>
+        }
+      />
 
       {isDayLoading ? (
         <LoadingState label="Loading centre day..." />
