@@ -6,6 +6,7 @@ import type { StudentLearningCockpit } from '../learning/learningCockpitDomain';
 import { StudentLearningCockpitPanels } from '../learning/StudentLearningCockpit';
 import { LearningCoachPanel } from '../learning/LearningCoachPanel';
 import { OfficeHoursPanel } from './OfficeHoursPanel';
+import { CatchUpPanel } from './CatchUpPanel';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../components/ui/Card';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -139,6 +140,8 @@ export const StudentOnlineHomePage: React.FC = () => {
           <LearningCoachPanel schoolId={schoolId} studentId={studentId} />
           {/* P1 Office hours — reuses online_bookings (no second scheduler) */}
           <OfficeHoursPanel schoolId={schoolId} studentId={studentId} />
+          {/* P1 Provider recording → catch-up (charter §12) */}
+          {studentKey && <CatchUpPanel schoolId={schoolId} studentKey={studentKey} />}
         </>
       )}
 
