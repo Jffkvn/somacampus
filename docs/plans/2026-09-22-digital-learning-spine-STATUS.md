@@ -113,7 +113,7 @@
 | `npm run typecheck` | **PASS** |
 | `npx vitest run src/test/learning-cockpit.test.ts src/test/learning-gradebook.test.ts` | **PASS** (11 tests) |
 | Full `npm test` | **PASS** (880 passed, 30 skipped live-gated, 7 skipped files) |
-| UI confirmation (browser) | **SMOKE_ONLY** — `scripts/verify-learning-ui.mjs` + screenshots in `docs/verification/screenshots/learn_*.png`; report `docs/verification/learning-ui-report.json`. No console/page/HTTP FAIL. Interactive photo-submit golden path is `REQUIRES_LIVE_AUTH` (logic covered by unit tests). |
+| UI confirmation (browser) | **PASS (signed-in)** — `scripts/verify-learning-ui-authed.mjs` logs in `student@somacampus.ug` + `teacher@somacampus.ug` against live Supabase. Student home: cockpit + Learning Coach + Office hours + catch-up + photo hand-in modal all present. Teacher today: marking queue + at-risk present. Screenshots `learn_*_authed.png` / `learn_login_*.png`. Report `docs/verification/learning-ui-authed-report.json`. Unauthenticated shell pass remains in `learning-ui-report.json` (SMOKE_ONLY). |
 
 ---
 
@@ -124,7 +124,7 @@
 - P1 Learning Coach / office hours / recordings / pacing are **done**. Optional: live Meet/Zoom webhook → `ingestRecording`.
 - Quizzes / gradebook advanced rules / discussion / proctoring are **P2**.
 - 15 pre-existing migration audit warnings (legacy `USING (true)` + hard-delete cleanups) — not introduced by this spine.
-- UI confirmation without a live student/teacher session is **SMOKE_ONLY** (honest label). Full golden-path (sign-in → hand-in photo → coach sign-off) needs a live auth session — re-run `node scripts/verify-learning-ui.mjs` after login fixtures exist.
+- Signed-in UI confirmation covered student home + photo modal + teacher marking/at-risk. Data-mutating flows (actually submitting a photo, recording coach hours against a live roster row) still need seeded live data — unit tests cover the fail-closed logic.
 
 ---
 
