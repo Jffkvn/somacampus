@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 import type { CommunitySpace } from './communityService';
 import { CommunityFeedPanel } from './CommunityFeedPanel';
 import { PeerReviewPanel } from './PeerReviewPanel';
+import { ModerationQueuePanel } from './ModerationQueuePanel';
 
 async function resolvePersonIdByEmail(email: string): Promise<string | null> {
   const { data, error } = await supabase.from('people').select('id').eq('email', email).limit(1);
@@ -63,6 +64,8 @@ export const CommunityPage: React.FC = () => {
         canAuthor={canPost}
         createdByPersonId={personId}
       />
+      {/* P2D-4 moderation queue (safeguarding) */}
+      {canPost && <ModerationQueuePanel schoolId={schoolId} decidedByPersonId={personId} />}
     </div>
   );
 };
