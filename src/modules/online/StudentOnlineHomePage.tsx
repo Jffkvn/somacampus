@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { onlineStudentService } from './onlineStudentService';
 import type { OnlineHome } from './onlineStudentService';
+import { learningCockpitService } from '../learning/learningCockpitService';
+import type { StudentLearningCockpit } from '../learning/learningCockpitDomain';
+import { StudentLearningCockpitPanels } from '../learning/StudentLearningCockpit';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../components/ui/Card';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -50,6 +53,7 @@ export const StudentOnlineHomePage: React.FC = () => {
   const studentKey = user?.email ?? null;
 
   const [home, setHome] = useState<OnlineHome | null>(null);
+  const [cockpit, setCockpit] = useState<StudentLearningCockpit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -57,6 +61,7 @@ export const StudentOnlineHomePage: React.FC = () => {
     async function load() {
       if (!schoolId || !studentKey) {
         setHome({ student: null, upcomingSessions: [], assignmentsDue: [], recentFeedback: [] });
+        setCockpit(null);
         setLoadError(
           !studentKey
             ? 'We could not identify your learner account. Please sign out and sign in again, or contact the school office.'
@@ -68,7 +73,15 @@ export const StudentOnlineHomePage: React.FC = () => {
       try {
         setIsLoading(true);
         setLoadError(null);
-        setHome(await onlineStudentService.getOnlineHome(studentKey, schoolId));
+        const [onlineHome, learning] = await Promise.all([
+          onlineStudentService.getOnlineHome(studentKey, schoolId),
+          learningCockpitService.getStudentCockpit(studentKey, schoolId).catch((err) => {
+            console.error('Student learning cockpit failed (session home still loads):', err);
+            return null;
+          }),
+        ]);
+        setHome(onlineHome);
+        setCockpit(learning);
       } catch (err: any) {
         // Engine/permission text (PostgREST codes, RLS messages) must never
         // reach a learner. Log the detail, show a friendly line.
@@ -84,6 +97,7 @@ export const StudentOnlineHomePage: React.FC = () => {
             : raw || 'Could not load your online home. Please try again.',
         );
         setHome(null);
+        setCockpit(null);
       } finally {
         setIsLoading(false);
       }
@@ -111,6 +125,9 @@ export const StudentOnlineHomePage: React.FC = () => {
           <CardContent className="py-4 text-sm text-red-800">{loadError}</CardContent>
         </Card>
       )}
+
+      {/* M6 Student Today learning cockpit: Today · Learning · Due · Overdue · Feedback · Progress · Next */}
+      {cockpit && <StudentLearningCockpitPanels cockpit={cockpit} />}
 
       {/* Next session hero */}
       {next ? (

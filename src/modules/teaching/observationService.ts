@@ -6,6 +6,7 @@ export interface CreateObservationInput {
   studentId: string;
   teacherId: string;
   classId?: string | null;
+  onlineOfferingId?: string | null;
   onlineSessionId?: string | null;
   streamId?: string | null;
   subjectId?: string | null;
@@ -28,9 +29,22 @@ export const observationService = {
     if (!input.teacherId) {
       throw new Error('Teacher ID is required');
     }
-    if (!input.classId) {
+    // Charter §6: physical class XOR online offering [| session provenance].
+    const hasClass = Boolean(input.classId);
+    const hasOffering = Boolean(input.onlineOfferingId);
+    if (!hasClass && !hasOffering) {
       throw new Error(
-        'observationService.createObservation: classId is required (teacher_observations.class_id is NOT NULL; online sessions must pass the pupil\u2019s class).'
+        'observationService.createObservation: classId or onlineOfferingId is required (exclusive origins; session is provenance only).'
+      );
+    }
+    if (hasClass && hasOffering) {
+      throw new Error(
+        'observationService.createObservation: cannot bind both a physical class and an online offering.'
+      );
+    }
+    if (input.onlineSessionId && !hasOffering) {
+      throw new Error(
+        'observationService.createObservation: session-linked work must declare its online offering.'
       );
     }
 
@@ -41,6 +55,7 @@ export const observationService = {
         student_id: input.studentId,
         teacher_id: input.teacherId,
         class_id: input.classId ?? null,
+        online_offering_id: input.onlineOfferingId ?? null,
         online_session_id: input.onlineSessionId ?? null,
         stream_id: input.streamId ?? null,
         subject_id: input.subjectId ?? null,

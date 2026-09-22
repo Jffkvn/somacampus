@@ -330,10 +330,17 @@ export const onlineAcademicService = {
     const teacherId = await resolveTeacherId(teacherIdOrEmail);
     const session = await loadOwnedSession(sessionId, teacherId);
 
+    // Session is provenance only (charter #8). Origin is the session's
+    // offering when present (online session work). A classId cannot
+    // dual-bind origin (XOR law) — prefer the offering.
+    const offeringId = session.offering_id ? String(session.offering_id) : null;
+    const classId = offeringId ? null : (input.classId ?? null);
     const validation = validateAssignmentPayload({
       schoolId: String(session.school_id),
       teacherId,
       ...input,
+      classId,
+      onlineOfferingId: offeringId,
       onlineSessionId: sessionId,
     });
     if (!validation.isValid) {
@@ -345,7 +352,8 @@ export const onlineAcademicService = {
       .insert({
         school_id: String(session.school_id),
         teacher_id: teacherId,
-        class_id: input.classId ?? null,
+        class_id: classId,
+        online_offering_id: offeringId,
         stream_id: input.streamId ?? null,
         subject_id: input.subjectId,
         lesson_id: null,

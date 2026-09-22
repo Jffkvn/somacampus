@@ -170,7 +170,7 @@ describe('Phase 9 Hardening: Invariant 2 — RLS Authority & Financial Privacy I
 });
 
 describe('Phase 9 Hardening: Invariant 3 — Classless Online Academic Work', () => {
-  it('requires classId for physical assignments when onlineSessionId is absent', () => {
+  it('requires class or online offering (charter exclusive origins)', () => {
     const physicalWithoutClass = validateAssignmentPayload({
       schoolId: 's1',
       teacherId: 't1',
@@ -182,14 +182,57 @@ describe('Phase 9 Hardening: Invariant 3 — Classless Online Academic Work', ()
       submissionType: 'homework',
       evidenceTrack: 'diagnostic_evidence',
       classId: null,
+      onlineOfferingId: null,
       onlineSessionId: null,
     });
 
     expect(physicalWithoutClass.isValid).toBe(false);
-    expect(physicalWithoutClass.errors).toContain('Class is required');
+    expect(physicalWithoutClass.errors).toContain('Class or online offering is required');
   });
 
-  it('permits classId to be optional when onlineSessionId is provided', () => {
+  it('rejects binding both class and online offering on one assignment', () => {
+    const bothOrigins = validateAssignmentPayload({
+      schoolId: 's1',
+      teacherId: 't1',
+      title: 'Hybrid Worksheet',
+      instructions: 'Do exercises 1-10',
+      subjectId: 'sub-math',
+      assignedDate: '2026-09-15',
+      dueDate: '2026-09-18',
+      submissionType: 'worksheet',
+      evidenceTrack: 'diagnostic_evidence',
+      classId: 'class-1',
+      onlineOfferingId: 'off-1',
+      onlineSessionId: null,
+    });
+
+    expect(bothOrigins.isValid).toBe(false);
+    expect(bothOrigins.errors).toContain(
+      'Assignment cannot be bound to both a physical class and an online offering'
+    );
+  });
+
+  it('permits async online assignment with offering and no class or session', () => {
+    const asyncOnline = validateAssignmentPayload({
+      schoolId: 's1',
+      teacherId: 't1',
+      title: 'Online Async Worksheet',
+      instructions: 'Complete the worksheet',
+      subjectId: 'sub-math',
+      assignedDate: '2026-09-15',
+      dueDate: '2026-09-18',
+      submissionType: 'worksheet',
+      evidenceTrack: 'diagnostic_evidence',
+      classId: null,
+      onlineOfferingId: 'off-online-999',
+      onlineSessionId: null,
+    });
+
+    expect(asyncOnline.isValid).toBe(true);
+    expect(asyncOnline.errors).toHaveLength(0);
+  });
+
+  it('permits session-linked online work when offering is declared', () => {
     const onlineSessionAssignment = validateAssignmentPayload({
       schoolId: 's1',
       teacherId: 't1',
@@ -200,7 +243,8 @@ describe('Phase 9 Hardening: Invariant 3 — Classless Online Academic Work', ()
       dueDate: '2026-09-18',
       submissionType: 'worksheet',
       evidenceTrack: 'diagnostic_evidence',
-      classId: null, // Online-only learner has no physical class!
+      classId: null,
+      onlineOfferingId: 'off-online-999',
       onlineSessionId: 'sess-online-999',
     });
 
@@ -208,7 +252,27 @@ describe('Phase 9 Hardening: Invariant 3 — Classless Online Academic Work', ()
     expect(onlineSessionAssignment.errors).toHaveLength(0);
   });
 
-  it('rejects observation creation when classId is missing (even with a session: class_id is NOT NULL)', async () => {
+  it('rejects session-linked work without an online offering', () => {
+    const orphanSession = validateAssignmentPayload({
+      schoolId: 's1',
+      teacherId: 't1',
+      title: 'Online Lesson Worksheet',
+      instructions: 'Complete the online quiz',
+      subjectId: 'sub-math',
+      assignedDate: '2026-09-15',
+      dueDate: '2026-09-18',
+      submissionType: 'worksheet',
+      evidenceTrack: 'diagnostic_evidence',
+      classId: null,
+      onlineOfferingId: null,
+      onlineSessionId: 'sess-online-999',
+    });
+
+    expect(orphanSession.isValid).toBe(false);
+    expect(orphanSession.errors).toContain('Session-linked work must declare its online offering');
+  });
+
+  it('rejects observation creation when neither class nor offering is present', async () => {
     await expect(
       observationService.createObservation({
         schoolId: 's1',
@@ -217,9 +281,10 @@ describe('Phase 9 Hardening: Invariant 3 — Classless Online Academic Work', ()
         observationType: 'learning_progress',
         observationText: 'Great participation',
         classId: null,
+        onlineOfferingId: null,
         onlineSessionId: 'sess-1',
       }),
-    ).rejects.toThrow(/classId is required/);
+    ).rejects.toThrow(/classId or onlineOfferingId is required|session-linked work must declare/i);
   });
 });
 

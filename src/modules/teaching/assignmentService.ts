@@ -32,6 +32,7 @@ export const assignmentService = {
         school_id: payload.schoolId,
         teacher_id: payload.teacherId,
         class_id: payload.classId ?? null,
+        online_offering_id: payload.onlineOfferingId ?? null,
         online_session_id: payload.onlineSessionId ?? null,
         stream_id: payload.streamId ?? null,
         subject_id: payload.subjectId,
@@ -62,38 +63,53 @@ export const assignmentService = {
 
     const assignment = mapAssignmentRow(assignmentRow);
 
-    // 2. Automatically establish expected student participants from active class enrolments (if published)
-    if (assignment.status === 'published' && payload.classId) {
+    // 2. Establish expected student participants
+    //    Physical: active class enrolments. Online: active online_enrolments (async OK).
+    if (assignment.status === 'published') {
       try {
-        let enrolmentQuery = supabase
-          .from('student_enrolments')
-          .select('student_id')
-          .eq('school_id', payload.schoolId)
-          .eq('class_id', payload.classId)
-          .eq('status', 'active');
+        let studentIds: string[] = [];
 
-      if (payload.streamId) {
-        enrolmentQuery = enrolmentQuery.eq('stream_id', payload.streamId);
+        if (payload.classId) {
+          let enrolmentQuery = supabase
+            .from('student_enrolments')
+            .select('student_id')
+            .eq('school_id', payload.schoolId)
+            .eq('class_id', payload.classId)
+            .eq('status', 'active');
+
+          if (payload.streamId) {
+            enrolmentQuery = enrolmentQuery.eq('stream_id', payload.streamId);
+          }
+
+          const { data: enrolments } = await enrolmentQuery;
+          studentIds = (enrolments ?? []).map((e: any) => e.student_id as string);
+        } else if (payload.onlineOfferingId) {
+          const { data: onlineEnrolments } = await supabase
+            .from('online_enrolments')
+            .select('student_id')
+            .eq('school_id', payload.schoolId)
+            .eq('offering_id', payload.onlineOfferingId)
+            .eq('status', 'active');
+          studentIds = (onlineEnrolments ?? []).map((e: any) => e.student_id as string);
+        }
+
+        if (studentIds.length > 0) {
+          const submissionRows = studentIds.map((studentId) => ({
+            school_id: payload.schoolId,
+            assignment_id: assignment.id,
+            student_id: studentId,
+            participation_status: 'expected',
+            submission_status: 'pending',
+            work_type: 'notebook',
+            teacher_review_status: 'unreviewed',
+          }));
+
+          await supabase.from('student_submissions').insert(submissionRows);
+        }
+      } catch (err) {
+        console.warn('Assignment roster provisioning fallback:', err);
       }
-
-      const { data: enrolments } = await enrolmentQuery;
-      if (Array.isArray(enrolments) && enrolments.length > 0) {
-        const submissionRows = enrolments.map((e) => ({
-          school_id: payload.schoolId,
-          assignment_id: assignment.id,
-          student_id: e.student_id,
-          participation_status: 'expected',
-          submission_status: 'pending',
-          work_type: 'notebook',
-          teacher_review_status: 'unreviewed',
-        }));
-
-        await supabase.from('student_submissions').insert(submissionRows);
-      }
-    } catch (err) {
-      console.warn('Assignment roster provisioning fallback:', err);
     }
-  }
 
   return assignment;
 },
