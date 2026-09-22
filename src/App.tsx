@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { TeacherTodayPage } from './modules/teacher/TeacherTodayPage';
 import { TeacherWeekPage } from './modules/teacher/TeacherWeekPage';
@@ -37,6 +37,7 @@ import { ParentHomePage } from './modules/parent/ParentHomePage';
 import { StudentOnlineHomePage } from './modules/online/StudentOnlineHomePage';
 import { StudentQuizPage } from './modules/learning/StudentQuizPage';
 import { ReportCardPage } from './modules/learning/ReportCardPage';
+import { AssessmentPackPage } from './modules/learning/AssessmentPackPage';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -111,6 +112,22 @@ const ReportCardRoute: React.FC<{ canComment: boolean }> = ({ canComment }) => {
       canComment={canComment}
     />
   );
+};
+
+/** P2A-4: assessment pack + objective rollup for the signed-in learner. */
+const AssessmentPackRoute: React.FC = () => {
+  const { packId } = useParams<{ packId: string }>();
+  const { user } = useAuth();
+  const [studentId, setStudentId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user?.email) return;
+    import('./modules/learning/learningCockpitService')
+      .then((m) => m.resolveStudentId(user.email!))
+      .then(setStudentId)
+      .catch(console.error);
+  }, [user?.email]);
+  if (!packId || !studentId) return <LoadingState label="Loading assessment pack..." />;
+  return <AssessmentPackPage packId={packId} studentId={studentId} />;
 };
 
 export const App: React.FC = () => {
@@ -332,6 +349,15 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/parent/home">
                 <ReportCardRoute canComment={false} />
+              </RequireAccess>
+            }
+          />
+          {/* P2A-4 assessment pack + objective rollup */}
+          <Route
+            path="assessments/pack/:packId"
+            element={
+              <RequireAccess path="/student/home">
+                <AssessmentPackRoute />
               </RequireAccess>
             }
           />

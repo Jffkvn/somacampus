@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-09-22T18:07:34.881Z",
+  "seed": {
+    "packId": "48e49df8-faee-4a62-bc59-bd169a4893e7",
+    "quizId": "3f39c5a0-3df4-4aba-a63e-6b55673cc8b2",
+    "studentId": "22222222-0000-0000-0000-000000000009"
+  },
+  "steps": [
+    {
+      "step": "student assessment pack + objective rollup",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/p2a4_assessment_pack_student.png",
+      "ui": {
+        "hasRollup": true,
+        "hasItem": true
+      }
+    },
+    {
+      "step": "teacher shell after pack write",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/p2a4_teacher_shell.png"
+    }
+  ]
+}
