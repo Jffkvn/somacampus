@@ -41,6 +41,7 @@ import { AssessmentPackPage } from './modules/learning/AssessmentPackPage';
 import { StudentAnalyticsPanel } from './modules/learning/StudentAnalyticsPanel';
 import { CommunityPage } from './modules/learning/CommunityPage';
 import { GradingScalePanel } from './modules/learning/GradingScalePanel';
+import { ExamMarkEntryPage } from './modules/learning/ExamMarkEntryPage';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -158,6 +159,13 @@ const GradingScaleRoute: React.FC = () => {
   if (!schoolId) return <LoadingState label="Loading grading..." />;
   const canEdit = role === 'admin' || role === 'principal';
   return <GradingScalePanel schoolId={schoolId} canEdit={canEdit} />;
+};
+
+/** P3-B: exam sitting mark entry (teacher). */
+const ExamSittingRoute: React.FC = () => {
+  const { sittingId } = useParams<{ sittingId: string }>();
+  if (!sittingId) return <LoadingState label="Loading exam..." />;
+  return <ExamMarkEntryPage sittingId={sittingId} />;
 };
 
 export const App: React.FC = () => {
@@ -415,6 +423,15 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/teacher/today">
                 <GradingScaleRoute />
+              </RequireAccess>
+            }
+          />
+          {/* P3-B exam sitting mark entry */}
+          <Route
+            path="assessments/exams/:sittingId"
+            element={
+              <RequireAccess path="/teacher/today">
+                <ExamSittingRoute />
               </RequireAccess>
             }
           />
