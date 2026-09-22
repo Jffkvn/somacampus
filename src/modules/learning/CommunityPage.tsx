@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
 import type { CommunitySpace } from './communityService';
 import { CommunityFeedPanel } from './CommunityFeedPanel';
+import { PeerReviewPanel } from './PeerReviewPanel';
 
 async function resolvePersonIdByEmail(email: string): Promise<string | null> {
   const { data, error } = await supabase.from('people').select('id').eq('email', email).limit(1);
@@ -56,6 +57,12 @@ export const CommunityPage: React.FC = () => {
           canPostAsTeacher={canPost && Boolean(personId)}
         />
       )}
+      {/* P2D-3 structured peer review (formative, policy-gated) */}
+      <PeerReviewPanel
+        schoolId={schoolId}
+        canAuthor={canPost}
+        createdByPersonId={personId}
+      />
     </div>
   );
 };
