@@ -138,12 +138,16 @@ export function validateCoachConfirmation(input: CoachConfirmationInput): void {
 export const learningCoachService = {
   async getSettings(schoolId: string, stageKey?: string | null): Promise<LearningCoachSettings | null> {
     if (isMockEnv()) return null;
-    let query = supabase
+    // '' is the school-default policy (NULL stage_key is not unique in SQL).
+    const key = stageKey == null ? '' : stageKey;
+    const { data, error } = await supabase
       .from('learning_coach_settings')
       .select('*')
-      .eq('school_id', schoolId);
-    query = stageKey ? query.eq('stage_key', stageKey) : query.is('stage_key', null);
-    const { data, error } = await query.maybeSingle();
+      .eq('school_id', schoolId)
+      .eq('stage_key', key)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
     if (error) throw new Error(`learningCoach.getSettings: ${error.message}`);
     return data ? mapSettings(data) : null;
   },
@@ -160,7 +164,7 @@ export const learningCoachService = {
     const caps = input.capabilities ?? {};
     const payload = {
       school_id: input.schoolId,
-      stage_key: input.stageKey ?? null,
+      stage_key: input.stageKey == null ? '' : input.stageKey,
       is_enabled: input.isEnabled,
       timezone: input.timezone ?? 'Africa/Kampala',
       weekly_hours_target: input.weeklyHoursTarget ?? null,

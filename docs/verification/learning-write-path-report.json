@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-09-22T11:49:28.125Z",
+  "seed": {
+    "schoolId": "22222222-2222-2222-2222-222222222222",
+    "studentId": "22222222-0000-0000-0000-000000000009",
+    "studentPerson": "11111111-0000-0000-0000-000000000010",
+    "teacherId": "99999999-9999-9999-9999-999999999991",
+    "teacherPerson": "88888888-8888-8888-8888-888888888881",
+    "parentPerson": "11111111-0000-0000-0000-000000000009",
+    "coachAssignmentId": "74525e11-17ec-47e6-ae64-13bd73ad620a",
+    "assignmentId": "5359335a-b7a1-4750-bbbd-987223eb72f1",
+    "assignmentTitle": "Write-path E2E fractions 2026-09-22",
+    "dueDate": "2026-09-23",
+    "rubricId": "35b94676-7638-4c47-9ec8-62f5b3e493a0"
+  },
+  "steps": [
+    {
+      "step": "student photo hand-in",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/e2e_student_home_after_submit.png",
+      "db": {
+        "learning_submissions": [
+          {
+            "id": "2db0c9ad-7810-428a-b727-1c8b586755ee",
+            "state": "submitted",
+            "attempt": 1,
+            "late": false
+          }
+        ]
+      },
+      "ui": {
+        "seesAssignment": true,
+        "modalOpened": true,
+        "photoQueued": true
+      }
+    },
+    {
+      "step": "coach hours sign-off (parent auth → learning_coach_confirmations)",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/e2e_parent_after_coach_note.png",
+      "db": {
+        "confirmation": {
+          "id": "75789419-cfe0-4909-80a3-2a3fd55d2ea3",
+          "hours": 1.5,
+          "confirmation_kind": "hours_sign_off"
+        }
+      }
+    },
+    {
+      "step": "student sees coach confirmation",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/e2e_student_sees_coach_confirmation.png",
+      "ui": {
+        "seesLearningCoach": true,
+        "seesHours": true
+      }
+    }
+  ]
+}
