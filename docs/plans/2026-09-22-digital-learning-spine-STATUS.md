@@ -63,6 +63,8 @@
 | Write-path E2E (seeded) | `scripts/seed-learning-write-path.mjs`, `scripts/verify-learning-write-path.mjs` — photo hand-in → `learning_submissions`; parent coach hours → `learning_coach_confirmations` | **PASS (live DB)** |
 | Coach settings uniqueness fix | `supabase/migrations/20260922000030_learning_coach_settings_unique.sql` (NULL stage_key was not unique) | **Done — pushed live** |
 | Rubric marking UI | `RubricMarkingPanel.tsx` + Rubric action on `AssignmentReviewPage` | **Done** |
+| P2 plan | `docs/plans/2026-09-22-digital-learning-spine-P2.md` | **Done** |
+| P2A-1 deterministic quizzes | migrations 031–033, `quizDomain.ts`, `quizService.ts`, `StudentQuizPage`/`StudentQuizPanel`, seed + UI verify scripts | **Done — pushed live** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -114,10 +116,11 @@
 | `npm run verify:contracts` | **PASS** |
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
-| Full `npm test` | **PASS** (884 passed, 26 skipped) |
+| Full `npm test` | **PASS** (889 passed, 26 skipped) |
 | UI confirmation (browser) | **PASS (signed-in)** — `scripts/verify-learning-ui-authed.mjs` logs in `student@somacampus.ug` + `teacher@somacampus.ug` against live Supabase. Student home: cockpit + Learning Coach + Office hours + catch-up + photo hand-in modal all present. Teacher today: marking queue + at-risk present. Screenshots `learn_*_authed.png` / `learn_login_*.png`. Report `docs/verification/learning-ui-authed-report.json`. Unauthenticated shell pass remains in `learning-ui-report.json` (SMOKE_ONLY). |
 | Write-path E2E (live mutations) | **PASS** — student photo hand-in wrote `learning_submissions` (state submitted); parent coach sign-off wrote `learning_coach_confirmations` (1.5h). Screenshots `e2e_*.png`, report `learning-write-path-report.json`. |
 | Rubric marking UI | **PASS (signed-in teacher)** — `e2e_rubric_marking_panel.png` shows criterion level taps + deterministic total. |
+| P2A-1 quiz UI + write-path | **PASS (signed-in student + teacher shell)** — `p2_quiz_*.png`, report `p2-quiz-ui-report.json`. `learning_results` row `result_source=quiz` (4/5 on E2E answers). Answer keys column-locked from `authenticated` (staff RPC only). |
 
 ---
 
@@ -153,5 +156,31 @@
 
 ## 7. Handoff rule
 
-If you take over: **update §3/§4/§6 in this file in the same PR as code.**  
+If you take over: **update §3/§4/§6/§8 in this file in the same PR as code.**  
 Chat history is not the source of truth.
+
+---
+
+## 8. P2 tracker
+
+Full plan: [`2026-09-22-digital-learning-spine-P2.md`](./2026-09-22-digital-learning-spine-P2.md)
+
+| ID | Item | Status |
+|---|---|---|
+| P2 plan doc | Areas P2A–P2D, invariants, testing rules | **Done** |
+| P2A-1 | Deterministic quizzes (MCQ/TF/matching/short-answer keys) | **Done** (live 031–033; UI student+teacher; keys staff-only) |
+| P2A-2 | Quiz behaviour polish (timer, shuffle, retakes) | Not started |
+| P2A-3 | Advanced rubrics (weights, comments, moderation) | Not started |
+| P2A-4 | Assessment packs + objective rollup | Not started |
+| P2A-5 | Exam workflows | Deferred / P3 |
+| P2C-1 | Report cards from live gradebook | Not started |
+| P2C-2 | Parent-facing summary + print/PDF | Not started |
+| P2B-1 | Evidence-cited analytics | Not started |
+| P2B-2 | AI gap detection (recommend-only) | Not started |
+| P2B-3 | Pacing / intervention suggestions | Not started |
+| P2D-1 | Community layer + stage policy flags | Not started |
+| P2D-2 | Teacher-led communities | Not started |
+| P2D-3 | Structured peer review (formative) | Not started |
+| P2D-4 | Moderated peer + clubs (policy-gated) | Not started |
+
+Testing rule: unit tests + **signed-in UI tests with screenshots for every role touched** + STATUS updated in the same PR.

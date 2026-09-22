@@ -35,6 +35,7 @@ import { MessagesPage } from './modules/communication/MessagesPage';
 import { NotificationPreferencesPage } from './modules/notifications/NotificationPreferencesPage';
 import { ParentHomePage } from './modules/parent/ParentHomePage';
 import { StudentOnlineHomePage } from './modules/online/StudentOnlineHomePage';
+import { StudentQuizPage } from './modules/learning/StudentQuizPage';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -286,6 +287,15 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/student/home">
                 <StudentOnlineHomePage />
+              </RequireAccess>
+            }
+          />
+          {/* P2A-1 deterministic quiz taker */}
+          <Route
+            path="student/quiz/:quizId"
+            element={
+              <RequireAccess path="/student/home">
+                <StudentQuizPage />
               </RequireAccess>
             }
           />
