@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-09-22T08:50:10.225Z",
+  "steps": [
+    {
+      "step": "Login student@somacampus.ug",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/learn_login_student.png",
+      "landedOn": "http://localhost:5173/student/home"
+    },
+    {
+      "step": "Student home panels",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/learn_student_home_authed.png",
+      "assertions": {
+        "hasCockpit": true,
+        "hasCoach": true,
+        "hasOffice": true,
+        "hasCatchUp": true
+      }
+    },
+    {
+      "step": "Photo hand-in modal",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/learn_student_photo_submit_modal.png",
+      "assertions": {
+        "hasCamera": true
+      }
+    },
+    {
+      "step": "Login teacher@somacampus.ug",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/learn_login_teacher.png",
+      "landedOn": "http://localhost:5173/teacher/today"
+    },
+    {
+      "step": "Teacher marking/at-risk",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/learn_teacher_today_authed.png",
+      "assertions": {
+        "hasMarking": true,
+        "hasRisk": true
+      }
+    }
+  ]
+}
