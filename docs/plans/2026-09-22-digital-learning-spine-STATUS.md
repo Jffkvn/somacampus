@@ -69,6 +69,7 @@
 | P2A-2 quiz behaviour | migration 034 — timer, shuffle questions/options, retakes, delayed release, objective_ids | **Done — pushed live** |
 | P2A-3 advanced rubrics | migration 035 — weights, per-criterion comments, revise-with-reason, moderation RPC | **Done — pushed live** |
 | P2A-4 assessment packs | migration 036 — packs + items + objective rollup domain/service/UI `/assessments/pack/:id` | **Done — pushed live** |
+| P2B-1 evidence-cited analytics | `analyticsDomain.ts`, `analyticsService.ts`, `StudentAnalyticsPanel` `/intelligence/learner` | **Done** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -120,7 +121,7 @@
 | `npm run verify:contracts` | **PASS** |
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
-| Full `npm test` | **PASS** (901 passed, 26 skipped) |
+| Full `npm test` | **PASS** (906 passed, 26 skipped) |
 | UI confirmation (browser) | **PASS (signed-in)** — `scripts/verify-learning-ui-authed.mjs` logs in `student@somacampus.ug` + `teacher@somacampus.ug` against live Supabase. Student home: cockpit + Learning Coach + Office hours + catch-up + photo hand-in modal all present. Teacher today: marking queue + at-risk present. Screenshots `learn_*_authed.png` / `learn_login_*.png`. Report `docs/verification/learning-ui-authed-report.json`. Unauthenticated shell pass remains in `learning-ui-report.json` (SMOKE_ONLY). |
 | Write-path E2E (live mutations) | **PASS** — student photo hand-in wrote `learning_submissions` (state submitted); parent coach sign-off wrote `learning_coach_confirmations` (1.5h). Screenshots `e2e_*.png`, report `learning-write-path-report.json`. |
 | Rubric marking UI | **PASS (signed-in teacher)** — `e2e_rubric_marking_panel.png` shows criterion level taps + deterministic total. |
@@ -128,6 +129,7 @@
 | P2C-1 report UI | **PASS (signed-in teacher + parent)** — `p2_report_teacher.png` (comment box), `p2_report_parent.png` (read-only). Report `p2-report-ui-report.json`. |
 | P2A-2 + P2A-3 UI | **PASS (signed-in student + teacher)** — `p2a2_quiz_student.png`, `p2a3_rubric_comments.png`. Report `p2a2-p2a3-ui-report.json`. |
 | P2A-4 UI | **PASS (signed-in student + teacher shell)** — `p2a4_assessment_pack_student.png`. Report `p2a4-ui-report.json`. |
+| P2B-1 UI | **PASS (signed-in teacher)** — `p2b1_analytics_teacher.png` (claims + evidence rows). Report `p2b1-ui-report.json`. |
 
 ---
 
@@ -182,7 +184,7 @@ Full plan: [`2026-09-22-digital-learning-spine-P2.md`](./2026-09-22-digital-lear
 | P2A-5 | Exam workflows | Deferred / P3 |
 | P2C-1 | Report cards from live gradebook | **Done** (teacher comment + parent read-only + print) |
 | P2C-2 | Parent-facing summary + print/PDF | **Done** (print stylesheet; branded PDF pack can deepen) |
-| P2B-1 | Evidence-cited analytics | Not started |
+| P2B-1 | Evidence-cited analytics | **Done** (`/intelligence/learner` + NOT_ENOUGH honesty) |
 | P2B-2 | AI gap detection (recommend-only) | Not started |
 | P2B-3 | Pacing / intervention suggestions | Not started |
 | P2D-1 | Community layer + stage policy flags | Not started |

@@ -38,6 +38,7 @@ import { StudentOnlineHomePage } from './modules/online/StudentOnlineHomePage';
 import { StudentQuizPage } from './modules/learning/StudentQuizPage';
 import { ReportCardPage } from './modules/learning/ReportCardPage';
 import { AssessmentPackPage } from './modules/learning/AssessmentPackPage';
+import { StudentAnalyticsPanel } from './modules/learning/StudentAnalyticsPanel';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -128,6 +129,25 @@ const AssessmentPackRoute: React.FC = () => {
   }, [user?.email]);
   if (!packId || !studentId) return <LoadingState label="Loading assessment pack..." />;
   return <AssessmentPackPage packId={packId} studentId={studentId} />;
+};
+
+/** P2B-1: evidence-cited learner analytics for teachers. */
+const LearnerAnalyticsRoute: React.FC = () => {
+  const { schoolId } = useAuth();
+  const params = new URLSearchParams(window.location.search);
+  const who = params.get('who') || '';
+  const [studentId, setStudentId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!who) return;
+    import('./modules/learning/learningCockpitService')
+      .then((m) => m.resolveStudentId(who))
+      .then(setStudentId)
+      .catch(console.error);
+  }, [who]);
+  if (!schoolId || !who || !studentId) return <LoadingState label="Loading analytics..." />;
+  return (
+    <StudentAnalyticsPanel studentId={studentId} schoolId={schoolId} learnerLabel={who} />
+  );
 };
 
 export const App: React.FC = () => {
@@ -358,6 +378,15 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/student/home">
                 <AssessmentPackRoute />
+              </RequireAccess>
+            }
+          />
+          {/* P2B-1 evidence-cited analytics: ?who=studentIdOrEmail */}
+          <Route
+            path="intelligence/learner"
+            element={
+              <RequireAccess path="/teacher/today">
+                <LearnerAnalyticsRoute />
               </RequireAccess>
             }
           />
