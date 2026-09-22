@@ -42,6 +42,7 @@ import { StudentAnalyticsPanel } from './modules/learning/StudentAnalyticsPanel'
 import { CommunityPage } from './modules/learning/CommunityPage';
 import { GradingScalePanel } from './modules/learning/GradingScalePanel';
 import { ExamMarkEntryPage } from './modules/learning/ExamMarkEntryPage';
+import { IssuedReportPage } from './modules/learning/IssuedReportPage';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -166,6 +167,13 @@ const ExamSittingRoute: React.FC = () => {
   const { sittingId } = useParams<{ sittingId: string }>();
   if (!sittingId) return <LoadingState label="Loading exam..." />;
   return <ExamMarkEntryPage sittingId={sittingId} />;
+};
+
+/** P3-C: issued immutable term report (family + staff). */
+const IssuedReportRoute: React.FC = () => {
+  const { reportId } = useParams<{ reportId: string }>();
+  if (!reportId) return <LoadingState label="Loading issued report..." />;
+  return <IssuedReportPage reportId={reportId} />;
 };
 
 export const App: React.FC = () => {
@@ -432,6 +440,15 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/teacher/today">
                 <ExamSittingRoute />
+              </RequireAccess>
+            }
+          />
+          {/* P3-C issued term report (immutable) */}
+          <Route
+            path="reports/issued/:reportId"
+            element={
+              <RequireAccess path="/parent/home">
+                <IssuedReportRoute />
               </RequireAccess>
             }
           />
