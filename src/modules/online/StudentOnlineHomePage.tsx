@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { onlineStudentService } from './onlineStudentService';
 import type { OnlineHome } from './onlineStudentService';
-import { learningCockpitService } from '../learning/learningCockpitService';
+import { learningCockpitService, resolveStudentId } from '../learning/learningCockpitService';
 import type { StudentLearningCockpit } from '../learning/learningCockpitDomain';
 import { StudentLearningCockpitPanels } from '../learning/StudentLearningCockpit';
 import { useAuth } from '../../lib/authContext';
@@ -54,6 +54,7 @@ export const StudentOnlineHomePage: React.FC = () => {
 
   const [home, setHome] = useState<OnlineHome | null>(null);
   const [cockpit, setCockpit] = useState<StudentLearningCockpit | null>(null);
+  const [studentId, setStudentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -73,15 +74,17 @@ export const StudentOnlineHomePage: React.FC = () => {
       try {
         setIsLoading(true);
         setLoadError(null);
-        const [onlineHome, learning] = await Promise.all([
+        const [onlineHome, learning, resolvedStudentId] = await Promise.all([
           onlineStudentService.getOnlineHome(studentKey, schoolId),
           learningCockpitService.getStudentCockpit(studentKey, schoolId).catch((err) => {
             console.error('Student learning cockpit failed (session home still loads):', err);
             return null;
           }),
+          resolveStudentId(studentKey).catch(() => null),
         ]);
         setHome(onlineHome);
         setCockpit(learning);
+        setStudentId(resolvedStudentId);
       } catch (err: any) {
         // Engine/permission text (PostgREST codes, RLS messages) must never
         // reach a learner. Log the detail, show a friendly line.
@@ -127,7 +130,9 @@ export const StudentOnlineHomePage: React.FC = () => {
       )}
 
       {/* M6 Student Today learning cockpit: Today · Learning · Due · Overdue · Feedback · Progress · Next */}
-      {cockpit && <StudentLearningCockpitPanels cockpit={cockpit} />}
+      {cockpit && schoolId && studentId && (
+        <StudentLearningCockpitPanels cockpit={cockpit} schoolId={schoolId} studentId={studentId} />
+      )}
 
       {/* Next session hero */}
       {next ? (

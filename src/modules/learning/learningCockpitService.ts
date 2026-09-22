@@ -31,7 +31,7 @@ function todayOnly(d: Date = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function resolveStudentId(studentIdOrEmail: string): Promise<string> {
+export async function resolveStudentId(studentIdOrEmail: string): Promise<string> {
   if (isUUID(studentIdOrEmail)) return studentIdOrEmail;
   const { data: peopleRows, error: personError } = await supabase
     .from('people')
