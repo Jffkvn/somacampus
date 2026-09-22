@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { StatusPill, type StatusVariant } from '../../components/ui/StatusPill';
 import {
   BookOpenCheck,
   CalendarClock,
   CheckCircle2,
   AlertTriangle,
+  Camera,
   MessageSquareText,
   TrendingUp,
   ArrowRight,
 } from 'lucide-react';
 import type { CockpitWorkItem, StudentLearningCockpit } from './learningCockpitDomain';
+import { StudentWorkSubmitModal } from './StudentWorkSubmitModal';
 
 const STATE_PILL: Record<string, StatusVariant> = {
   reviewed: 'success',
@@ -23,7 +26,15 @@ const STATE_PILL: Record<string, StatusVariant> = {
   assigned: 'pending',
 };
 
-function WorkRow({ item }: { item: CockpitWorkItem }) {
+function WorkRow({
+  item,
+  onSubmitWork,
+}: {
+  item: CockpitWorkItem;
+  onSubmitWork?: (item: CockpitWorkItem) => void;
+}) {
+  const canHandIn =
+    item.source === 'assignment' && !item.hasResult && item.bucket !== 'reviewed';
   return (
     <li className="flex items-start justify-between gap-3 py-3">
       <div className="min-w-0">
@@ -34,6 +45,18 @@ function WorkRow({ item }: { item: CockpitWorkItem }) {
           {item.dueDate ? `Due ${item.dueDate}` : item.assignedDate ? `Assigned ${item.assignedDate}` : 'No due date'}
           {typeof item.score === 'number' ? ` · ${item.score}${item.maxScore != null ? `/${item.maxScore}` : ''}` : ''}
         </p>
+        {canHandIn && onSubmitWork && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            leftIcon={<Camera className="w-3.5 h-3.5" />}
+            className="mt-2"
+            onClick={() => onSubmitWork(item)}
+          >
+            {item.hasSubmission ? 'Resubmit photo' : 'Hand in photo'}
+          </Button>
+        )}
       </div>
       <StatusPill status={STATE_PILL[item.state] ?? 'neutral'} label={item.state.replace(/_/g, ' ')} />
     </li>
@@ -45,8 +68,17 @@ function WorkRow({ item }: { item: CockpitWorkItem }) {
  * Today · Learning · Due · Overdue · Feedback · Progress · Next
  * Progress ≠ completion (charter LOCKED #12).
  */
-export const StudentLearningCockpitPanels: React.FC<{ cockpit: StudentLearningCockpit }> = ({ cockpit }) => {
+export const StudentLearningCockpitPanels: React.FC<{
+  cockpit: StudentLearningCockpit;
+  schoolId: string;
+  studentId: string;
+}> = ({ cockpit, schoolId, studentId }) => {
   const { progress, next } = cockpit;
+  const [submitTarget, setSubmitTarget] = useState<CockpitWorkItem | null>(null);
+
+  const openSubmit = (item: CockpitWorkItem) => setSubmitTarget(item);
+  const assignmentIdFrom = (item: CockpitWorkItem) =>
+    item.id.startsWith('assignment:') ? item.id.slice('assignment:'.length) : item.id;
 
   return (
     <div className="space-y-6">
@@ -128,7 +160,7 @@ export const StudentLearningCockpitPanels: React.FC<{ cockpit: StudentLearningCo
             ) : (
               <ul className="divide-y divide-slate-100">
                 {cockpit.today.map((i) => (
-                  <WorkRow key={i.id} item={i} />
+                  <WorkRow key={i.id} item={i} onSubmitWork={openSubmit} />
                 ))}
               </ul>
             )}
@@ -153,7 +185,7 @@ export const StudentLearningCockpitPanels: React.FC<{ cockpit: StudentLearningCo
             ) : (
               <ul className="divide-y divide-slate-100">
                 {cockpit.due.map((i) => (
-                  <WorkRow key={i.id} item={i} />
+                  <WorkRow key={i.id} item={i} onSubmitWork={openSubmit} />
                 ))}
               </ul>
             )}
@@ -178,7 +210,7 @@ export const StudentLearningCockpitPanels: React.FC<{ cockpit: StudentLearningCo
             ) : (
               <ul className="divide-y divide-slate-100">
                 {cockpit.overdue.map((i) => (
-                  <WorkRow key={i.id} item={i} />
+                  <WorkRow key={i.id} item={i} onSubmitWork={openSubmit} />
                 ))}
               </ul>
             )}
@@ -242,12 +274,28 @@ export const StudentLearningCockpitPanels: React.FC<{ cockpit: StudentLearningCo
           ) : (
             <ul className="divide-y divide-slate-100">
               {cockpit.learning.map((i) => (
-                <WorkRow key={i.id} item={i} />
+                <WorkRow key={i.id} item={i} onSubmitWork={openSubmit} />
               ))}
             </ul>
           )}
         </CardContent>
       </Card>
+
+      {submitTarget && (
+        <StudentWorkSubmitModal
+          isOpen
+          onClose={() => setSubmitTarget(null)}
+          schoolId={schoolId}
+          studentId={studentId}
+          assignmentId={assignmentIdFrom(submitTarget)}
+          assignmentTitle={submitTarget.title}
+          isResubmit={submitTarget.hasSubmission}
+          onSubmitted={() => {
+            setSubmitTarget(null);
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 };

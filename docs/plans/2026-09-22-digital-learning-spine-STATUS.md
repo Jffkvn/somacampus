@@ -55,6 +55,7 @@
 | M4 submissions + storage | `supabase/migrations/20260922000025_learning_submissions_storage.sql`, `src/modules/learning/submissionService.ts` | **Done — pushed live** |
 | M5 rubric + gradebook | `supabase/migrations/20260922000026_learning_results_rubrics.sql`, `src/modules/learning/gradebookService.ts` | **Done — pushed live** |
 | M6 Student/Teacher cockpits | `src/modules/learning/learningCockpitDomain.ts`, `learningCockpitService.ts`, `StudentLearningCockpit.tsx`, `TeacherMarkingCockpit.tsx`, wired into `StudentOnlineHomePage` + `TeacherTodayPage` | **Done** |
+| M4 photo-submit UI | `src/modules/learning/photoUpload.ts`, `StudentWorkSubmitModal.tsx`, cockpit hand-in buttons | **Done** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -107,13 +108,12 @@
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
 | `npx vitest run src/test/learning-cockpit.test.ts src/test/learning-gradebook.test.ts` | **PASS** (11 tests) |
-| Full `npm test` | **PASS** (864 passed, 30 skipped live-gated, 7 skipped files) |
+| Full `npm test` | **PASS** (868 passed, 30 skipped live-gated, 7 skipped files) |
 
 ---
 
 ## 5. Known gaps / risks
 
-- Photo-first student **submit UI** (camera capture → `submissionService`) is service-ready; dedicated submit surface is thin (reuse assignment review / future student work page).
 - Teacher rubric **marking UI** links into `/teaching/assignments/:id`; full criterion picker is P0-complete in service + tests, UI can deepen.
 - At-risk foundation is deterministic counts only (thresholds in `buildAtRisk`); Learning Coach / pacing enrichment is P1.
 - Quizzes / gradebook advanced rules / Learning Coach / office hours / recordings are **P1+**.
