@@ -10,6 +10,8 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { AlertCircle, FileSearch } from 'lucide-react';
 import { analyticsService } from './analyticsService';
 import type { StudentAnalytics } from './analyticsDomain';
+import { SuggestionsPanel } from './SuggestionsPanel';
+import { suggestionService } from './suggestionService';
 
 export interface StudentAnalyticsPanelProps {
   studentId: string;
@@ -31,7 +33,32 @@ export const StudentAnalyticsPanel: React.FC<StudentAnalyticsPanelProps> = ({
       try {
         setIsLoading(true);
         setError(null);
-        setData(await analyticsService.getStudentAnalytics(studentId, schoolId));
+        const a = await analyticsService.getStudentAnalytics(studentId, schoolId);
+        setData(a);
+        // P2B-2: persist gap suggestions (recommend-only) when evidence supports them.
+        try {
+          const gaps = suggestionService.suggestGaps(
+            a.objectives.map((o) => ({
+              objectiveCode: o.objectiveCode,
+              objectiveTitle: o.objectiveTitle,
+              pct: o.pct ?? 100,
+              evidenceCount: o.evidenceCount,
+              evidence: o.evidence,
+            })),
+          );
+          for (const g of gaps) {
+            await suggestionService.record({
+              schoolId,
+              studentId,
+              kind: g.kind,
+              title: g.title,
+              rationale: g.rationale,
+              evidenceLinks: g.evidenceLinks,
+            });
+          }
+        } catch (e) {
+          console.warn('Gap suggestion persist skipped:', e);
+        }
       } catch (err: any) {
         console.error('Analytics failed:', err);
         setError('We could not load analytics right now. Please try again later.');
@@ -112,6 +139,10 @@ export const StudentAnalyticsPanel: React.FC<StudentAnalyticsPanelProps> = ({
             </Link>
           </CardContent>
         </Card>
+      )}
+
+      {data && (
+        <SuggestionsPanel studentId={studentId} canDecide />
       )}
     </div>
   );
