@@ -43,6 +43,7 @@ import { CommunityPage } from './modules/learning/CommunityPage';
 import { GradingScalePanel } from './modules/learning/GradingScalePanel';
 import { ExamMarkEntryPage } from './modules/learning/ExamMarkEntryPage';
 import { IssuedReportPage } from './modules/learning/IssuedReportPage';
+import { ExamPaperBuilderPage } from './modules/learning/ExamPaperBuilderPage';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -174,6 +175,13 @@ const IssuedReportRoute: React.FC = () => {
   const { reportId } = useParams<{ reportId: string }>();
   if (!reportId) return <LoadingState label="Loading issued report..." />;
   return <IssuedReportPage reportId={reportId} />;
+};
+
+/** P3-D: exam paper builder (backend AI draft, teacher approve). */
+const ExamPaperBuilderRoute: React.FC = () => {
+  const { schoolId } = useAuth();
+  if (!schoolId) return <LoadingState label="Loading paper builder..." />;
+  return <ExamPaperBuilderPage schoolId={schoolId} />;
 };
 
 export const App: React.FC = () => {
@@ -449,6 +457,15 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/parent/home">
                 <IssuedReportRoute />
+              </RequireAccess>
+            }
+          />
+          {/* P3-D paper production (backend AI draft + teacher approve) */}
+          <Route
+            path="assessments/papers/new"
+            element={
+              <RequireAccess path="/teacher/today">
+                <ExamPaperBuilderRoute />
               </RequireAccess>
             }
           />
