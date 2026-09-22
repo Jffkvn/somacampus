@@ -113,6 +113,7 @@
 | `npm run typecheck` | **PASS** |
 | `npx vitest run src/test/learning-cockpit.test.ts src/test/learning-gradebook.test.ts` | **PASS** (11 tests) |
 | Full `npm test` | **PASS** (880 passed, 30 skipped live-gated, 7 skipped files) |
+| UI confirmation (browser) | **SMOKE_ONLY** — `scripts/verify-learning-ui.mjs` + screenshots in `docs/verification/screenshots/learn_*.png`; report `docs/verification/learning-ui-report.json`. No console/page/HTTP FAIL. Interactive photo-submit golden path is `REQUIRES_LIVE_AUTH` (logic covered by unit tests). |
 
 ---
 
@@ -123,6 +124,7 @@
 - P1 Learning Coach / office hours / recordings / pacing are **done**. Optional: live Meet/Zoom webhook → `ingestRecording`.
 - Quizzes / gradebook advanced rules / discussion / proctoring are **P2**.
 - 15 pre-existing migration audit warnings (legacy `USING (true)` + hard-delete cleanups) — not introduced by this spine.
+- UI confirmation without a live student/teacher session is **SMOKE_ONLY** (honest label). Full golden-path (sign-in → hand-in photo → coach sign-off) needs a live auth session — re-run `node scripts/verify-learning-ui.mjs` after login fixtures exist.
 
 ---
 
