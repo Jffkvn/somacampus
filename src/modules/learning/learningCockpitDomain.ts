@@ -75,7 +75,25 @@ export interface AtRiskStudent {
   lateCount: number;
   missingCount: number;
   unmarkedCount: number;
+  /** P1 enrichment: days since last submitted/reviewed work. */
+  daysSinceLastWork: number | null;
+  /** P1 enrichment: completed/total ratio (Progress ≠ completion). */
+  completionPct: number;
+  /** P1 pacing: behind expected pace for term_paced offerings. */
+  isBehindPace: boolean;
   riskReasons: string[];
+}
+
+export type DeliveryPace = 'term_paced' | 'self_paced' | 'sessional';
+
+export interface PaceSignal {
+  studentId: string;
+  deliveryPace: DeliveryPace;
+  /** Published activities assigned up to `asOf` (expected so far). */
+  expectedSoFar: number;
+  /** Work in submitted/reviewed state (done enough to count toward pace). */
+  completedSoFar: number;
+  isBehindPace: boolean;
 }
 
 export interface TeacherLearningCockpit {
@@ -252,6 +270,10 @@ export interface RiskSeed {
   lateCount: number;
   missingCount: number;
   unmarkedCount: number;
+  daysSinceLastWork?: number | null;
+  completedCount?: number;
+  totalCount?: number;
+  isBehindPace?: boolean;
 }
 
 export function buildMarkingQueue(seeds: MarkingSeed[], nowMs: number = Date.now()): MarkingQueueItem[] {
@@ -284,18 +306,23 @@ export function buildMarkingQueue(seeds: MarkingSeed[], nowMs: number = Date.now
 }
 
 /**
- * Deterministic at-risk foundation. Thresholds are explicit and boring:
- * - risk if overdueCount >= 2 OR missingCount >= 2 OR (lateCount + overdueCount) >= 3
- * - unmarked work ages into risk after 3 days of teacher delay (unmarkedCount >= 1 and queue wait)
- * No AI. No grade inference. Progress ≠ completion.
+ * Deterministic at-risk foundation + P1 pacing enrichment.
+ * Thresholds are explicit and boring — no AI, no grade inference.
+ * Progress ≠ completion: completionPct counts reviewed/total only.
  */
 export function buildAtRisk(
   seeds: RiskSeed[],
-  opts: { overdueRisk?: number; missingRisk?: number; mixedRisk?: number } = {},
+  opts: {
+    overdueRisk?: number;
+    missingRisk?: number;
+    mixedRisk?: number;
+    idleRiskDays?: number;
+  } = {},
 ): AtRiskStudent[] {
   const overdueRisk = opts.overdueRisk ?? 2;
   const missingRisk = opts.missingRisk ?? 2;
   const mixedRisk = opts.mixedRisk ?? 3;
+  const idleRiskDays = opts.idleRiskDays ?? 10;
 
   return seeds
     .map((s) => {
@@ -305,6 +332,13 @@ export function buildAtRisk(
       if (s.lateCount + s.overdueCount >= mixedRisk) {
         riskReasons.push(`${s.lateCount + s.overdueCount} late/overdue pieces`);
       }
+      if (s.isBehindPace) riskReasons.push('behind term pace');
+      if (s.daysSinceLastWork != null && s.daysSinceLastWork >= idleRiskDays) {
+        riskReasons.push(`no work for ${s.daysSinceLastWork} days`);
+      }
+      const total = Number(s.totalCount ?? 0);
+      const completed = Number(s.completedCount ?? 0);
+      const completionPct = total > 0 ? Math.round((completed / total) * 100) : 0;
       return {
         studentId: s.studentId,
         studentName: s.studentName ?? null,
@@ -312,14 +346,36 @@ export function buildAtRisk(
         lateCount: s.lateCount,
         missingCount: s.missingCount,
         unmarkedCount: s.unmarkedCount,
+        daysSinceLastWork: s.daysSinceLastWork ?? null,
+        completionPct,
+        isBehindPace: Boolean(s.isBehindPace),
         riskReasons,
       };
     })
     .filter((s) => s.riskReasons.length > 0)
     .sort((a, b) => {
-      const score = (x: AtRiskStudent) => x.overdueCount * 3 + x.missingCount * 2 + x.lateCount;
+      const score = (x: AtRiskStudent) =>
+        x.overdueCount * 3 +
+        x.missingCount * 2 +
+        x.lateCount +
+        (x.isBehindPace ? 2 : 0) +
+        (x.daysSinceLastWork != null && x.daysSinceLastWork >= idleRiskDays ? 1 : 0);
       return score(b) - score(a);
     });
+}
+
+/**
+ * P1 pacing: for term_paced work, learner is behind when completed work
+ * is below expected-so-far by 2+ pieces. self_paced / sessional never
+ * flag pace risk (charter delivery_pace).
+ */
+export function evaluatePace(
+  expectedSoFar: number,
+  completedSoFar: number,
+  deliveryPace: DeliveryPace,
+): Pick<PaceSignal, 'isBehindPace'> {
+  if (deliveryPace !== 'term_paced') return { isBehindPace: false };
+  return { isBehindPace: expectedSoFar - completedSoFar >= 2 };
 }
 
 export function buildTeacherCockpit(

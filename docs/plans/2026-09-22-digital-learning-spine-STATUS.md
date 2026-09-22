@@ -1,6 +1,6 @@
 # Digital Learning Spine — STATUS / HANDOFF
 
-**Last updated:** 2026-09-22 (P0 M1–M6 complete)  
+**Last updated:** 2026-09-22 (P0 M1–M6 + P1 complete)  
 **Charter:** [`2026-09-22-digital-learning-spine.md`](./2026-09-22-digital-learning-spine.md)  
 **Branch:** `feat/digital-learning-spine-p0`  
 **Base:** `main` @ `18bfd1d`
@@ -59,6 +59,7 @@
 | P1 Learning Coach | `supabase/migrations/20260922000027_learning_coach.sql`, `learningCoachService.ts`, `LearningCoachPanel.tsx` on student home | **Done — pushed live** |
 | P1 Office hours | `supabase/migrations/20260922000028_office_hours_booking.sql`, `officeHoursService.ts`, `OfficeHoursPanel.tsx` (reuses `online_slot_templates` + `online_bookings`) | **Done — pushed live** |
 | P1 Recording → catch-up | `supabase/migrations/20260922000029_online_session_recordings.sql`, `sessionRecordingService.ts`, `CatchUpPanel.tsx` | **Done — pushed live** |
+| P1 Pacing / at-risk enrichment | `learningCockpitDomain.ts` (`evaluatePace`, idle/completion signals), `learningCockpitService.ts`, `TeacherMarkingCockpit.tsx` | **Done** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -105,21 +106,22 @@
 
 | Check | Result |
 |---|---|
-| `npx supabase db push` (M1+M2+M4+M5) | **Applied live** (`vhivioulpbdyaynkqpja`) — migrations 023–026 confirmed in `supabase migration list` |
+| `npx supabase db push` (M1–M5 + P1 027–029) | **Applied live** (`vhivioulpbdyaynkqpja`) — migrations 023–029 confirmed |
 | `npm run verify:trust` | **PASS** (44 services, 0 violations) |
 | `npm run verify:contracts` | **PASS** |
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
 | `npx vitest run src/test/learning-cockpit.test.ts src/test/learning-gradebook.test.ts` | **PASS** (11 tests) |
-| Full `npm test` | **PASS** (878 passed, 30 skipped live-gated, 7 skipped files) |
+| Full `npm test` | **PASS** (880 passed, 30 skipped live-gated, 7 skipped files) |
 
 ---
 
 ## 5. Known gaps / risks
 
 - Teacher rubric **marking UI** links into `/teaching/assignments/:id`; full criterion picker is P0-complete in service + tests, UI can deepen.
-- At-risk foundation is deterministic counts only (thresholds in `buildAtRisk`); Learning Coach / pacing enrichment is P1.
-- Quizzes / gradebook advanced rules / Learning Coach / office hours / recordings are **P1+**.
+- At-risk is deterministic (overdue/missing/late + term-pace + idle + completion %). P2 analytics / report cards remain later.
+- P1 Learning Coach / office hours / recordings / pacing are **done**. Optional: live Meet/Zoom webhook → `ingestRecording`.
+- Quizzes / gradebook advanced rules / discussion / proctoring are **P2**.
 - 15 pre-existing migration audit warnings (legacy `USING (true)` + hard-delete cleanups) — not introduced by this spine.
 
 ---
@@ -136,8 +138,9 @@
 8. ~~P1 Learning Coach~~ **Done (live, migration 027)**  
 9. ~~P1 Office hours~~ **Done (live, migration 028 — reuses booking)**  
 10. ~~P1 Recording → catch-up~~ **Done (live, migration 029 — external provider URL, learning artifact)**  
-11. P1 Online pacing / at-risk enrichment  
-12. Optional: live provider webhook endpoint (Meet/Zoom) — ingest API is ready
+11. ~~P1 Online pacing / at-risk enrichment~~ **Done (term_pace, idle days, completion %)**  
+12. Optional: live provider webhook endpoint (Meet/Zoom) — `sessionRecordingService.ingestRecording` is ready  
+13. P2 (later): quizzes, discussion, report cards, proctoring, richer analytics
 
 ---
 

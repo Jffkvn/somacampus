@@ -5,6 +5,7 @@ import {
   buildAtRisk,
   buildMarkingQueue,
   classifyWorkItem,
+  evaluatePace,
 } from '../modules/learning/learningCockpitDomain';
 import type { WorkSeed, MarkingSeed, RiskSeed } from '../modules/learning/learningCockpitDomain';
 
@@ -170,5 +171,45 @@ describe('Digital Learning Spine — teacher marking queue + at-risk (M6)', () =
     expect(cockpit.stats.overdueMissing).toBe(3);
     expect(cockpit.stats.atRiskStudents).toBe(1);
     expect(cockpit.markingQueue).toHaveLength(2);
+  });
+});
+
+describe('Digital Learning Spine — pacing / at-risk enrichment (P1)', () => {
+  it('only term_paced work can fall behind pace', () => {
+    expect(evaluatePace(5, 2, 'term_paced').isBehindPace).toBe(true);
+    expect(evaluatePace(5, 4, 'term_paced').isBehindPace).toBe(false);
+    expect(evaluatePace(5, 0, 'self_paced').isBehindPace).toBe(false);
+    expect(evaluatePace(5, 0, 'sessional').isBehindPace).toBe(false);
+  });
+
+  it('adds idle + behind-pace reasons without AI scoring', () => {
+    const atRisk = buildAtRisk([
+      {
+        studentId: 'stu-1',
+        overdueCount: 0,
+        lateCount: 0,
+        missingCount: 0,
+        unmarkedCount: 0,
+        daysSinceLastWork: 12,
+        completedCount: 1,
+        totalCount: 5,
+        isBehindPace: true,
+      },
+      {
+        studentId: 'stu-2',
+        overdueCount: 0,
+        lateCount: 0,
+        missingCount: 0,
+        unmarkedCount: 0,
+        daysSinceLastWork: 1,
+        completedCount: 5,
+        totalCount: 5,
+        isBehindPace: false,
+      },
+    ]);
+    expect(atRisk.map((a) => a.studentId)).toEqual(['stu-1']);
+    expect(atRisk[0].riskReasons.join(' ')).toMatch(/behind term pace/);
+    expect(atRisk[0].riskReasons.join(' ')).toMatch(/no work for 12 days/);
+    expect(atRisk[0].completionPct).toBe(20);
   });
 });
