@@ -60,6 +60,9 @@
 | P1 Office hours | `supabase/migrations/20260922000028_office_hours_booking.sql`, `officeHoursService.ts`, `OfficeHoursPanel.tsx` (reuses `online_slot_templates` + `online_bookings`) | **Done — pushed live** |
 | P1 Recording → catch-up | `supabase/migrations/20260922000029_online_session_recordings.sql`, `sessionRecordingService.ts`, `CatchUpPanel.tsx` | **Done — pushed live** |
 | P1 Pacing / at-risk enrichment | `learningCockpitDomain.ts` (`evaluatePace`, idle/completion signals), `learningCockpitService.ts`, `TeacherMarkingCockpit.tsx` | **Done** |
+| Write-path E2E (seeded) | `scripts/seed-learning-write-path.mjs`, `scripts/verify-learning-write-path.mjs` — photo hand-in → `learning_submissions`; parent coach hours → `learning_coach_confirmations` | **PASS (live DB)** |
+| Coach settings uniqueness fix | `supabase/migrations/20260922000030_learning_coach_settings_unique.sql` (NULL stage_key was not unique) | **Done — pushed live** |
+| Rubric marking UI | `RubricMarkingPanel.tsx` + Rubric action on `AssignmentReviewPage` | **Done** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -106,25 +109,25 @@
 
 | Check | Result |
 |---|---|
-| `npx supabase db push` (M1–M5 + P1 027–029) | **Applied live** (`vhivioulpbdyaynkqpja`) — migrations 023–029 confirmed |
+| `npx supabase db push` (M1–M5 + P1 027–030) | **Applied live** (`vhivioulpbdyaynkqpja`) — migrations 023–030 confirmed |
 | `npm run verify:trust` | **PASS** (44 services, 0 violations) |
 | `npm run verify:contracts` | **PASS** |
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
-| `npx vitest run src/test/learning-cockpit.test.ts src/test/learning-gradebook.test.ts` | **PASS** (11 tests) |
-| Full `npm test` | **PASS** (880 passed, 30 skipped live-gated, 7 skipped files) |
+| Full `npm test` | **PASS** (884 passed, 26 skipped) |
 | UI confirmation (browser) | **PASS (signed-in)** — `scripts/verify-learning-ui-authed.mjs` logs in `student@somacampus.ug` + `teacher@somacampus.ug` against live Supabase. Student home: cockpit + Learning Coach + Office hours + catch-up + photo hand-in modal all present. Teacher today: marking queue + at-risk present. Screenshots `learn_*_authed.png` / `learn_login_*.png`. Report `docs/verification/learning-ui-authed-report.json`. Unauthenticated shell pass remains in `learning-ui-report.json` (SMOKE_ONLY). |
+| Write-path E2E (live mutations) | **PASS** — student photo hand-in wrote `learning_submissions` (state submitted); parent coach sign-off wrote `learning_coach_confirmations` (1.5h). Screenshots `e2e_*.png`, report `learning-write-path-report.json`. |
+| Rubric marking UI | **PASS (signed-in teacher)** — `e2e_rubric_marking_panel.png` shows criterion level taps + deterministic total. |
 
 ---
 
 ## 5. Known gaps / risks
 
-- Teacher rubric **marking UI** links into `/teaching/assignments/:id`; full criterion picker is P0-complete in service + tests, UI can deepen.
-- At-risk is deterministic (overdue/missing/late + term-pace + idle + completion %). P2 analytics / report cards remain later.
-- P1 Learning Coach / office hours / recordings / pacing are **done**. Optional: live Meet/Zoom webhook → `ingestRecording`.
-- Quizzes / gradebook advanced rules / discussion / proctoring are **P2**.
+- Rubric marking UI covers tap-level + deterministic total + teacher feedback on `/teaching/assignments/:id`. Multi-rubric picker is P2 polish.
+- Write-path E2E proves photo submit + coach hours on live DB. Repeat with `node scripts/seed-learning-write-path.mjs && node scripts/verify-learning-write-path.mjs`.
 - 15 pre-existing migration audit warnings (legacy `USING (true)` + hard-delete cleanups) — not introduced by this spine.
-- Signed-in UI confirmation covered student home + photo modal + teacher marking/at-risk. Data-mutating flows (actually submitting a photo, recording coach hours against a live roster row) still need seeded live data — unit tests cover the fail-closed logic.
+- Optional: live Meet/Zoom webhook → `sessionRecordingService.ingestRecording`.
+- Quizzes / gradebook advanced rules / discussion / proctoring are **P2**.
 
 ---
 
@@ -136,13 +139,15 @@
 4. ~~M4 submissions + storage~~ **Done (live)**  
 5. ~~M5 rubric + gradebook~~ **Done (live)**  
 6. ~~M6 Student Today + Teacher marking/at-risk cockpits~~ **Done**  
-7. Full `npm test` + PR + Trust Gate CI ← **this PR**  
+7. Full `npm test` + PR + Trust Gate CI  
 8. ~~P1 Learning Coach~~ **Done (live, migration 027)**  
 9. ~~P1 Office hours~~ **Done (live, migration 028 — reuses booking)**  
 10. ~~P1 Recording → catch-up~~ **Done (live, migration 029 — external provider URL, learning artifact)**  
 11. ~~P1 Online pacing / at-risk enrichment~~ **Done (term_pace, idle days, completion %)**  
-12. Optional: live provider webhook endpoint (Meet/Zoom) — `sessionRecordingService.ingestRecording` is ready  
-13. P2 (later): quizzes, discussion, report cards, proctoring, richer analytics
+12. ~~Seeded write-path E2E~~ **Done (photo hand-in + coach hours, live DB, screenshots)**  
+13. ~~Rubric marking UI~~ **Done (AssignmentReviewPage criterion taps)**  
+14. Optional: live provider webhook endpoint (Meet/Zoom) — `sessionRecordingService.ingestRecording` is ready  
+15. P2 (later): quizzes, discussion, report cards, proctoring, richer analytics
 
 ---
 

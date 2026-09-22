@@ -20,6 +20,8 @@ import type {
 } from '../../types/domain';
 import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import { RubricMarkingPanel } from '../learning/RubricMarkingPanel';
+import { gradebookService, type LearningRubric } from '../learning/gradebookService';
 import { LoadingState } from '../../components/ui/LoadingState';
 import {
   Sparkles,
@@ -71,6 +73,10 @@ export const AssignmentReviewPage: React.FC = () => {
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
   const [isResolvingIdentity, setIsResolvingIdentity] = useState(false);
 
+  // P0 rubric marking (human only; deterministic total).
+  const [rubrics, setRubrics] = useState<LearningRubric[]>([]);
+  const [markTarget, setMarkTarget] = useState<StudentSubmission | null>(null);
+
   const loadData = async () => {
     if (!assignmentId) return;
     try {
@@ -82,6 +88,13 @@ export const AssignmentReviewPage: React.FC = () => {
       } else {
         setAssignment(res.assignment);
         setSubmissions(res.submissions);
+      }
+      if (schoolId) {
+        try {
+          setRubrics(await gradebookService.listRubrics(schoolId));
+        } catch (e) {
+          console.warn('Rubrics unavailable on this assignment review:', e);
+        }
       }
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load assignment detail');
@@ -431,6 +444,18 @@ export const AssignmentReviewPage: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* P0 rubric marking — human taps levels; total is deterministic sum */}
+      {markTarget && rubrics[0] && schoolId && myTeacherId && (
+        <RubricMarkingPanel
+          schoolId={schoolId}
+          studentId={markTarget.studentId}
+          markedBy={myTeacherId}
+          rubric={rubrics[0]}
+          assignmentId={assignmentId ?? null}
+          onRecorded={() => setMarkTarget(null)}
+        />
+      )}
+
       {/* Roster Review Grid */}
       <Card>
         <CardHeader>
@@ -585,6 +610,16 @@ export const AssignmentReviewPage: React.FC = () => {
                             className="text-[11px] h-7 px-2"
                           >
                             Save
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setMarkTarget(sub)}
+                            disabled={writesBlocked || rubrics.length === 0}
+                            className="text-[11px] h-7 px-2"
+                            title={rubrics.length === 0 ? 'No rubric configured for this school' : 'Mark with rubric'}
+                          >
+                            Rubric
                           </Button>
                           <Button
                             variant="ghost"
