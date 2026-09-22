@@ -117,7 +117,10 @@ export const TeacherMarkingCockpitPanels: React.FC<{ cockpit: TeacherLearningCoc
                       <p className="text-xs text-slate-500">{s.riskReasons.join(' · ')}</p>
                     </div>
                     <p className="text-xs text-slate-400 shrink-0">
-                      {s.overdueCount} overdue · {s.missingCount} missing · {s.lateCount} late · {s.unmarkedCount} unmarked
+                      {s.overdueCount} overdue · {s.missingCount} missing · {s.lateCount} late ·{' '}
+                      {s.completionPct}% done
+                      {s.daysSinceLastWork != null ? ` · idle ${s.daysSinceLastWork}d` : ''}
+                      {s.isBehindPace ? ' · behind pace' : ''}
                     </p>
                   </div>
                 </li>

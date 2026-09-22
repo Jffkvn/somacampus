@@ -305,9 +305,9 @@ export const learningCockpitService = {
       };
     });
 
-    // Per-student risk counters (deterministic counts only).
+    // Per-student risk counters (deterministic counts + P1 pacing enrichment).
     const riskAcc = new Map<string, RiskSeed>();
-    const bump = (studentId: string, field: keyof Omit<RiskSeed, 'studentId' | 'studentName'>) => {
+    const bump = (studentId: string, field: 'overdueCount' | 'lateCount' | 'missingCount' | 'unmarkedCount') => {
       const cur =
         riskAcc.get(studentId) ??
         ({
@@ -317,6 +317,10 @@ export const learningCockpitService = {
           lateCount: 0,
           missingCount: 0,
           unmarkedCount: 0,
+          daysSinceLastWork: null,
+          completedCount: 0,
+          totalCount: 0,
+          isBehindPace: false,
         } as RiskSeed);
       cur[field] = Number(cur[field] || 0) + 1;
       cur.studentName = studentNames.get(studentId) ?? cur.studentName;
@@ -335,6 +339,51 @@ export const learningCockpitService = {
     }
     for (const s of photoRows) {
       if (s.late) bump(String(s.student_id), 'lateCount');
+    }
+
+    // P1 enrichment: idle days, completion ratio, term pace (deterministic).
+    const latestWorkByStudent = new Map<string, string>();
+    for (const s of photoRows) {
+      const sid = String(s.student_id);
+      const at = s.submitted_at ? String(s.submitted_at).slice(0, 10) : null;
+      if (at && (!latestWorkByStudent.get(sid) || at > latestWorkByStudent.get(sid)!)) {
+        latestWorkByStudent.set(sid, at);
+      }
+    }
+    for (const [studentId, cur] of riskAcc) {
+      const last = latestWorkByStudent.get(studentId);
+      cur.daysSinceLastWork = last
+        ? Math.max(0, Math.floor((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${last}T00:00:00Z`)) / 86_400_000))
+        : rosterRows.some((r) => String(r.student_id) === studentId)
+          ? 30
+          : null;
+
+      const own = rosterRows.filter((r) => String(r.student_id) === studentId);
+      cur.totalCount = own.length;
+      cur.completedCount = own.filter((r) =>
+        ['submitted', 'graded', 'reviewed'].includes(String(r.submission_status)),
+      ).length;
+
+      // Term pace: expected = roster rows whose assignment due_date <= today.
+      // completed = those already in submitted/graded/reviewed.
+      const expectedSoFar = own.filter((r) => {
+        const assignment = assignmentById.get(String(r.assignment_id));
+        const due = assignment?.due_date ? String(assignment.due_date).slice(0, 10) : null;
+        return due != null && due <= day;
+      }).length;
+      const completedSoFar = own.filter((r) => {
+        const assignment = assignmentById.get(String(r.assignment_id));
+        const due = assignment?.due_date ? String(assignment.due_date).slice(0, 10) : null;
+        return (
+          due != null &&
+          due <= day &&
+          ['submitted', 'graded', 'reviewed'].includes(String(r.submission_status))
+        );
+      }).length;
+      // Default offerings on this path are term_paced unless labelled otherwise;
+      // self_paced/sessional never trip this flag (evaluatePace).
+      cur.isBehindPace = expectedSoFar - completedSoFar >= 2;
+      riskAcc.set(studentId, cur);
     }
 
     return buildTeacherCockpit(marking, [...riskAcc.values()], nowMs);
