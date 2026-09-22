@@ -36,6 +36,7 @@ import { NotificationPreferencesPage } from './modules/notifications/Notificatio
 import { ParentHomePage } from './modules/parent/ParentHomePage';
 import { StudentOnlineHomePage } from './modules/online/StudentOnlineHomePage';
 import { StudentQuizPage } from './modules/learning/StudentQuizPage';
+import { ReportCardPage } from './modules/learning/ReportCardPage';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -92,6 +93,24 @@ const RoleLanding: React.FC = () => {
     return <LoadingState label="Loading your workspace..." />;
   }
   return <Navigate to={getRoleLandingRoute(role)} replace />;
+};
+
+/** P2C-1: report card route reads ?who= (learner email or student id). */
+const ReportCardRoute: React.FC<{ canComment: boolean }> = ({ canComment }) => {
+  const { schoolId, user } = useAuth();
+  const params = new URLSearchParams(window.location.search);
+  const who = params.get('who') || user?.email || '';
+  if (!schoolId || !who) {
+    return <LoadingState label="Loading report card..." />;
+  }
+  return (
+    <ReportCardPage
+      schoolId={schoolId}
+      schoolName="Grace's Cambridge Centre"
+      studentIdOrEmail={who}
+      canComment={canComment}
+    />
+  );
 };
 
 export const App: React.FC = () => {
@@ -296,6 +315,23 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/student/home">
                 <StudentQuizPage />
+              </RequireAccess>
+            }
+          />
+          {/* P2C-1 report cards: ?who=student@somacampus.ug */}
+          <Route
+            path="reports/learner"
+            element={
+              <RequireAccess path="/teacher/today">
+                <ReportCardRoute canComment />
+              </RequireAccess>
+            }
+          />
+          <Route
+            path="parent/reports"
+            element={
+              <RequireAccess path="/parent/home">
+                <ReportCardRoute canComment={false} />
               </RequireAccess>
             }
           />
