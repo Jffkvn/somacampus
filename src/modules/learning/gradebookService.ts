@@ -16,6 +16,8 @@ export interface RubricLevel {
 export interface RubricCriterion {
   id: string;
   title: string;
+  /** P2A-3 explicit weight (default 1). Total = Σ(points × weight). */
+  weight?: number;
   levels: RubricLevel[];
 }
 
@@ -34,6 +36,9 @@ export interface RubricMark {
   level: number;
   label: string;
   points: number;
+  weight?: number;
+  comment?: string | null;
+  evidencePath?: string | null;
 }
 
 export interface LearningResult {
@@ -44,7 +49,7 @@ export interface LearningResult {
   assignmentId: string | null;
   submissionId: string | null;
   learningRubricId: string | null;
-  resultSource: 'rubric' | 'score' | 'observation';
+  resultSource: 'rubric' | 'score' | 'observation' | 'quiz';
   score: number | null;
   maxScore: number | null;
   feedback: string | null;
@@ -68,10 +73,13 @@ export interface RecordResultInput {
   rubricMarks?: RubricMark[] | null;
 }
 
-/** Deterministic total: sum of selected level points. Never AI-inferred. */
+/** Deterministic weighted total (weight defaults to 1). Never AI-inferred. */
 export function computeRubricTotal(marks: RubricMark[] | null | undefined): number {
   if (!marks?.length) return 0;
-  return marks.reduce((sum, m) => sum + (Number(m.points) || 0), 0);
+  return marks.reduce((sum, m) => {
+    const w = m.weight == null ? 1 : Number(m.weight);
+    return sum + (Number(m.points) || 0) * w;
+  }, 0);
 }
 
 /** Teacher taps one level per criterion → normalized mark rows. */
@@ -91,6 +99,7 @@ export function buildRubricMarks(
       level: level.value,
       label: level.label,
       points: level.points,
+      weight: c.weight == null ? 1 : Number(c.weight),
     });
   }
   return marks;
@@ -239,4 +248,48 @@ export const gradebookService = {
     if (error) throw new Error(`gradebook.listForActivity: ${error.message}`);
     return (data ?? []).map(mapResult);
   },
+
+  /** P2A-3: teacher revise = new row + reason (history kept). */
+  async reviseResult(input: {
+    resultId: string;
+    score?: number | null;
+    feedback?: string | null;
+    rubricMarks?: RubricMark[] | null;
+    reason: string;
+  }): Promise<string> {
+    if (!input.reason?.trim()) {
+      throw new Error('gradebook.reviseResult: override reason is required');
+    }
+    if (isMockEnv()) throw new Error('gradebook.reviseResult: unavailable without live database');
+    const { data, error } = await supabase.rpc('revise_learning_result', {
+      p_result_id: input.resultId,
+      p_score: input.score ?? null,
+      p_feedback: input.feedback ?? null,
+      p_rubric_marks: input.rubricMarks ?? null,
+      p_reason: input.reason.trim(),
+    });
+    if (error || !data) throw new Error(`gradebook.reviseResult: ${error?.message ?? 'no row'}`);
+    return String(data);
+  },
+
+  /** P2A-3: second teacher moderation (never automatic). */
+  async moderateResult(input: {
+    resultId: string;
+    state: 'approved' | 'changes_requested';
+    note?: string | null;
+  }): Promise<void> {
+    if (isMockEnv()) throw new Error('gradebook.moderateResult: unavailable without live database');
+    const { error } = await supabase.rpc('moderate_learning_result', {
+      p_result_id: input.resultId,
+      p_state: input.state,
+      p_note: input.note ?? null,
+    });
+    if (error) throw new Error(`gradebook.moderateResult: ${error.message}`);
+  },
 };
+
+const isMockEnv = (): boolean =>
+  process.env.NODE_ENV === 'test' ||
+  !import.meta.env.VITE_SUPABASE_URL ||
+  import.meta.env.VITE_SUPABASE_URL.includes('placeholder') ||
+  import.meta.env.VITE_SUPABASE_URL.includes('mock');

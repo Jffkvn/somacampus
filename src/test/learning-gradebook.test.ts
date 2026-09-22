@@ -77,4 +77,13 @@ describe('Digital Learning Spine — rubric marking (M5)', () => {
     // AI rule: score is only the sum of teacher-tapped points.
     expect(computeRubricTotal(marks)).toBe(3);
   });
+
+  it('P2A-3 weighted total is explicit and deterministic', () => {
+    expect(
+      computeRubricTotal([
+        { criterionId: 'a', criterionTitle: 'A', level: 2, label: 'S', points: 2, weight: 2 },
+        { criterionId: 'b', criterionTitle: 'B', level: 1, label: 'D', points: 1, weight: 1 },
+      ]),
+    ).toBe(5);
+  });
 });

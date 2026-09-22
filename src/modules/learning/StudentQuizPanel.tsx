@@ -8,7 +8,15 @@ import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { AlertCircle, CheckCircle2, ListChecks } from 'lucide-react';
 import { quizService, type LearningQuiz, type QuizAttempt } from './quizService';
-import { scoreQuiz, isPassing, type QuizAnswers, type QuizQuestion } from './quizDomain';
+import {
+  scoreQuiz,
+  isPassing,
+  remainingSeconds,
+  formatClock,
+  shuffleOrder,
+  type QuizAnswers,
+  type QuizQuestion,
+} from './quizDomain';
 
 interface QuizPack {
   quiz: LearningQuiz;
@@ -37,6 +45,15 @@ export const StudentQuizPanel: React.FC<StudentQuizPanelProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [result, setResult] = useState<{ score: number; maxScore: number; passed: boolean } | null>(null);
+  const [clockLeft, setClockLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!attempt?.expiresAt || result) return;
+    const tick = () => setClockLeft(remainingSeconds(attempt.expiresAt));
+    tick();
+    const t = window.setInterval(tick, 1000);
+    return () => window.clearInterval(t);
+  }, [attempt?.expiresAt, result]);
 
   useEffect(() => {
     (async () => {
@@ -76,6 +93,20 @@ export const StudentQuizPanel: React.FC<StudentQuizPanelProps> = ({
       answers,
     );
   }, [pack, answers, result]);
+
+  const displayItems = useMemo(() => {
+    if (!pack) return [];
+    const seed = (attempt?.id ?? pack.quiz.id)
+      .split('')
+      .reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+    let items = pack.items;
+    if (pack.quiz.shuffleQuestions) items = shuffleOrder(items, seed);
+    return items.map((item) => {
+      if (!pack.quiz.shuffleOptions || !Array.isArray(item.question.options)) return item;
+      const opts = shuffleOrder(item.question.options as any[], seed + item.question.id.length);
+      return { ...item, question: { ...item.question, options: opts } };
+    });
+  }, [pack, attempt?.id]);
 
   const setAnswer = (questionId: string, patch: QuizAnswers[string]) => {
     setAnswers((prev) => ({ ...prev, [questionId]: { ...prev[questionId], ...patch } }));
@@ -151,6 +182,11 @@ export const StudentQuizPanel: React.FC<StudentQuizPanelProps> = ({
         </div>
         {result ? (
           <StatusPill status={result.passed ? 'success' : 'critical'} label={result.passed ? 'passed' : 'not yet'} />
+        ) : clockLeft != null ? (
+          <StatusPill
+            status={clockLeft < 60 ? 'warning' : 'info'}
+            label={`⏱ ${formatClock(clockLeft)}`}
+          />
         ) : (
           <StatusPill status="pending" label="in progress" />
         )}
@@ -175,7 +211,7 @@ export const StudentQuizPanel: React.FC<StudentQuizPanelProps> = ({
           </div>
         ) : (
           <>
-            {pack.items.map((item, idx) => {
+            {displayItems.map((item, idx) => {
               const q = item.question;
               const a = answers[q.id] ?? {};
               return (
