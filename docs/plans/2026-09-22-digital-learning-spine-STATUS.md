@@ -1,6 +1,6 @@
 # Digital Learning Spine — STATUS / HANDOFF
 
-**Last updated:** 2026-09-22 (P0 M1–M6 + P1 complete)  
+**Last updated:** 2026-09-22 (P0–P3 complete · Trust Gate green)  
 **Charter:** [`2026-09-22-digital-learning-spine.md`](./2026-09-22-digital-learning-spine.md)  
 **Branch:** `feat/digital-learning-spine-p0`  
 **Base:** `main` @ `18bfd1d`
@@ -121,7 +121,7 @@
 
 | Check | Result |
 |---|---|
-| `npx supabase db push` (M1–M5 + P1 027–030) | **Applied live** (`vhivioulpbdyaynkqpja`) — migrations 023–030 confirmed |
+| `npx supabase db push` (M1–P3) | **Applied live** (`vhivioulpbdyaynkqpja`) — migrations 023–046 confirmed |
 | `npm run verify:trust` | **PASS** (44 services, 0 violations) |
 | `npm run verify:contracts` | **PASS** |
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
@@ -221,7 +221,7 @@ Principle: digitise where software adds value; fit around paper/teacher-led work
 | P3-D | Paper production (past-paper template + **backend AI draft** + teacher approve/print) | **Done** (migration 045 + `/assessments/papers/new`) |
 | P3-E | Mark-sheet photo assist (suggest → confirm) | **Done** (`markSheetDomain` + exam mark entry UI) |
 | P3-F | Results slip (official one-pager) | **Done** (`ResultsSlipDocument` + `/reports/slip/:id`) |
-| P3-E | Mark-sheet photo assist (suggest → confirm) | Not started |
+| P3-E | Mark-sheet photo assist (suggest → confirm) | **Done** (`markSheetDomain` + exam mark entry UI) |
 | P3-G | Promotion record (thin) | **Done** (migration 046 + `promotionDomain`) |
 
 **P3 Assessment & Academic Records core is complete.** Customer-funded only: digital exam hall (P4).
