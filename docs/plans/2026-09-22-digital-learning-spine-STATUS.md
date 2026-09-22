@@ -1,6 +1,6 @@
 # Digital Learning Spine — STATUS / HANDOFF
 
-**Last updated:** 2026-09-22 (start of P0)  
+**Last updated:** 2026-09-22 (P0 M1–M6 complete)  
 **Charter:** [`2026-09-22-digital-learning-spine.md`](./2026-09-22-digital-learning-spine.md)  
 **Branch:** `feat/digital-learning-spine-p0`  
 **Base:** `main` @ `18bfd1d`
@@ -46,17 +46,15 @@
 
 ## 3. What was changed
 
-_(Updated as work lands.)_
-
 | Slice | Files | Status |
 |---|---|---|
 | Charter + STATUS docs | `docs/plans/2026-09-22-digital-learning-spine*.md` | **Done** |
 | M1 origin migration | `supabase/migrations/20260922000023_learning_spine_origins.sql` | **Done — pushed live** |
 | M2 learning_activities | `supabase/migrations/20260922000024_learning_activities.sql` | **Done — pushed live** |
-| M3 async assignment service | — | Not started |
-| M4 submissions + storage | — | Not started |
-| M5 rubric + gradebook | — | Not started |
-| M6 Student/Teacher cockpits | — | Not started |
+| M3 async assignment service | `src/modules/learning/learningActivityService.ts`, `assignmentDomain.ts`, `assignmentService.ts` | **Done** |
+| M4 submissions + storage | `supabase/migrations/20260922000025_learning_submissions_storage.sql`, `src/modules/learning/submissionService.ts` | **Done — pushed live** |
+| M5 rubric + gradebook | `supabase/migrations/20260922000026_learning_results_rubrics.sql`, `src/modules/learning/gradebookService.ts` | **Done — pushed live** |
+| M6 Student/Teacher cockpits | `src/modules/learning/learningCockpitDomain.ts`, `learningCockpitService.ts`, `StudentLearningCockpit.tsx`, `TeacherMarkingCockpit.tsx`, wired into `StudentOnlineHomePage` + `TeacherTodayPage` | **Done** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -73,28 +71,53 @@ _(Updated as work lands.)_
 - `learning_activity_objectives`
 - RLS: staff manage; enrolled student + guardian read published offering activities
 
+### M3 details
+- `learningActivityService.createActivity / listByOffering / listBySequence`
+- `assignmentService.createAssignment` accepts `onlineOfferingId` (async, no session required); XOR with `classId`
+- Offering publishes → roster from `online_enrolments`
+- `onlineAcademicService.createSessionAssignment` inherits `online_offering_id` from the session (provenance only)
+
+### M4 details
+- `learning_submissions` + `learning_submission_attachments` (photo-first kinds)
+- `submit_learning_work` RPC: attempt++, late from due_date, history preserved
+- Storage bucket `student-submissions` + school-scoped student/teacher/guardian policies
+- `submissionService` upload + submit + markReview state machine
+
+### M5 details
+- `learning_rubrics` (criteria × levels JSONB) + `learning_results`
+- `compute_rubric_total` deterministic sum; `record_learning_result` RPC re-checks
+- `gradebookService.createRubric / recordResult / listForStudent|Assignment|Activity`
+- AI never writes score (charter #10)
+
+### M6 details
+- Student Today panels: **Today · Learning · Due · Overdue · Feedback · Progress · Next**
+- Teacher panels: **marking queue** (photo submissions awaiting human mark) + **at-risk foundation** (deterministic overdue/missing/late counts — no AI scoring)
+- Mounted on `StudentOnlineHomePage` and `TeacherTodayPage`; OnlineDay / SessionCockpit unchanged
+- Pure domain: `learningCockpitDomain.ts` (bucket rules + at-risk thresholds)
+
 ---
 
 ## 4. Tests / verification
 
 | Check | Result |
 |---|---|
-| `npx supabase db push` (M1+M2) | **Applied live** (`vhivioulpbdyaynkqpja`) |
-| `npm run verify:migrations` | **PASS** (87 files, 0 errors, 15 pre-existing warnings) |
-| `npm run verify:columns` | **PASS** (100 tables, 1060 columns) |
+| `npx supabase db push` (M1+M2+M4+M5) | **Applied live** (`vhivioulpbdyaynkqpja`) — migrations 023–026 confirmed in `supabase migration list` |
+| `npm run verify:trust` | **PASS** (44 services, 0 violations) |
+| `npm run verify:contracts` | **PASS** |
+| `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
-| `npx vitest run src/test/assignment-service.test.ts src/test/ai-teaching-loop-e2e.test.ts` | **PASS** (4 passed, 1 skipped live-gated) |
-| Full `npm test` | _(run before merge)_ |
+| `npx vitest run src/test/learning-cockpit.test.ts src/test/learning-gradebook.test.ts` | **PASS** (11 tests) |
+| Full `npm test` | **PASS** (864 passed, 30 skipped live-gated, 7 skipped files) |
 
 ---
 
 ## 5. Known gaps / risks
 
-- `teacher_observations_origin_check` still forces class or session — must move with M1.  
-- `is_authorised_assignment_creator` is class/session-oriented — update for offering teachers.  
-- No submission file model yet (photo-first is P0).  
-- Student/Teacher “Today” are not learning cockpits yet.  
+- Photo-first student **submit UI** (camera capture → `submissionService`) is service-ready; dedicated submit surface is thin (reuse assignment review / future student work page).
+- Teacher rubric **marking UI** links into `/teaching/assignments/:id`; full criterion picker is P0-complete in service + tests, UI can deepen.
+- At-risk foundation is deterministic counts only (thresholds in `buildAtRisk`); Learning Coach / pacing enrichment is P1.
 - Quizzes / gradebook advanced rules / Learning Coach / office hours / recordings are **P1+**.
+- 15 pre-existing migration audit warnings (legacy `USING (true)` + hard-delete cleanups) — not introduced by this spine.
 
 ---
 
@@ -102,11 +125,12 @@ _(Updated as work lands.)_
 
 1. ~~M1 migration~~ **Done (live)**  
 2. ~~M2 learning_activities~~ **Done (live)**  
-3. **M3** — `learningActivitiesService` + async `assignmentService.createAssignment` without `online_session_id` (offering-scoped)  
-4. **M4** — submission state machine + photo-first Storage policies  
-5. **M5** — rubric + minimal gradebook  
-6. **M6** — Student Today + Teacher marking/at-risk cockpits  
-7. Full `npm test` + PR + Trust Gate CI
+3. ~~M3 learningActivities + async assignment~~ **Done**  
+4. ~~M4 submissions + storage~~ **Done (live)**  
+5. ~~M5 rubric + gradebook~~ **Done (live)**  
+6. ~~M6 Student Today + Teacher marking/at-risk cockpits~~ **Done**  
+7. Full `npm test` + PR + Trust Gate CI ← **this PR**  
+8. P1: Learning Coach, office hours, provider recording → catch-up, pacing enrichment
 
 ---
 

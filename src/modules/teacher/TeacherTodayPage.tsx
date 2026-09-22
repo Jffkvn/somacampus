@@ -5,6 +5,9 @@ import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { learningCockpitService } from '../learning/learningCockpitService';
+import type { TeacherLearningCockpit } from '../learning/learningCockpitDomain';
+import { TeacherMarkingCockpitPanels } from '../learning/TeacherMarkingCockpit';
 import {
   Clock,
   CheckCircle2,
@@ -43,8 +46,9 @@ const DEFAULT_P5_STUDENTS: StudentRosterItem[] = [
 
 export const TeacherTodayPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, schoolId } = useAuth();
   const [data, setData] = useState<TeacherTodayViewModel | null>(null);
+  const [learning, setLearning] = useState<TeacherLearningCockpit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isClockingIn, setIsClockingIn] = useState(false);
@@ -69,6 +73,16 @@ export const TeacherTodayPage: React.FC = () => {
       setLoadError(null);
       const result = await teacherService.getTeacherToday(user.email, toLocalYYYYMMDD(new Date()));
       setData(result);
+      if (schoolId) {
+        // M6 learning cockpit is additive: schedule/clock-in still load if it fails.
+        learningCockpitService
+          .getTeacherCockpit(user.email, schoolId)
+          .then(setLearning)
+          .catch((err) => {
+            console.error('Teacher learning cockpit failed (workspace still loads):', err);
+            setLearning(null);
+          });
+      }
     } catch (err) {
       // Fail closed with an honest error (e.g. non-teaching staff opening
       // this route): never an eternal spinner. Retry offered for transient
@@ -78,7 +92,7 @@ export const TeacherTodayPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.email]);
+  }, [user?.email, schoolId]);
 
   useEffect(() => {
     loadData();
@@ -285,6 +299,10 @@ export const TeacherTodayPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* M6 Teacher learning cockpit: marking queue + deterministic at-risk.
+          OnlineDay / SessionCockpit remain the live-session surfaces. */}
+      {learning && <TeacherMarkingCockpitPanels cockpit={learning} />}
 
       {/* ========================================================================= */}
       {/* SECTION 1: MY CLASS RESPONSIBILITIES (Form / Class Teacher Pastoral Role) */}

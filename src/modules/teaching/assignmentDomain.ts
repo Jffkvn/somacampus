@@ -8,7 +8,11 @@ import type {
 export interface CreateAssignmentPayload {
   schoolId: string;
   teacherId: string;
+  /** Physical origin (mutually exclusive with onlineOfferingId). */
   classId?: string | null;
+  /** Online origin — required when no classId (charter §6). */
+  onlineOfferingId?: string | null;
+  /** Optional delivery provenance; must belong to onlineOfferingId. */
   onlineSessionId?: string | null;
   streamId?: string | null;
   subjectId: string;
@@ -29,6 +33,8 @@ export interface CreateAssignmentPayload {
   curriculumObjectiveCode?: string;
   curriculumObjectiveTitle?: string;
   resourceIdUsed?: string;
+  /** Optional spine link (M2). */
+  learningActivityId?: string | null;
 }
 
 export function validateAssignmentPayload(payload: Partial<CreateAssignmentPayload>): {
@@ -43,8 +49,17 @@ export function validateAssignmentPayload(payload: Partial<CreateAssignmentPaylo
   if (!payload.instructions || !payload.instructions.trim()) {
     errors.push('Instructions are required');
   }
-  if (!payload.onlineSessionId && !payload.classId) {
-    errors.push('Class is required');
+  // Charter §6: physical class XOR online offering. Session is optional provenance.
+  const hasClass = Boolean(payload.classId);
+  const hasOffering = Boolean(payload.onlineOfferingId);
+  if (!hasClass && !hasOffering) {
+    errors.push('Class or online offering is required');
+  }
+  if (hasClass && hasOffering) {
+    errors.push('Assignment cannot be bound to both a physical class and an online offering');
+  }
+  if (payload.onlineSessionId && !hasOffering) {
+    errors.push('Session-linked work must declare its online offering');
   }
   if (!payload.subjectId) {
     errors.push('Subject is required');
