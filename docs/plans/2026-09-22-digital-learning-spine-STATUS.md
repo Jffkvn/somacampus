@@ -58,6 +58,7 @@
 | M4 photo-submit UI | `src/modules/learning/photoUpload.ts`, `StudentWorkSubmitModal.tsx`, cockpit hand-in buttons | **Done** |
 | P1 Learning Coach | `supabase/migrations/20260922000027_learning_coach.sql`, `learningCoachService.ts`, `LearningCoachPanel.tsx` on student home | **Done — pushed live** |
 | P1 Office hours | `supabase/migrations/20260922000028_office_hours_booking.sql`, `officeHoursService.ts`, `OfficeHoursPanel.tsx` (reuses `online_slot_templates` + `online_bookings`) | **Done — pushed live** |
+| P1 Recording → catch-up | `supabase/migrations/20260922000029_online_session_recordings.sql`, `sessionRecordingService.ts`, `CatchUpPanel.tsx` | **Done — pushed live** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -110,7 +111,7 @@
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
 | `npx vitest run src/test/learning-cockpit.test.ts src/test/learning-gradebook.test.ts` | **PASS** (11 tests) |
-| Full `npm test` | **PASS** (874 passed, 30 skipped live-gated, 7 skipped files) |
+| Full `npm test` | **PASS** (878 passed, 30 skipped live-gated, 7 skipped files) |
 
 ---
 
@@ -134,8 +135,9 @@
 7. Full `npm test` + PR + Trust Gate CI ← **this PR**  
 8. ~~P1 Learning Coach~~ **Done (live, migration 027)**  
 9. ~~P1 Office hours~~ **Done (live, migration 028 — reuses booking)**  
-10. P1 Provider integration (one provider) + `online_session_recordings` → catch-up  
-11. P1 Online pacing / at-risk enrichment
+10. ~~P1 Recording → catch-up~~ **Done (live, migration 029 — external provider URL, learning artifact)**  
+11. P1 Online pacing / at-risk enrichment  
+12. Optional: live provider webhook endpoint (Meet/Zoom) — ingest API is ready
 
 ---
 
