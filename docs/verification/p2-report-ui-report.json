@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-09-22T17:35:59.869Z",
+  "steps": [
+    {
+      "step": "teacher opens report card",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/p2_report_teacher.png",
+      "ui": {
+        "hasTitle": true,
+        "hasComment": true,
+        "hasHonestEmpty": true
+      }
+    },
+    {
+      "step": "parent opens report card (read-only)",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/p2_report_parent.png",
+      "ui": {
+        "parentTitle": true,
+        "parentNoComment": true
+      }
+    }
+  ]
+}

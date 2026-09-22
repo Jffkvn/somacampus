@@ -31,7 +31,7 @@ Quizzes/assessments/exams write to **`learning_results`** (extend `result_source
 
 ## 2. P2A — Assessment Engine
 
-### P2A-1 Deterministic quizzes (first slice)
+### P2A-1 Deterministic quizzes (first slice) — **DONE**
 - Types: **MCQ · True/False · Matching · Short answer (key)**.
 - Defer: multi-select, ordering, fill-blank, image stems (images stay human-marked).
 - Question bank (school-scoped) · marks per question · pass mark · max attempts.
@@ -57,7 +57,7 @@ Papers · schedule · candidates · duration · grade boundaries · audit.
 
 ---
 
-## 3. P2C — Reporting
+## 3. P2C — Reporting — **P2C-1/2 DONE**
 1. Report card from **live** academic data only (subjects, objectives, assessments, scores, teacher comments, strengths, next steps, engagement/attendance where applicable).
 2. Parent-facing wording (guardian-safe).
 3. Print / PDF + archived version (Archive-Never-Delete).
