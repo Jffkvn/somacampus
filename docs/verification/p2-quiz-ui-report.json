@@ -1,0 +1,54 @@
+{
+  "generatedAt": "2026-09-22T17:23:31.396Z",
+  "seed": {
+    "schoolId": "22222222-2222-2222-2222-222222222222",
+    "studentId": "22222222-0000-0000-0000-000000000009",
+    "teacherPerson": "88888888-8888-8888-8888-888888888881",
+    "offeringId": "773672ae-5d38-4dfe-8bc3-baea98ab2c82",
+    "learningActivityId": "66b99dd9-5982-49c5-b99a-b3f8b0f04df4",
+    "quizId": "3f39c5a0-3df4-4aba-a63e-6b55673cc8b2",
+    "questionIds": [
+      "fa671082-9510-4c4e-b30e-c5390e4b31f9",
+      "c370a3e5-8710-43e2-a56e-d450a31cba5b",
+      "34ba82c7-6847-4689-a5f1-849479196e44",
+      "f4984356-124c-4546-96a1-0247fed04be5"
+    ]
+  },
+  "steps": [
+    {
+      "step": "student opens quiz",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/p2_quiz_loaded.png",
+      "ui": {
+        "hasPrompt": true
+      }
+    },
+    {
+      "step": "student submits quiz (deterministic)",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/p2_quiz_scored.png",
+      "db": {
+        "learning_results": [
+          {
+            "id": "90b2b6ef-9a44-4003-9ef8-a17c7b053a8f",
+            "result_source": "quiz",
+            "score": 4,
+            "max_score": 5
+          }
+        ]
+      },
+      "ui": {
+        "showsScore": true,
+        "expectedScore": "5/5 if all key-correct"
+      }
+    },
+    {
+      "step": "teacher shell after quiz write (role touched: read path)",
+      "verdict": "PASS",
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/p2_quiz_teacher_today.png"
+    }
+  ]
+}
