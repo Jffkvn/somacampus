@@ -3,6 +3,9 @@ import {
   scoreQuiz,
   isPassing,
   validateQuestionKey,
+  shuffleOrder,
+  remainingSeconds,
+  formatClock,
   type QuizQuestion,
 } from '../modules/learning/quizDomain';
 
@@ -114,5 +117,21 @@ describe('P2A-1 deterministic quiz scoring', () => {
         answerKey: { correct: true },
       }),
     ).not.toThrow();
+  });
+
+  it('P2A-2 shuffle is deterministic per seed (display only)', () => {
+    const items = [1, 2, 3, 4, 5, 6];
+    const a = shuffleOrder(items, 42);
+    const b = shuffleOrder(items, 42);
+    expect(a).toEqual(b);
+    expect([...a].sort()).toEqual(items);
+  });
+
+  it('P2A-2 timer remaining is honest and non-negative', () => {
+    const now = Date.parse('2026-09-22T10:00:00Z');
+    expect(remainingSeconds(null, now)).toBeNull();
+    expect(remainingSeconds('2026-09-22T10:00:30Z', now)).toBe(30);
+    expect(remainingSeconds('2026-09-22T09:59:00Z', now)).toBe(0);
+    expect(formatClock(125)).toBe('2:05');
   });
 });

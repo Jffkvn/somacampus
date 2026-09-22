@@ -33,14 +33,23 @@ function CriterionRow({
   criterion,
   selected,
   onSelect,
+  comment,
+  onComment,
 }: {
   criterion: RubricCriterion;
   selected?: number;
   onSelect: (levelValue: number) => void;
+  comment?: string;
+  onComment?: (text: string) => void;
 }) {
   return (
     <div className="py-3 border-b border-slate-100 last:border-b-0">
-      <p className="text-sm font-semibold text-slate-800 mb-2">{criterion.title}</p>
+      <p className="text-sm font-semibold text-slate-800 mb-2">
+        {criterion.title}
+        {criterion.weight != null && criterion.weight !== 1 ? (
+          <span className="ml-2 text-xs font-normal text-slate-400">×{criterion.weight}</span>
+        ) : null}
+      </p>
       <div className="flex flex-wrap gap-2">
         {criterion.levels.map((level) => {
           const active = selected === level.value;
@@ -62,6 +71,15 @@ function CriterionRow({
           );
         })}
       </div>
+      {onComment && (
+        <input
+          value={comment ?? ''}
+          onChange={(e) => onComment(e.target.value)}
+          placeholder="Comment for this criterion (optional)"
+          maxLength={500}
+          className="mt-2 w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 bg-white"
+        />
+      )}
     </div>
   );
 }
@@ -77,12 +95,19 @@ export const RubricMarkingPanel: React.FC<RubricMarkingPanelProps> = ({
   onRecorded,
 }) => {
   const [selected, setSelected] = useState<Record<string, number>>({});
+  const [criterionComments, setCriterionComments] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [savedScore, setSavedScore] = useState<number | null>(null);
 
-  const marks = useMemo(() => buildRubricMarks(rubric.criteria, selected), [rubric.criteria, selected]);
+  const marks = useMemo(() => {
+    const base = buildRubricMarks(rubric.criteria, selected);
+    return base.map((m) => ({
+      ...m,
+      comment: criterionComments[m.criterionId] || null,
+    }));
+  }, [rubric.criteria, selected, criterionComments]);
   const total = useMemo(() => computeRubricTotal(marks), [marks]);
   const maxTotal = useMemo(
     () =>
@@ -162,6 +187,8 @@ export const RubricMarkingPanel: React.FC<RubricMarkingPanelProps> = ({
             criterion={c}
             selected={selected[c.id]}
             onSelect={(v) => setSelected((prev) => ({ ...prev, [c.id]: v }))}
+            comment={criterionComments[c.id]}
+            onComment={(text) => setCriterionComments((prev) => ({ ...prev, [c.id]: text }))}
           />
         ))}
 

@@ -110,6 +110,32 @@ export function isPassing(score: number, passMark: number | null | undefined): b
   return score >= Number(passMark);
 }
 
+/** Deterministic shuffle for display order (seeded; does not change scoring). */
+export function shuffleOrder<T>(items: T[], seed: number): T[] {
+  const arr = [...items];
+  let s = (seed || 1) >>> 0;
+  for (let i = arr.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    const j = s % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+export function remainingSeconds(expiresAt: string | null | undefined, nowMs = Date.now()): number | null {
+  if (!expiresAt) return null;
+  const end = new Date(expiresAt).getTime();
+  if (Number.isNaN(end)) return null;
+  return Math.max(0, Math.floor((end - nowMs) / 1000));
+}
+
+export function formatClock(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, '0')}`;
+}
+
 export function validateQuestionKey(q: {
   questionType: QuizQuestionType;
   prompt: string;

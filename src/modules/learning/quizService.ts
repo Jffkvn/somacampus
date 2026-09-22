@@ -23,6 +23,11 @@ export interface LearningQuiz {
   passMark: number | null;
   maxAttempts: number;
   isPublished: boolean;
+  timeLimitSeconds: number | null;
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
+  allowRetakes: boolean;
+  releaseResultsAt: string | null;
 }
 
 export interface QuizAttempt {
@@ -34,6 +39,8 @@ export interface QuizAttempt {
   answers: QuizAnswers;
   score: number | null;
   maxScore: number | null;
+  expiresAt: string | null;
+  startedAt: string | null;
 }
 
 const isMockEnv = (): boolean =>
@@ -65,6 +72,11 @@ function mapQuiz(r: any): LearningQuiz {
     passMark: r.pass_mark == null ? null : Number(r.pass_mark),
     maxAttempts: Number(r.max_attempts ?? 1),
     isPublished: Boolean(r.is_published),
+    timeLimitSeconds: r.time_limit_seconds == null ? null : Number(r.time_limit_seconds),
+    shuffleQuestions: Boolean(r.shuffle_questions),
+    shuffleOptions: Boolean(r.shuffle_options),
+    allowRetakes: r.allow_retakes !== false,
+    releaseResultsAt: r.release_results_at ?? null,
   };
 }
 
@@ -78,6 +90,8 @@ function mapAttempt(r: any): QuizAttempt {
     answers: r.answers ?? {},
     score: r.score == null ? null : Number(r.score),
     maxScore: r.max_score == null ? null : Number(r.max_score),
+    expiresAt: r.expires_at ?? null,
+    startedAt: r.started_at ?? null,
   };
 }
 
