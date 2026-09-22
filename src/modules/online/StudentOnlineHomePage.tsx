@@ -4,6 +4,7 @@ import type { OnlineHome } from './onlineStudentService';
 import { learningCockpitService, resolveStudentId } from '../learning/learningCockpitService';
 import type { StudentLearningCockpit } from '../learning/learningCockpitDomain';
 import { StudentLearningCockpitPanels } from '../learning/StudentLearningCockpit';
+import { LearningCoachPanel } from '../learning/LearningCoachPanel';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../components/ui/Card';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -131,7 +132,11 @@ export const StudentOnlineHomePage: React.FC = () => {
 
       {/* M6 Student Today learning cockpit: Today · Learning · Due · Overdue · Feedback · Progress · Next */}
       {cockpit && schoolId && studentId && (
-        <StudentLearningCockpitPanels cockpit={cockpit} schoolId={schoolId} studentId={studentId} />
+        <>
+          <StudentLearningCockpitPanels cockpit={cockpit} schoolId={schoolId} studentId={studentId} />
+          {/* P1 Learning Coach — configurable per school/stage (charter §13) */}
+          <LearningCoachPanel schoolId={schoolId} studentId={studentId} />
+        </>
       )}
 
       {/* Next session hero */}
