@@ -153,13 +153,38 @@ export const communityService = {
     return { id: String(data.id) };
   },
 
+  /** P2D-2: pin / lock / hide (moderation) — teacher curates what the class sees. */
+  async moderatePost(
+    postId: string,
+    patch: { isPinned?: boolean; isLocked?: boolean; isHidden?: boolean; hiddenReason?: string | null },
+  ): Promise<void> {
+    if (isMockEnv()) throw new Error('community.moderatePost: unavailable without live database');
+    const { error } = await supabase
+      .from('community_posts')
+      .update({
+        ...(patch.isPinned != null ? { is_pinned: patch.isPinned } : {}),
+        ...(patch.isLocked != null ? { is_locked: patch.isLocked } : {}),
+        ...(patch.isHidden != null ? { is_hidden: patch.isHidden } : {}),
+        hidden_reason: patch.hiddenReason ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', postId);
+    if (error) throw new Error(`community.moderatePost: ${error.message}`);
+  },
+
   async listPosts(communityId: string): Promise<
-    Array<{ id: string; body: string; isPinned: boolean; createdAt: string }>
+    Array<{
+      id: string;
+      body: string;
+      isPinned: boolean;
+      isLocked: boolean;
+      createdAt: string;
+    }>
   > {
     if (isMockEnv()) return [];
     const { data, error } = await supabase
       .from('community_posts')
-      .select('id, body, is_pinned, created_at')
+      .select('id, body, is_pinned, is_locked, created_at')
       .eq('community_id', communityId)
       .eq('is_hidden', false)
       .order('is_pinned', { ascending: false })
@@ -169,6 +194,7 @@ export const communityService = {
       id: String(r.id),
       body: String(r.body),
       isPinned: Boolean(r.is_pinned),
+      isLocked: Boolean(r.is_locked),
       createdAt: String(r.created_at),
     }));
   },
