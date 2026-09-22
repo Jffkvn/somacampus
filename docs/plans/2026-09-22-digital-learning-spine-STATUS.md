@@ -57,6 +57,7 @@
 | M6 Student/Teacher cockpits | `src/modules/learning/learningCockpitDomain.ts`, `learningCockpitService.ts`, `StudentLearningCockpit.tsx`, `TeacherMarkingCockpit.tsx`, wired into `StudentOnlineHomePage` + `TeacherTodayPage` | **Done** |
 | M4 photo-submit UI | `src/modules/learning/photoUpload.ts`, `StudentWorkSubmitModal.tsx`, cockpit hand-in buttons | **Done** |
 | P1 Learning Coach | `supabase/migrations/20260922000027_learning_coach.sql`, `learningCoachService.ts`, `LearningCoachPanel.tsx` on student home | **Done — pushed live** |
+| P1 Office hours | `supabase/migrations/20260922000028_office_hours_booking.sql`, `officeHoursService.ts`, `OfficeHoursPanel.tsx` (reuses `online_slot_templates` + `online_bookings`) | **Done — pushed live** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -109,7 +110,7 @@
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
 | `npx vitest run src/test/learning-cockpit.test.ts src/test/learning-gradebook.test.ts` | **PASS** (11 tests) |
-| Full `npm test` | **PASS** (871 passed, 30 skipped live-gated, 7 skipped files) |
+| Full `npm test` | **PASS** (874 passed, 30 skipped live-gated, 7 skipped files) |
 
 ---
 
@@ -132,7 +133,7 @@
 6. ~~M6 Student Today + Teacher marking/at-risk cockpits~~ **Done**  
 7. Full `npm test` + PR + Trust Gate CI ← **this PR**  
 8. ~~P1 Learning Coach~~ **Done (live, migration 027)**  
-9. P1 Office hours (reuse `online_slot_templates` booking — no second scheduler)  
+9. ~~P1 Office hours~~ **Done (live, migration 028 — reuses booking)**  
 10. P1 Provider integration (one provider) + `online_session_recordings` → catch-up  
 11. P1 Online pacing / at-risk enrichment
 
