@@ -35,6 +35,7 @@ export const CommunityFeedPanel: React.FC<CommunityFeedPanelProps> = ({
   const [policy, setPolicy] = useState<CommunityPolicy | null>(null);
   const [posts, setPosts] = useState<Awaited<ReturnType<typeof communityService.listPosts>>>([]);
   const [body, setBody] = useState('');
+  const [isPinned, setIsPinned] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -71,13 +72,33 @@ export const CommunityFeedPanel: React.FC<CommunityFeedPanelProps> = ({
         communityId: community.id,
         authorPersonId: moderatorPersonId,
         body,
+        isPinned,
       });
       setBody('');
+      setIsPinned(false);
       await load();
     } catch (err: any) {
       setError(err?.message ?? 'Could not post');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const togglePin = async (id: string, next: boolean) => {
+    try {
+      await communityService.moderatePost(id, { isPinned: next });
+      await load();
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not update pin');
+    }
+  };
+
+  const toggleLock = async (id: string, next: boolean) => {
+    try {
+      await communityService.moderatePost(id, { isLocked: next });
+      await load();
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not update lock');
     }
   };
 
@@ -120,12 +141,22 @@ export const CommunityFeedPanel: React.FC<CommunityFeedPanelProps> = ({
               onChange={(e) => setBody(e.target.value)}
               rows={3}
               maxLength={2000}
-              placeholder="Teacher post or challenge…"
+              placeholder="Class challenge, show-and-tell, or teacher question…"
               className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white"
             />
-            <Button type="button" size="sm" disabled={isSaving || !body.trim()} onClick={() => void post()}>
-              {isSaving ? 'Posting…' : 'Post to class'}
-            </Button>
+            <div className="flex items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={isPinned}
+                  onChange={(e) => setIsPinned(e.target.checked)}
+                />
+                Pin to top
+              </label>
+              <Button type="button" size="sm" disabled={isSaving || !body.trim()} onClick={() => void post()}>
+                {isSaving ? 'Posting…' : 'Post to class'}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -135,8 +166,29 @@ export const CommunityFeedPanel: React.FC<CommunityFeedPanelProps> = ({
               <div className="flex items-center gap-2 mb-1">
                 {p.isPinned && <Pin className="w-3.5 h-3.5 text-brand-teal" />}
                 <span className="text-[11px] text-slate-400">{String(p.createdAt).slice(0, 10)}</span>
+                {canPostAsTeacher && (
+                  <span className="ml-auto flex gap-2">
+                    <button
+                      type="button"
+                      className="text-[11px] font-semibold text-brand-teal hover:underline"
+                      onClick={() => void togglePin(p.id, !p.isPinned)}
+                    >
+                      {p.isPinned ? 'Unpin' : 'Pin'}
+                    </button>
+                    <button
+                      type="button"
+                      className="text-[11px] font-semibold text-slate-500 hover:underline"
+                      onClick={() => void toggleLock(p.id, !p.isLocked)}
+                    >
+                      {p.isLocked ? 'Unlock' : 'Lock'}
+                    </button>
+                  </span>
+                )}
               </div>
               <p className="text-sm text-slate-800">{p.body}</p>
+              {p.isLocked && (
+                <p className="text-[11px] text-slate-400 mt-1">Locked — no further replies.</p>
+              )}
             </li>
           ))}
           {posts.length === 0 && (

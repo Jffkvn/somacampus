@@ -72,6 +72,7 @@
 | P2B-1 evidence-cited analytics | `analyticsDomain.ts`, `analyticsService.ts`, `StudentAnalyticsPanel` `/intelligence/learner` | **Done** |
 | P2B-2 + P2B-3 suggestions | migration 037 — `learning_suggestions` (gap/pacing, evidence_links required), `decide_learning_suggestion` RPC, `SuggestionsPanel` accept/dismiss | **Done — pushed live** |
 | P2D-1 community layer | migration 038 — `community_policies` stage flags, `learning_communities`, `community_members`, `community_posts`, `communityDomain` policy gates, `/community/:id` | **Done — pushed live** |
+| P2D-2 teacher-led posts | Composer + pin/lock + live write-path; migration 039 RLS recursion fix | **Done — pushed live** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -134,6 +135,7 @@
 | P2B-1 UI | **PASS (signed-in teacher)** — `p2b1_analytics_teacher.png` (claims + evidence rows). Report `p2b1-ui-report.json`. |
 | P2B-2/3 UI | **PASS (signed-in teacher)** — `p2b2_suggestions_teacher.png` recommend-only Suggestions panel. |
 | P2D-1 UI | **PASS (signed-in teacher)** — `p2d1_community_teacher.png` teacher-led community shell. |
+| P2D-2 UI write-path | **PASS (signed-in teacher)** — `p2d2_teacher_post.png` live challenge post + pin (0 errors). |
 
 ---
 
@@ -192,7 +194,7 @@ Full plan: [`2026-09-22-digital-learning-spine-P2.md`](./2026-09-22-digital-lear
 | P2B-2 | AI gap detection (recommend-only) | **Done** (evidence-linked `learning_suggestions`) |
 | P2B-3 | Pacing / intervention suggestions | **Done** (same table; human accept/dismiss only) |
 | P2D-1 | Community layer + stage policy flags | **Done** (migration 038; teacher-led floor; peer policy-gated) |
-| P2D-2 | Teacher-led communities | Not started |
+| P2D-2 | Teacher-led communities | **Done** (composer, pin/lock, live post write-path) |
 | P2D-3 | Structured peer review (formative) | Not started |
 | P2D-4 | Moderated peer + clubs (policy-gated) | Not started |
 
