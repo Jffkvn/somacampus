@@ -5,6 +5,7 @@ import { learningCockpitService, resolveStudentId } from '../learning/learningCo
 import type { StudentLearningCockpit } from '../learning/learningCockpitDomain';
 import { StudentLearningCockpitPanels } from '../learning/StudentLearningCockpit';
 import { LearningCoachPanel } from '../learning/LearningCoachPanel';
+import { OfficeHoursPanel } from './OfficeHoursPanel';
 import { useAuth } from '../../lib/authContext';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../components/ui/Card';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -136,6 +137,8 @@ export const StudentOnlineHomePage: React.FC = () => {
           <StudentLearningCockpitPanels cockpit={cockpit} schoolId={schoolId} studentId={studentId} />
           {/* P1 Learning Coach — configurable per school/stage (charter §13) */}
           <LearningCoachPanel schoolId={schoolId} studentId={studentId} />
+          {/* P1 Office hours — reuses online_bookings (no second scheduler) */}
+          <OfficeHoursPanel schoolId={schoolId} studentId={studentId} />
         </>
       )}
 
