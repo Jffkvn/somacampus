@@ -44,6 +44,7 @@ import { GradingScalePanel } from './modules/learning/GradingScalePanel';
 import { ExamMarkEntryPage } from './modules/learning/ExamMarkEntryPage';
 import { IssuedReportPage } from './modules/learning/IssuedReportPage';
 import { ExamPaperBuilderPage } from './modules/learning/ExamPaperBuilderPage';
+import { ResultsSlipDocument } from './modules/learning/ResultsSlipDocument';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -182,6 +183,21 @@ const ExamPaperBuilderRoute: React.FC = () => {
   const { schoolId } = useAuth();
   if (!schoolId) return <LoadingState label="Loading paper builder..." />;
   return <ExamPaperBuilderPage schoolId={schoolId} />;
+};
+
+/** P3-F: results slip document from an issued snapshot. */
+const ResultsSlipRoute: React.FC = () => {
+  const { reportId } = useParams<{ reportId: string }>();
+  const [snap, setSnap] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    if (!reportId) return;
+    import('./modules/learning/issuedReportService')
+      .then((m) => m.issuedReportService.get(reportId))
+      .then((r) => setSnap((r?.snapshot as Record<string, unknown>) ?? null))
+      .catch(console.error);
+  }, [reportId]);
+  if (!snap) return <LoadingState label="Loading results slip..." />;
+  return <ResultsSlipDocument snapshot={snap as any} />;
 };
 
 export const App: React.FC = () => {
@@ -466,6 +482,15 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/teacher/today">
                 <ExamPaperBuilderRoute />
+              </RequireAccess>
+            }
+          />
+          {/* P3-F results slip (official one-pager) */}
+          <Route
+            path="reports/slip/:reportId"
+            element={
+              <RequireAccess path="/parent/home">
+                <ResultsSlipRoute />
               </RequireAccess>
             }
           />

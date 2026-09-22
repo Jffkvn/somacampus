@@ -126,7 +126,7 @@
 | `npm run verify:contracts` | **PASS** |
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
-| Full `npm test` | **PASS** (944 passed, 26 skipped) |
+| Full `npm test` | **PASS** (946 passed, 26 skipped) |
 | UI confirmation (browser) | **PASS (signed-in)** — `scripts/verify-learning-ui-authed.mjs` logs in `student@somacampus.ug` + `teacher@somacampus.ug` against live Supabase. Student home: cockpit + Learning Coach + Office hours + catch-up + photo hand-in modal all present. Teacher today: marking queue + at-risk present. Screenshots `learn_*_authed.png` / `learn_login_*.png`. Report `docs/verification/learning-ui-authed-report.json`. Unauthenticated shell pass remains in `learning-ui-report.json` (SMOKE_ONLY). |
 | Write-path E2E (live mutations) | **PASS** — student photo hand-in wrote `learning_submissions` (state submitted); parent coach sign-off wrote `learning_coach_confirmations` (1.5h). Screenshots `e2e_*.png`, report `learning-write-path-report.json`. |
 | Rubric marking UI | **PASS (signed-in teacher)** — `e2e_rubric_marking_panel.png` shows criterion level taps + deterministic total. |
@@ -220,6 +220,7 @@ Principle: digitise where software adds value; fit around paper/teacher-led work
 | P3-C | Issued term report (immutable) + parent view | **Done** (migration 044 + `/reports/issued/:id`) |
 | P3-D | Paper production (past-paper template + **backend AI draft** + teacher approve/print) | **Done** (migration 045 + `/assessments/papers/new`) |
 | P3-E | Mark-sheet photo assist (suggest → confirm) | **Done** (`markSheetDomain` + exam mark entry UI) |
+| P3-F | Results slip (official one-pager) | **Done** (`ResultsSlipDocument` + `/reports/slip/:id`) |
 | P3-E | Mark-sheet photo assist (suggest → confirm) | Not started |
 | P3-F | Results slip | Not started |
 | P3-G | Promotion record (thin) | Not started |
