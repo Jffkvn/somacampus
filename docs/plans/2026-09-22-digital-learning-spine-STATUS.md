@@ -71,6 +71,7 @@
 | P2A-4 assessment packs | migration 036 — packs + items + objective rollup domain/service/UI `/assessments/pack/:id` | **Done — pushed live** |
 | P2B-1 evidence-cited analytics | `analyticsDomain.ts`, `analyticsService.ts`, `StudentAnalyticsPanel` `/intelligence/learner` | **Done** |
 | P2B-2 + P2B-3 suggestions | migration 037 — `learning_suggestions` (gap/pacing, evidence_links required), `decide_learning_suggestion` RPC, `SuggestionsPanel` accept/dismiss | **Done — pushed live** |
+| P2D-1 community layer | migration 038 — `community_policies` stage flags, `learning_communities`, `community_members`, `community_posts`, `communityDomain` policy gates, `/community/:id` | **Done — pushed live** |
 
 ### M1 details
 - `online_offerings.scheme_of_work_id` (nullable) + `delivery_pace`
@@ -122,7 +123,7 @@
 | `npm run verify:contracts` | **PASS** |
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
-| Full `npm test` | **PASS** (910 passed, 26 skipped) |
+| Full `npm test` | **PASS** (915 passed, 26 skipped) |
 | UI confirmation (browser) | **PASS (signed-in)** — `scripts/verify-learning-ui-authed.mjs` logs in `student@somacampus.ug` + `teacher@somacampus.ug` against live Supabase. Student home: cockpit + Learning Coach + Office hours + catch-up + photo hand-in modal all present. Teacher today: marking queue + at-risk present. Screenshots `learn_*_authed.png` / `learn_login_*.png`. Report `docs/verification/learning-ui-authed-report.json`. Unauthenticated shell pass remains in `learning-ui-report.json` (SMOKE_ONLY). |
 | Write-path E2E (live mutations) | **PASS** — student photo hand-in wrote `learning_submissions` (state submitted); parent coach sign-off wrote `learning_coach_confirmations` (1.5h). Screenshots `e2e_*.png`, report `learning-write-path-report.json`. |
 | Rubric marking UI | **PASS (signed-in teacher)** — `e2e_rubric_marking_panel.png` shows criterion level taps + deterministic total. |
@@ -132,6 +133,7 @@
 | P2A-4 UI | **PASS (signed-in student + teacher shell)** — `p2a4_assessment_pack_student.png`. Report `p2a4-ui-report.json`. |
 | P2B-1 UI | **PASS (signed-in teacher)** — `p2b1_analytics_teacher.png` (claims + evidence rows). Report `p2b1-ui-report.json`. |
 | P2B-2/3 UI | **PASS (signed-in teacher)** — `p2b2_suggestions_teacher.png` recommend-only Suggestions panel. |
+| P2D-1 UI | **PASS (signed-in teacher)** — `p2d1_community_teacher.png` teacher-led community shell. |
 
 ---
 
@@ -189,7 +191,7 @@ Full plan: [`2026-09-22-digital-learning-spine-P2.md`](./2026-09-22-digital-lear
 | P2B-1 | Evidence-cited analytics | **Done** (`/intelligence/learner` + NOT_ENOUGH honesty) |
 | P2B-2 | AI gap detection (recommend-only) | **Done** (evidence-linked `learning_suggestions`) |
 | P2B-3 | Pacing / intervention suggestions | **Done** (same table; human accept/dismiss only) |
-| P2D-1 | Community layer + stage policy flags | Not started |
+| P2D-1 | Community layer + stage policy flags | **Done** (migration 038; teacher-led floor; peer policy-gated) |
 | P2D-2 | Teacher-led communities | Not started |
 | P2D-3 | Structured peer review (formative) | Not started |
 | P2D-4 | Moderated peer + clubs (policy-gated) | Not started |

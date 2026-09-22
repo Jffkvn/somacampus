@@ -39,6 +39,7 @@ import { StudentQuizPage } from './modules/learning/StudentQuizPage';
 import { ReportCardPage } from './modules/learning/ReportCardPage';
 import { AssessmentPackPage } from './modules/learning/AssessmentPackPage';
 import { StudentAnalyticsPanel } from './modules/learning/StudentAnalyticsPanel';
+import { CommunityPage } from './modules/learning/CommunityPage';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -387,6 +388,15 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/teacher/today">
                 <LearnerAnalyticsRoute />
+              </RequireAccess>
+            }
+          />
+          {/* P2D community spaces (teacher-led default) */}
+          <Route
+            path="community/:communityId"
+            element={
+              <RequireAccess path="/teacher/today">
+                <CommunityPage />
               </RequireAccess>
             }
           />
