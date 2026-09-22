@@ -40,6 +40,7 @@ import { ReportCardPage } from './modules/learning/ReportCardPage';
 import { AssessmentPackPage } from './modules/learning/AssessmentPackPage';
 import { StudentAnalyticsPanel } from './modules/learning/StudentAnalyticsPanel';
 import { CommunityPage } from './modules/learning/CommunityPage';
+import { GradingScalePanel } from './modules/learning/GradingScalePanel';
 import { SchoolCalendarPage } from './modules/calendar/SchoolCalendarPage';
 import { ExpensesPage } from './modules/expenses/ExpensesPage';
 import { StaffDirectoryPage } from './modules/staff/StaffDirectoryPage';
@@ -149,6 +150,14 @@ const LearnerAnalyticsRoute: React.FC = () => {
   return (
     <StudentAnalyticsPanel studentId={studentId} schoolId={schoolId} learnerLabel={who} />
   );
+};
+
+/** P3-A: school grading scales + formula. */
+const GradingScaleRoute: React.FC = () => {
+  const { schoolId, role } = useAuth();
+  if (!schoolId) return <LoadingState label="Loading grading..." />;
+  const canEdit = role === 'admin' || role === 'principal';
+  return <GradingScalePanel schoolId={schoolId} canEdit={canEdit} />;
 };
 
 export const App: React.FC = () => {
@@ -397,6 +406,15 @@ export const App: React.FC = () => {
             element={
               <RequireAccess path="/teacher/today">
                 <CommunityPage />
+              </RequireAccess>
+            }
+          />
+          {/* P3-A grading & aggregates */}
+          <Route
+            path="assessments/grading"
+            element={
+              <RequireAccess path="/teacher/today">
+                <GradingScaleRoute />
               </RequireAccess>
             }
           />

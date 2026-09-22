@@ -126,7 +126,7 @@
 | `npm run verify:contracts` | **PASS** |
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
-| Full `npm test` | **PASS** (924 passed, 26 skipped) |
+| Full `npm test` | **PASS** (931 passed, 26 skipped) |
 | UI confirmation (browser) | **PASS (signed-in)** — `scripts/verify-learning-ui-authed.mjs` logs in `student@somacampus.ug` + `teacher@somacampus.ug` against live Supabase. Student home: cockpit + Learning Coach + Office hours + catch-up + photo hand-in modal all present. Teacher today: marking queue + at-risk present. Screenshots `learn_*_authed.png` / `learn_login_*.png`. Report `docs/verification/learning-ui-authed-report.json`. Unauthenticated shell pass remains in `learning-ui-report.json` (SMOKE_ONLY). |
 | Write-path E2E (live mutations) | **PASS** — student photo hand-in wrote `learning_submissions` (state submitted); parent coach sign-off wrote `learning_coach_confirmations` (1.5h). Screenshots `e2e_*.png`, report `learning-write-path-report.json`. |
 | Rubric marking UI | **PASS (signed-in teacher)** — `e2e_rubric_marking_panel.png` shows criterion level taps + deterministic total. |
@@ -140,6 +140,7 @@
 | P2D-2 UI write-path | **PASS (signed-in teacher)** — `p2d2_teacher_post.png` live challenge post + pin (0 errors). |
 | P2D-3 UI | **PASS (signed-in teacher)** — `p2d3_peer_review_panel.png` structured peer review (not graded). |
 | P2D-4 UI | **PASS (signed-in teacher)** — `p2d4_moderation_queue.png` moderation queue (safeguarding). |
+| P3-A UI | **PASS (signed-in admin)** — `p3a_grading_admin.png` grading formula + sample preview. |
 
 ---
 
@@ -203,5 +204,23 @@ Full plan: [`2026-09-22-digital-learning-spine-P2.md`](./2026-09-22-digital-lear
 | P2D-4 | Moderated peer + clubs (policy-gated) | **Done** (replies + reports + moderation queue) |
 
 **P2A / P2B / P2C / P2D core is complete.** Remaining: exams (P3), branded PDF pack polish, optional provider webhook.
+
+---
+
+## 9. P3 tracker — Assessment & Academic Records
+
+Full plan: [`2026-09-22-digital-learning-spine-P3.md`](./2026-09-22-digital-learning-spine-P3.md)  
+Principle: digitise where software adds value; fit around paper/teacher-led workflows. **Not a digital exam hall.**
+
+| ID | Item | Status |
+|---|---|---|
+| P3 plan doc | Principle, slices A–G, architecture | **Done** |
+| P3-A | Grading & results math (scales + mean/total/aggregate) | **Done** (migration 042 + `/assessments/grading`) |
+| P3-B | Exam sitting + human mark entry → `learning_results` | Not started |
+| P3-C | Issued term report (immutable) + parent view | Not started |
+| P3-D | Paper production (past-paper template + draft/approve/print) | Not started |
+| P3-E | Mark-sheet photo assist (suggest → confirm) | Not started |
+| P3-F | Results slip | Not started |
+| P3-G | Promotion record (thin) | Not started |
 
 Testing rule: unit tests + **signed-in UI tests with screenshots for every role touched** + STATUS updated in the same PR.
