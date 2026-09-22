@@ -1,0 +1,37 @@
+{
+  "generatedAt": "2026-09-22T08:34:19.219Z",
+  "routes": [
+    {
+      "name": "Login shell",
+      "route": "/login",
+      "verdict": "SMOKE_ONLY",
+      "missing": [],
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/learn__login.png"
+    },
+    {
+      "name": "Student Today + P1 panels",
+      "route": "/student/home",
+      "verdict": "SMOKE_ONLY",
+      "missing": [],
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/learn__student_home.png"
+    },
+    {
+      "name": "Teacher Today + marking/at-risk",
+      "route": "/teacher/today",
+      "verdict": "SMOKE_ONLY",
+      "missing": [],
+      "errors": [],
+      "screenshot": "docs/verification/screenshots/learn__teacher_today.png"
+    },
+    {
+      "name": "Photo hand-in golden path (camera → compress → submit)",
+      "route": "/student/home",
+      "verdict": "REQUIRES_LIVE_AUTH",
+      "missing": [],
+      "errors": [],
+      "note": "Interactive modal path needs a live student session; covered by unit tests for photoUpload + submissionService fail-closed rules."
+    }
+  ]
+}
