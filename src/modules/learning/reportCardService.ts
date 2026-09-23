@@ -35,6 +35,44 @@ async function resolveStudentId(studentIdOrEmail: string): Promise<string> {
   return String(rows[0].id);
 }
 
+/**
+ * H2: resolve the reporting window from the school's academic year (is_current).
+ * Never invent a rolling 90-day "term". Fallback is labelled honestly.
+ */
+export async function currentAcademicWindow(schoolId: string): Promise<{
+  fromIso: string;
+  toIso: string;
+  termLabel: string;
+}> {
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const now = new Date();
+  const canQuery =
+    typeof import.meta !== 'undefined' &&
+    Boolean((import.meta as any).env?.VITE_SUPABASE_URL) &&
+    !(import.meta as any).env?.VITE_SUPABASE_URL?.includes('placeholder');
+  if (canQuery) {
+    const { data: year, error } = await supabase
+      .from('academic_years')
+      .select('id, name, start_date, end_date')
+      .eq('school_id', schoolId)
+      .eq('is_current', true)
+      .maybeSingle();
+    if (!error && year) {
+      return {
+        fromIso: String(year.start_date).slice(0, 10),
+        toIso: String(year.end_date).slice(0, 10),
+        termLabel: String(year.name),
+      };
+    }
+  }
+  const from = new Date(now.getTime() - 90 * 86400000);
+  return {
+    fromIso: iso(from),
+    toIso: iso(now),
+    termLabel: `Fallback window ${iso(from)} → ${iso(now)} (no current academic year)`,
+  };
+}
+
 export const reportCardService = {
   /**
    * Build a term report for one learner from live rows only.
@@ -116,7 +154,7 @@ export const reportCardService = {
 
       // Objective rollup from rubric_marks criterion titles (deterministic).
       const marks = Array.isArray(r.rubric_marks) ? r.rubric_marks : [];
-      for (const m of marks) {
+      for (const m of marks as any[]) {
         const code = m.criterionId ?? m.criterionTitle ?? 'criterion';
         const key = String(code);
         const prev =
@@ -129,8 +167,14 @@ export const reportCardService = {
             pct: null,
             evidenceCount: 0,
           } as ObjectiveScore);
-        prev.score = Number(prev.score ?? 0) + Number(m.points ?? 0);
-        prev.maxScore = Number(prev.maxScore ?? 0) + (Number(m.points ?? 0) + 0); // points earned; max filled below
+        const earned = Number(m.points ?? 0);
+        const w = m.weight == null ? 1 : Number(m.weight);
+        // H1: ceiling must come from the rubric (maxPoints), never from earned points.
+        const ceilingRaw = m.maxPoints != null ? Number(m.maxPoints) : null;
+        prev.score = Number(prev.score ?? 0) + earned * w;
+        if (ceilingRaw != null && ceilingRaw > 0) {
+          prev.maxScore = Number(prev.maxScore ?? 0) + ceilingRaw * w;
+        }
         prev.evidenceCount += 1;
         b.objectives.set(key, prev);
       }
@@ -153,12 +197,61 @@ export const reportCardService = {
       });
     });
 
+    // H3: when the school has a grading scale, recompute subject grades via P3 engine.
+    let finalSubjects = subjects;
+    {
+      const { data: scaleRow } = await supabase
+        .from('grading_scales')
+        .select('*')
+        .eq('school_id', input.schoolId)
+        .order('is_default', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (scaleRow) {
+        const scale = {
+          id: String(scaleRow.id),
+          schoolId: String(scaleRow.school_id),
+          name: String(scaleRow.name),
+          formula: (scaleRow.formula ?? 'mean') as 'mean' | 'total' | 'aggregate_division',
+          bands: Array.isArray(scaleRow.bands) ? scaleRow.bands : [],
+          subjectWeights: scaleRow.subject_weights ?? {},
+          divisions: Array.isArray(scaleRow.divisions) ? scaleRow.divisions : [],
+          rounding: (scaleRow.rounding ?? 'whole') as 'whole' | 'one_decimal',
+        };
+        const { buildSubjectResults } = await import('./gradingDomain');
+        finalSubjects = subjects.map((s) => {
+          const graded = buildSubjectResults(
+            scale,
+            s.assessments
+              .filter((a) => a.score != null && a.maxScore != null)
+              .map((a) => ({
+                subjectCode: s.subjectName,
+                subjectName: s.subjectName,
+                score: Number(a.score),
+                maxScore: Number(a.maxScore),
+              })),
+          );
+          if (!graded.length) return s;
+          const pct = graded.reduce((a, g) => a + g.pct, 0) / graded.length;
+          return {
+            ...s,
+            averagePct: Math.round(pct * 10) / 10,
+            assessments: s.assessments.map((a, i) => ({
+              ...a,
+              // keep raw marks; grade columns live on graded[]
+              ...{ _grade: graded[i]?.grade ?? null },
+            })),
+          };
+        });
+      }
+    }
+
     return buildTermReportCard({
       schoolName: input.schoolName,
       learnerName,
       admissionNumber: studentRow?.admission_number ?? null,
       termLabel: input.termLabel,
-      subjects,
+      subjects: finalSubjects,
       teacherComment: input.teacherComment ?? null,
       engagementNotes: input.engagementNotes ?? [],
       attendance: input.attendance,

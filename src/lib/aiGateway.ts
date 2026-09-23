@@ -50,6 +50,7 @@ export async function draftExamPaper(input: {
 
 export async function extractMarks(input: {
   sheetText: string;
+  photoDataUrl?: string | null;
   rosterNames?: string[];
 }): Promise<{
   suggestions: Array<{

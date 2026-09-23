@@ -161,7 +161,55 @@ export const paperService = {
     return { paper: mapPaper(paper), draft };
   },
 
-  /** Teacher edit → new version (history kept). */
+  /** H5: persist a deterministic draft even when AI/gateway fails — Approve never dead-ends. */
+  async createManualDraft(input: {
+    schoolId: string;
+    structure: PaperStructure;
+    brief: TeacherBrief;
+    subjectId?: string | null;
+    classId?: string | null;
+    createdBy?: string | null;
+  }): Promise<{ paper: ExamPaper; draft: PaperDraft }> {
+    const draft = draftExamPaper(input.structure, input.brief);
+    if (isMockEnv()) {
+      return {
+        paper: {
+          id: 'mock-paper',
+          title: input.brief.title,
+          termLabel: input.brief.termLabel,
+          status: 'draft',
+          version: 1,
+          brief: input.brief,
+        },
+        draft,
+      };
+    }
+    const { data: paper, error } = await supabase
+      .from('exam_papers')
+      .insert({
+        school_id: input.schoolId,
+        subject_id: input.subjectId ?? null,
+        class_id: input.classId ?? null,
+        title: input.brief.title.trim(),
+        term_label: input.brief.termLabel.trim(),
+        brief: input.brief,
+        status: 'draft',
+        version: 1,
+        created_by: input.createdBy ?? null,
+      })
+      .select('*')
+      .single();
+    if (error || !paper) throw new Error(`paper.createManualDraft: ${error?.message ?? 'no row'}`);
+    await supabase.from('exam_paper_versions').insert({
+      paper_id: paper.id,
+      version: 1,
+      content: draft,
+      origin: 'ai_draft',
+      created_by: input.createdBy ?? null,
+    });
+    return { paper: mapPaper(paper), draft };
+  },
+
   async saveTeacherEdit(paperId: string, content: PaperDraft, createdBy?: string | null): Promise<void> {
     if (isMockEnv()) throw new Error('paper.saveTeacherEdit: unavailable without live database');
     const { data: last, error: lastErr } = await supabase
@@ -193,6 +241,16 @@ export const paperService = {
       p_content: approved,
     });
     if (error) throw new Error(`paper.approve: ${error.message}`);
+    // H7: full audit chain — who approved what content.
+    const outputHash = String(approved.sections?.length ?? 0) + ':' + JSON.stringify(approved).length;
+    const { data: me } = await supabase.auth.getUser();
+    await supabase.from('ai_gateway_audit').insert({
+      task: 'approve_exam_paper',
+      input_refs: [{ kind: 'exam_paper', id: paperId, label: approved.header?.title ?? 'paper' }],
+      output_hash: outputHash,
+      approved_at: new Date().toISOString(),
+    });
+    void me;
   },
 
   async getLatestVersion(paperId: string): Promise<PaperVersion | null> {

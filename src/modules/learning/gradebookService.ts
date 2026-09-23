@@ -37,6 +37,8 @@ export interface RubricMark {
   label: string;
   points: number;
   weight?: number;
+  /** Criterion ceiling (max level points) — never derived from earned points. */
+  maxPoints?: number;
   comment?: string | null;
   evidencePath?: string | null;
 }
@@ -93,6 +95,7 @@ export function buildRubricMarks(
     if (levelValue === undefined || levelValue === null) continue;
     const level = c.levels.find((l) => l.value === levelValue);
     if (!level) continue;
+    const maxPoints = Math.max(...c.levels.map((l) => Number(l.points) || 0), 0);
     marks.push({
       criterionId: c.id,
       criterionTitle: c.title,
@@ -100,6 +103,7 @@ export function buildRubricMarks(
       label: level.label,
       points: level.points,
       weight: c.weight == null ? 1 : Number(c.weight),
+      maxPoints,
     });
   }
   return marks;
