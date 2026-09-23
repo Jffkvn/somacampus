@@ -35,14 +35,35 @@ export interface PaperVersion {
   origin: 'ai_draft' | 'teacher_edit' | 'approved';
 }
 
+import {
+  draftExamPaper as gatewayDraftExamPaper,
+} from '../../lib/aiGateway';
+
 /**
- * Backend AI boundary. v1 = deterministic composition from structure+brief.
- * Swap for an LLM later without changing the teacher workflow.
+ * Backend AI boundary (AI-3): prefers the shared gateway
+ * (`ai-teaching-assistant` / draft_exam_paper). Falls back to deterministic
+ * composition when the gateway is unavailable (timeout → manual path rule).
  */
 export async function aiDraftPaper(
   structure: PaperStructure,
   brief: TeacherBrief,
 ): Promise<PaperDraft> {
+  try {
+    const res = await gatewayDraftExamPaper({
+      structure,
+      title: brief.title,
+      termLabel: brief.termLabel,
+      topics: brief.topics,
+      instructions: brief.instructions ?? null,
+      difficulty: brief.difficulty ?? null,
+    });
+    const paper = res.paper as unknown as PaperDraft;
+    if (paper?.sections?.length) {
+      return { ...paper, header: { ...paper.header, isDraft: true, origin: 'ai_draft' } };
+    }
+  } catch {
+    // fail closed → deterministic draft (teacher still approves)
+  }
   return draftExamPaper(structure, brief);
 }
 

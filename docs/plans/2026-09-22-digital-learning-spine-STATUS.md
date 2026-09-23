@@ -239,8 +239,8 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 |---|---|---|
 | AI-0 | Plan + principle + tracker | **Done** |
 | AI-1 | Payroll rule compare (2-month variance flags) | **Done** (`payrollVarianceDomain` + bursar panel on payroll dashboard) |
-| AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
-| AI-3 | Wire `draft_exam_paper` → gateway | Not started |
+| AI-2 | Payroll AI brief (`payroll_run_brief`) | **Done** (gateway action + panel AI brief, rule fallback) |
+| AI-3 | Wire `draft_exam_paper` → gateway | **Done** (gateway action + `aiDraftPaper` → gateway, deterministic fallback) |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
 | AI-5 | `explain_results` (evidence-cited) | Not started |
 | AI-6 | `draft_report_comment` (evidence-cited) | Not started |
@@ -259,8 +259,8 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 |---|---|---|
 | AI-0 | Plan + principle + tracker | **Done** |
 | AI-1 | Payroll rule compare (2-month variance flags) | **Done** (`payrollVarianceDomain` + bursar panel on payroll dashboard) |
-| AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
-| AI-3 | Wire `draft_exam_paper` → gateway | Not started |
+| AI-2 | Payroll AI brief (`payroll_run_brief`) | **Done** (gateway action + panel AI brief, rule fallback) |
+| AI-3 | Wire `draft_exam_paper` → gateway | **Done** (gateway action + `aiDraftPaper` → gateway, deterministic fallback) |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
 | AI-5 | `explain_results` (evidence-cited) | Not started |
 | AI-6 | `draft_report_comment` (evidence-cited) | Not started |
@@ -279,8 +279,8 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 |---|---|---|
 | AI-0 | Plan + principle + tracker | **Done** |
 | AI-1 | Payroll rule compare (2-month variance flags) | **Done** (`payrollVarianceDomain` + bursar panel on payroll dashboard) |
-| AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
-| AI-3 | Wire `draft_exam_paper` → gateway | Not started |
+| AI-2 | Payroll AI brief (`payroll_run_brief`) | **Done** (gateway action + panel AI brief, rule fallback) |
+| AI-3 | Wire `draft_exam_paper` → gateway | **Done** (gateway action + `aiDraftPaper` → gateway, deterministic fallback) |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
 | AI-5 | `explain_results` (evidence-cited) | Not started |
 | AI-6 | `draft_report_comment` (evidence-cited) | Not started |
@@ -299,8 +299,8 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 |---|---|---|
 | AI-0 | Plan + principle + tracker | **Done** |
 | AI-1 | Payroll rule compare (2-month variance flags) | **Done** (`payrollVarianceDomain` + bursar panel on payroll dashboard) |
-| AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
-| AI-3 | Wire `draft_exam_paper` → gateway | Not started |
+| AI-2 | Payroll AI brief (`payroll_run_brief`) | **Done** (gateway action + panel AI brief, rule fallback) |
+| AI-3 | Wire `draft_exam_paper` → gateway | **Done** (gateway action + `aiDraftPaper` → gateway, deterministic fallback) |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
 | AI-5 | `explain_results` (evidence-cited) | Not started |
 | AI-6 | `draft_report_comment` (evidence-cited) | Not started |
