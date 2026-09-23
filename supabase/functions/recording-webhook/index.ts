@@ -22,7 +22,14 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
+    const raw = await req.text();
+    if (raw.length > 50_000) {
+      return new Response(JSON.stringify({ error: "PAYLOAD_TOO_LARGE" }), {
+        status: 413,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const body = JSON.parse(raw);
     const {
       school_id: schoolId,
       session_id: sessionId,

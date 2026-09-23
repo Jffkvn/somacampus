@@ -16,25 +16,6 @@ export type AiAction =
   | 'timetable_explain'
   | 'regenerate_exam_question';
 
-/** AI-8: every gateway call is audited (who signed this?). */
-async function auditAiCall(action: AiAction, payload: Record<string, unknown>): Promise<void> {
-  try {
-    const inputRefs = Object.values(payload)
-      .flatMap((v) => (Array.isArray(v) ? v : [v]))
-      .filter((v): v is { id?: string; kind?: string; label?: string; employeeId?: string } => !!v && typeof v === 'object')
-      .map((v: any) => ({ kind: v.kind ?? 'input', id: String(v.id ?? v.employeeId ?? ''), label: String(v.label ?? v.detail ?? '') }))
-      .filter((r) => r.id);
-    await supabase.from('ai_gateway_audit').insert({
-      task: action,
-      input_refs: inputRefs,
-      model: null,
-      output_hash: null,
-    });
-  } catch {
-    // audit must never block the teacher
-  }
-}
-
 export async function callAiGateway<T = unknown>(
   action: AiAction,
   payload: Record<string, unknown>,
@@ -46,7 +27,7 @@ export async function callAiGateway<T = unknown>(
   if ((data as any)?.error) {
     throw new Error(`aiGateway: ${(data as any).message || (data as any).error}`);
   }
-  void auditAiCall(action, payload);
+  // Audit runs server-side in the edge function (cannot be skipped by the client).
   return data as T;
 }
 
