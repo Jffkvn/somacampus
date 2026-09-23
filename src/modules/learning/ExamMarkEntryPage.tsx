@@ -11,7 +11,8 @@ import { StatusPill } from '../../components/ui/StatusPill';
 import { AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { examService } from './examService';
 import { pctFor, type ExamCandidate, type ExamSitting } from './examDomain';
-import { parseMarkSheetText, confirmMarks, matchesStudent } from './markSheetDomain';
+import { parseMarkSheetText, confirmMarks, matchesStudent, canBulkConfirm } from './markSheetDomain';
+import { extractMarks } from '../../lib/aiGateway';
 
 export interface ExamMarkEntryPageProps {
   sittingId: string;
@@ -25,9 +26,10 @@ export const ExamMarkEntryPage: React.FC<ExamMarkEntryPageProps> = ({ sittingId 
   const [isLoading, setIsLoading] = useState(true);
   const [sheetText, setSheetText] = useState('');
   const [suggestions, setSuggestions] = useState<
-    Array<{ studentLabel: string; score: number | null; confidence: string }>
+    Array<{ studentLabel: string; score: number | null; confidence: 'high' | 'low'; sourceLine?: string | null }>
   >([]);
   const [confirmedLabels, setConfirmedLabels] = useState<string[]>([]);
+  const [editedScores, setEditedScores] = useState<Record<string, number>>({});
 
   const load = async () => {
     try {
@@ -70,9 +72,24 @@ export const ExamMarkEntryPage: React.FC<ExamMarkEntryPageProps> = ({ sittingId 
     }
   };
 
-  const parseSheet = () => {
-    const r = parseMarkSheetText(sheetText);
-    setSuggestions(r.suggestions);
+  const parseSheet = async () => {
+    try {
+      const res = await extractMarks({
+        sheetText,
+        rosterNames: candidates.map((c) => c.studentName ?? c.studentId),
+      });
+      setSuggestions(
+        res.suggestions.map((s) => ({
+          studentLabel: s.studentLabel,
+          score: s.score,
+          confidence: s.confidence,
+          sourceLine: s.sourceLine ?? null,
+        })),
+      );
+    } catch {
+      const r = parseMarkSheetText(sheetText);
+      setSuggestions(r.suggestions);
+    }
     setConfirmedLabels([]);
   };
 
@@ -81,6 +98,7 @@ export const ExamMarkEntryPage: React.FC<ExamMarkEntryPageProps> = ({ sittingId 
     const confirmed = confirmMarks(
       suggestions as Array<{ studentLabel: string; score: number | null; confidence: 'high' | 'low' }>,
       confirmedLabels,
+      editedScores,
     );
     for (const row of confirmed) {
       const cand = candidates.find((c) =>
@@ -198,6 +216,7 @@ export const ExamMarkEntryPage: React.FC<ExamMarkEntryPageProps> = ({ sittingId 
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
+                      disabled={!canBulkConfirm(s)}
                       checked={confirmedLabels.includes(s.studentLabel)}
                       onChange={(e) =>
                         setConfirmedLabels((prev) =>
@@ -208,10 +227,31 @@ export const ExamMarkEntryPage: React.FC<ExamMarkEntryPageProps> = ({ sittingId 
                       }
                     />
                     {s.studentLabel}
+                    {s.confidence === 'low' && (
+                      <span className="text-[10px] text-amber-700">edit required</span>
+                    )}
                   </label>
-                  <span>
-                    {s.score ?? '—'}{' '}
-                    <span className="text-xs text-slate-400">({s.confidence})</span>
+                  <span className="flex items-center gap-2">
+                    {canBulkConfirm(s) ? (
+                      <span>
+                        {s.score ?? '—'}{' '}
+                        <span className="text-xs text-slate-400">({s.confidence})</span>
+                      </span>
+                    ) : (
+                      <input
+                        className="w-16 px-2 py-1 text-xs border border-slate-200 rounded-lg text-right"
+                        inputMode="decimal"
+                        placeholder="mark"
+                        aria-label={`Edit mark for ${s.studentLabel}`}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setEditedScores((prev) => ({
+                            ...prev,
+                            [s.studentLabel.trim().toLowerCase()]: v,
+                          }));
+                        }}
+                      />
+                    )}
                   </span>
                 </li>
               ))}

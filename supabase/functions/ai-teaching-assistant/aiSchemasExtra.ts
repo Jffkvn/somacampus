@@ -21,6 +21,43 @@ export const ExamPaperSectionEdgeSchema = z.object({
   questions: z.array(ExamPaperQuestionEdgeSchema).min(1),
 });
 
+/** AI-4: mark-sheet suggestions (teacher confirms; never auto-write). */
+export const ExtractMarksEdgeSchema = z.object({
+  suggestions: z
+    .array(
+      z.object({
+        studentLabel: z.string().min(1),
+        score: z.number().nullable().default(null),
+        confidence: z.enum(['high', 'low']).default('low'),
+        sourceLine: z.string().default(''),
+      }),
+    )
+    .default([]),
+});
+
+/** AI-5: evidence-cited analysis (no invented facts). */
+export const ExplainResultsEdgeSchema = z.object({
+  claims: z
+    .array(
+      z.object({
+        title: z.string().min(1),
+        value: z.union([z.string(), z.number()]).nullable().default(null),
+        note: z.string().default(''),
+        evidence: z
+          .array(
+            z.object({
+              kind: z.string(),
+              id: z.string(),
+              label: z.string(),
+            }),
+          )
+          .default([]),
+      }),
+    )
+    .default([]),
+  summary: z.string().default(''),
+});
+
 export const ExamPaperDraftEdgeSchema = z.object({
   header: z.object({
     title: z.string().min(1),

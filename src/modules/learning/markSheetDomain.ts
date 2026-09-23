@@ -1,12 +1,14 @@
 /**
- * P3-E mark-sheet assist (pure). SUGGEST ONLY — teacher confirms.
+ * P3-E / AI-4 mark-sheet assist (pure). SUGGEST ONLY — teacher confirms.
  * Never writes learning_results without explicit confirm.
+ * Tiered: high confidence may bulk-confirm; low MUST be hand-edited.
  */
 
 export interface SuggestedMark {
   studentLabel: string;
   score: number | null;
   confidence: 'high' | 'low';
+  sourceLine?: string | null;
 }
 
 export interface MarkSheetParseResult {
@@ -37,20 +39,42 @@ export function parseMarkSheetText(text: string): MarkSheetParseResult {
       studentLabel: name,
       score,
       confidence: name.split(/\s+/).length >= 2 ? 'high' : 'low',
+      sourceLine: line,
     });
   }
   return { suggestions, rawLines: lines.length };
 }
 
-/** Only teacher-confirmed suggestions may enter the gradebook. */
+/** AI-4 LOCK: high = bulk ok · low = must hand-edit (cannot tick-only). */
+export function canBulkConfirm(suggestion: SuggestedMark): boolean {
+  return suggestion.confidence === 'high';
+}
+
+/**
+ * Teacher confirm gate — only confirmed marks may enter learning_results.
+ * Low-confidence rows require `editedOverrides` (hand-edited score).
+ */
 export function confirmMarks(
   suggestions: SuggestedMark[],
   confirmedLabels: string[],
+  editedOverrides?: Record<string, number>,
 ): Array<{ studentLabel: string; score: number }> {
   const set = new Set(confirmedLabels.map((s) => s.trim().toLowerCase()));
-  return suggestions
-    .filter((s) => s.score != null && set.has(s.studentLabel.trim().toLowerCase()))
-    .map((s) => ({ studentLabel: s.studentLabel, score: s.score as number }));
+  const out: Array<{ studentLabel: string; score: number }> = [];
+  for (const s of suggestions) {
+    const key = s.studentLabel.trim().toLowerCase();
+    const override = editedOverrides?.[key];
+    if (!canBulkConfirm(s)) {
+      if (override == null) continue;
+      out.push({ studentLabel: s.studentLabel, score: override });
+      continue;
+    }
+    if (!set.has(key)) continue;
+    const score = override ?? s.score;
+    if (score == null) continue;
+    out.push({ studentLabel: s.studentLabel, score });
+  }
+  return out;
 }
 
 export function matchesStudent(label: string, studentName: string): boolean {
