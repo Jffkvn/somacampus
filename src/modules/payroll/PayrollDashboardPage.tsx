@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PayrollVariancePanel } from './PayrollVariancePanel';
 import { payrollService } from './payrollService';
 import {
   PayrollPeriod,
@@ -187,6 +188,10 @@ export const PayrollDashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {/* AI-1: rule variance vs last two months — before bursar approve */}
+      {activeRun && (
+        <PayrollVariancePanel schoolId={effectiveSchoolId} runId={activeRun.id} />
+      )}
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80">
         <div>

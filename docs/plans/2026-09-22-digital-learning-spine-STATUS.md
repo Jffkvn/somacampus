@@ -126,7 +126,7 @@
 | `npm run verify:contracts` | **PASS** |
 | `npm run verify:migrations` | **PASS** (89 files, 0 errors, 15 pre-existing warnings) |
 | `npm run typecheck` | **PASS** |
-| Full `npm test` | **PASS** (949 passed, 26 skipped) |
+| Full `npm test` | **PASS** (953 passed, 26 skipped) |
 | UI confirmation (browser) | **PASS (signed-in)** — `scripts/verify-learning-ui-authed.mjs` logs in `student@somacampus.ug` + `teacher@somacampus.ug` against live Supabase. Student home: cockpit + Learning Coach + Office hours + catch-up + photo hand-in modal all present. Teacher today: marking queue + at-risk present. Screenshots `learn_*_authed.png` / `learn_login_*.png`. Report `docs/verification/learning-ui-authed-report.json`. Unauthenticated shell pass remains in `learning-ui-report.json` (SMOKE_ONLY). |
 | Write-path E2E (live mutations) | **PASS** — student photo hand-in wrote `learning_submissions` (state submitted); parent coach sign-off wrote `learning_coach_confirmations` (1.5h). Screenshots `e2e_*.png`, report `learning-write-path-report.json`. |
 | Rubric marking UI | **PASS (signed-in teacher)** — `e2e_rubric_marking_panel.png` shows criterion level taps + deterministic total. |
@@ -238,7 +238,7 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 | ID | Item | Status |
 |---|---|---|
 | AI-0 | Plan + principle + tracker | **Done** |
-| AI-1 | Payroll rule compare (2-month variance flags) | Not started |
+| AI-1 | Payroll rule compare (2-month variance flags) | **Done** (`payrollVarianceDomain` + bursar panel on payroll dashboard) |
 | AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
 | AI-3 | Wire `draft_exam_paper` → gateway | Not started |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
@@ -258,7 +258,7 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 | ID | Item | Status |
 |---|---|---|
 | AI-0 | Plan + principle + tracker | **Done** |
-| AI-1 | Payroll rule compare (2-month variance flags) | Not started |
+| AI-1 | Payroll rule compare (2-month variance flags) | **Done** (`payrollVarianceDomain` + bursar panel on payroll dashboard) |
 | AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
 | AI-3 | Wire `draft_exam_paper` → gateway | Not started |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
@@ -278,7 +278,7 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 | ID | Item | Status |
 |---|---|---|
 | AI-0 | Plan + principle + tracker | **Done** |
-| AI-1 | Payroll rule compare (2-month variance flags) | Not started |
+| AI-1 | Payroll rule compare (2-month variance flags) | **Done** (`payrollVarianceDomain` + bursar panel on payroll dashboard) |
 | AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
 | AI-3 | Wire `draft_exam_paper` → gateway | Not started |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
@@ -298,7 +298,7 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 | ID | Item | Status |
 |---|---|---|
 | AI-0 | Plan + principle + tracker | **Done** |
-| AI-1 | Payroll rule compare (2-month variance flags) | Not started |
+| AI-1 | Payroll rule compare (2-month variance flags) | **Done** (`payrollVarianceDomain` + bursar panel on payroll dashboard) |
 | AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
 | AI-3 | Wire `draft_exam_paper` → gateway | Not started |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
