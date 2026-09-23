@@ -11,7 +11,28 @@ export type AiAction =
   | 'payroll_run_brief'
   | 'draft_exam_paper'
   | 'extract_marks'
-  | 'explain_results';
+  | 'explain_results'
+  | 'draft_report_comment'
+  | 'timetable_explain';
+
+/** AI-8: every gateway call is audited (who signed this?). */
+async function auditAiCall(action: AiAction, payload: Record<string, unknown>): Promise<void> {
+  try {
+    const inputRefs = Object.values(payload)
+      .flatMap((v) => (Array.isArray(v) ? v : [v]))
+      .filter((v): v is { id?: string; kind?: string; label?: string; employeeId?: string } => !!v && typeof v === 'object')
+      .map((v: any) => ({ kind: v.kind ?? 'input', id: String(v.id ?? v.employeeId ?? ''), label: String(v.label ?? v.detail ?? '') }))
+      .filter((r) => r.id);
+    await supabase.from('ai_gateway_audit').insert({
+      task: action,
+      input_refs: inputRefs,
+      model: null,
+      output_hash: null,
+    });
+  } catch {
+    // audit must never block the teacher
+  }
+}
 
 export async function callAiGateway<T = unknown>(
   action: AiAction,
@@ -24,17 +45,16 @@ export async function callAiGateway<T = unknown>(
   if ((data as any)?.error) {
     throw new Error(`aiGateway: ${(data as any).message || (data as any).error}`);
   }
+  void auditAiCall(action, payload);
   return data as T;
 }
 
-/** AI-2: narrate rule flags only. */
 export async function payrollRunBrief(
   flags: Array<{ code: string; employeeName?: string | null; employeeId: string; detail: string }>,
 ): Promise<{ brief: string; highlights: string[] }> {
   return callAiGateway('payroll_run_brief', { flags });
 }
 
-/** AI-3: backend AI drafts paper (teacher still approves). */
 export async function draftExamPaper(input: {
   structure: unknown;
   title: string;
@@ -46,7 +66,6 @@ export async function draftExamPaper(input: {
   return callAiGateway('draft_exam_paper', input);
 }
 
-/** AI-4: extract marks (tiered confirm required; never auto-write). */
 export async function extractMarks(input: {
   sheetText: string;
   rosterNames?: string[];
@@ -61,7 +80,6 @@ export async function extractMarks(input: {
   return callAiGateway('extract_marks', input);
 }
 
-/** AI-5: evidence-cited analysis (claims must carry evidence refs). */
 export async function explainResults(input: {
   evidence: Array<{ kind: string; id: string; label: string }>;
   context?: string;
@@ -75,4 +93,24 @@ export async function explainResults(input: {
   summary: string;
 }> {
   return callAiGateway('explain_results', input);
+}
+
+/** AI-6: evidence-cited report/parent comment draft (teacher edits + Issues). */
+export async function draftReportComment(input: {
+  learnerName: string;
+  evidence: Array<{ kind: string; id: string; label: string }>;
+  tone?: string;
+}): Promise<{ comment: string; commentRefs: Array<{ kind: string; id: string; label: string }> }> {
+  return callAiGateway('draft_report_comment', input);
+}
+
+/** AI-7: timetable explain / propose swaps (Principal still attests). */
+export async function timetableExplain(input: {
+  scorecard: unknown;
+  constraints?: unknown;
+}): Promise<{
+  explanation: string;
+  swaps: Array<{ summary: string; scorecardDelta: string }>;
+}> {
+  return callAiGateway('timetable_explain', input);
 }

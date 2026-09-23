@@ -30,6 +30,8 @@ import {
   ExamPaperDraftEdgeSchema,
   ExtractMarksEdgeSchema,
   ExplainResultsEdgeSchema,
+  ReportCommentEdgeSchema,
+  TimetableExplainEdgeSchema,
 } from "./aiSchemasExtra.ts";
 
 const corsHeaders = {
@@ -45,7 +47,9 @@ interface RequestPayload {
     | "payroll_run_brief"
     | "draft_exam_paper"
     | "extract_marks"
-    | "explain_results";
+    | "explain_results"
+    | "draft_report_comment"
+    | "timetable_explain";
   payload: Record<string, any>;
 }
 
@@ -572,6 +576,69 @@ Output strictly valid JSON:
           status: "suggested",
           isAiSuggested: true,
         }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // AI-6: report comment draft — evidence-cited only. Teacher edits + Issues.
+    if (action === "draft_report_comment") {
+      const prompt = `
+You are a school teacher writing a term comment. Use ONLY the evidence below.
+Do not invent facts or imply mastery beyond the evidence. Cite evidence ids in commentRefs.
+Learner: ${payload.learnerName ?? "Learner"}
+Evidence: ${JSON.stringify(payload.evidence ?? [])}
+Tone preset (hint only): ${payload.tone ?? "formal_cambridge"}
+
+Output strictly valid JSON:
+{ "comment": "string", "commentRefs": [ { "kind": "string", "id": "string", "label": "string" } ] }
+`;
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = ReportCommentEdgeSchema.safeParse(parsed);
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
+        }
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
+      }
+      return new Response(
+        JSON.stringify({ provider: provider.provider, ...validated, status: "draft", isAiSuggested: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // AI-7: timetable explain / propose swap (scorecard stays authoritative).
+    if (action === "timetable_explain") {
+      const prompt = `
+You are a school timetable assistant. Explain scorecard gaps and propose candidate swaps ONLY.
+Never claim a published timetable change — Principal attests.
+Scorecard: ${JSON.stringify(payload.scorecard ?? {})}
+Constraints: ${JSON.stringify(payload.constraints ?? {})}
+
+Output strictly valid JSON:
+{ "explanation": "string", "swaps": [ { "summary": "string", "scorecardDelta": "string" } ] }
+`;
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = TimetableExplainEdgeSchema.safeParse(parsed);
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
+        }
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
+      }
+      return new Response(
+        JSON.stringify({ provider: provider.provider, ...validated, status: "suggested", isAiSuggested: true }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
