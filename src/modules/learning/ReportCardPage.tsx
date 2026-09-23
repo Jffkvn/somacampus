@@ -11,6 +11,7 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { AlertCircle, Printer } from 'lucide-react';
 import { reportCardService } from './reportCardService';
 import type { TermReportCard } from './reportCardDomain';
+import { draftReportComment } from '../../lib/aiGateway';
 
 export interface ReportCardPageProps {
   schoolId: string;
@@ -192,9 +193,38 @@ export const ReportCardPage: React.FC<ReportCardPageProps> = ({
                       placeholder="Human comment only — never auto-written grades."
                       className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white"
                     />
-                    <Button type="button" size="sm" className="mt-2" onClick={() => void load()}>
-                      Refresh report with comment
-                    </Button>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const subj = (card?.subjects ?? []) as any[];
+                            const evidence = subj.flatMap((s: any) =>
+                              (s.assessments ?? []).map((a: any) => ({
+                                kind: 'learning_result',
+                                id: String(a.title ?? ''),
+                                label: `${s.subjectName ?? 'Subject'}: ${a.title ?? ''}`,
+                              })),
+                            );
+                            const res = await draftReportComment({
+                              learnerName: String(card?.learnerName ?? 'Learner'),
+                              evidence,
+                              tone: 'formal_cambridge',
+                            });
+                            setComment(res.comment);
+                          } catch {
+                            /* fail closed — teacher writes manually */
+                          }
+                        }}
+                      >
+                        AI draft (edit before Issue)
+                      </Button>
+                      <Button type="button" size="sm" onClick={() => void load()}>
+                        Refresh report with comment
+                      </Button>
+                    </div>
                   </>
                 ) : (
                   <p className="text-sm text-slate-700">{card.teacherComment ?? '—'}</p>

@@ -243,9 +243,9 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 | AI-3 | Wire `draft_exam_paper` → gateway | **Done** (gateway action + `aiDraftPaper` → gateway, deterministic fallback) |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | **Done** (gateway action + high/low confirm UI) |
 | AI-5 | `explain_results` (evidence-cited) | **Done** (gateway action + AI summary on analytics panel) |
-| AI-6 | `draft_report_comment` (evidence-cited) | Not started |
-| AI-7 | Timetable explain / propose swap | Not started |
-| AI-8 | `ai_gateway_audit` | Not started |
+| AI-6 | `draft_report_comment` (evidence-cited) | **Done** (gateway + AI draft on report card; teacher edits/Issues) |
+| AI-7 | Timetable explain / propose swap | **Done** (gateway `timetable_explain`; scorecard stays authoritative) |
+| AI-8 | `ai_gateway_audit` | **Done** (migration 047 + client audit on every gateway call) |
 | AI-9 | HR / comms polish | Not started |
 
 ---
@@ -263,9 +263,9 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 | AI-3 | Wire `draft_exam_paper` → gateway | **Done** (gateway action + `aiDraftPaper` → gateway, deterministic fallback) |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | **Done** (gateway action + high/low confirm UI) |
 | AI-5 | `explain_results` (evidence-cited) | **Done** (gateway action + AI summary on analytics panel) |
-| AI-6 | `draft_report_comment` (evidence-cited) | Not started |
-| AI-7 | Timetable explain / propose swap | Not started |
-| AI-8 | `ai_gateway_audit` | Not started |
+| AI-6 | `draft_report_comment` (evidence-cited) | **Done** (gateway + AI draft on report card; teacher edits/Issues) |
+| AI-7 | Timetable explain / propose swap | **Done** (gateway `timetable_explain`; scorecard stays authoritative) |
+| AI-8 | `ai_gateway_audit` | **Done** (migration 047 + client audit on every gateway call) |
 | AI-9 | HR / comms polish | Not started |
 
 ---
@@ -283,9 +283,9 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 | AI-3 | Wire `draft_exam_paper` → gateway | **Done** (gateway action + `aiDraftPaper` → gateway, deterministic fallback) |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | **Done** (gateway action + high/low confirm UI) |
 | AI-5 | `explain_results` (evidence-cited) | **Done** (gateway action + AI summary on analytics panel) |
-| AI-6 | `draft_report_comment` (evidence-cited) | Not started |
-| AI-7 | Timetable explain / propose swap | Not started |
-| AI-8 | `ai_gateway_audit` | Not started |
+| AI-6 | `draft_report_comment` (evidence-cited) | **Done** (gateway + AI draft on report card; teacher edits/Issues) |
+| AI-7 | Timetable explain / propose swap | **Done** (gateway `timetable_explain`; scorecard stays authoritative) |
+| AI-8 | `ai_gateway_audit` | **Done** (migration 047 + client audit on every gateway call) |
 | AI-9 | HR / comms polish | Not started |
 
 ---
@@ -303,9 +303,9 @@ One gateway · risk-tiered gates · manual marks default · audit every call.
 | AI-3 | Wire `draft_exam_paper` → gateway | **Done** (gateway action + `aiDraftPaper` → gateway, deterministic fallback) |
 | AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | **Done** (gateway action + high/low confirm UI) |
 | AI-5 | `explain_results` (evidence-cited) | **Done** (gateway action + AI summary on analytics panel) |
-| AI-6 | `draft_report_comment` (evidence-cited) | Not started |
-| AI-7 | Timetable explain / propose swap | Not started |
-| AI-8 | `ai_gateway_audit` | Not started |
+| AI-6 | `draft_report_comment` (evidence-cited) | **Done** (gateway + AI draft on report card; teacher edits/Issues) |
+| AI-7 | Timetable explain / propose swap | **Done** (gateway `timetable_explain`; scorecard stays authoritative) |
+| AI-8 | `ai_gateway_audit` | **Done** (migration 047 + client audit on every gateway call) |
 | AI-9 | HR / comms polish | Not started |
 
 ---
