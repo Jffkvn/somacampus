@@ -48,8 +48,14 @@ Past papers / format template
 | **P3-C** | **Paper production** | Format template from past paper (sections, marks, stems heuristics) · topic-driven draft · teacher edit/approve · **printable PDF** | Not started |
 | **P3-D** | **Issued term reports** | Issue snapshot (immutable) · marks per subject · mean/total/aggregate · comments · branding · print + parent portal | Not started |
 | **P3-E** | **Results slip** | Compact formal output (subjects, marks, grades, aggregate/division, school header) | Not started |
-| **P3-F** | **Paper evidence + mark-sheet assist** | Attach photo/scan of mark sheet or script · **suggest** extracted marks · teacher **confirm** | Not started |
-| **P3-G** | **Promotion record (thin)** | Year → next · promoted/repeat/transfer · decided by + date + reason | Not started |
+| **P3-F** | **Paper evidence + mark-sheet assist** | Attach photo/scan of mark sheet or script · **suggest** extracted marks · teacher **confirm**. **Cost policy (LOCK):** manual per-class mark entry is the default; photo/OCR assist is school-config **off by default** (small schools / one-offs — not 1,000+ learner exam weeks). | **Done (assist UI; photo path optional)** |
+| **P3-G** | **Promotion record (thin)** | Year → next · promoted/repeat/transfer · decided by + date + reason | **Done** |
+
+### Mark entry cost policy (LOCK 2026-09-22)
+1. **Default: manual mark sheet per class** — teacher types marks (P3-B). No AI, no token cost, full human ownership.
+2. **Photo/OCR assist is optional** — school feature flag, **off by default**. Suitable for small schools or recovering one sheet, **not** Auror-scale (1,000+ students) exam weeks.
+3. Manual never waits for AI. AI extract **never** writes `learning_results` without teacher confirm.
+4. Same gateway (`ai-teaching-assistant` / `GEMINI_API_KEY`) if enabled — no separate OCR stack.
 
 ### Explicitly out of P3
 - Online invigilation · webcam proctoring · seating · biometrics · secure exam browser · live exam monitoring  

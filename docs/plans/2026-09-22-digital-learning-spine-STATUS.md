@@ -224,6 +224,8 @@ Principle: digitise where software adds value; fit around paper/teacher-led work
 | P3-E | Mark-sheet photo assist (suggest → confirm) | **Done** (`markSheetDomain` + exam mark entry UI) |
 | P3-G | Promotion record (thin) | **Done** (migration 046 + `promotionDomain`) |
 
+**Mark entry cost policy (LOCK):** manual per-class mark sheet is the default; photo/OCR assist is school-config **off by default** (small schools only — not 1,000+ student exam weeks). See P3 plan.
+
 **P3 Assessment & Academic Records core is complete.** Customer-funded only: digital exam hall (P4).
 
 Testing rule: unit tests + **signed-in UI tests with screenshots for every role touched** + STATUS updated in the same PR.
