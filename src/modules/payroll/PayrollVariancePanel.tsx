@@ -8,6 +8,7 @@ import { StatusPill } from '../../components/ui/StatusPill';
 import { AlertCircle, ShieldAlert } from 'lucide-react';
 import { payrollVarianceService } from './payrollVarianceService';
 import { summarizeVariance, type VarianceReport } from './payrollVarianceDomain';
+import { payrollRunBrief } from '../../lib/aiGateway';
 
 export interface PayrollVariancePanelProps {
   schoolId: string;
@@ -16,6 +17,7 @@ export interface PayrollVariancePanelProps {
 
 export const PayrollVariancePanel: React.FC<PayrollVariancePanelProps> = ({ schoolId, runId }) => {
   const [report, setReport] = useState<VarianceReport | null>(null);
+  const [aiBrief, setAiBrief] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -24,7 +26,23 @@ export const PayrollVariancePanel: React.FC<PayrollVariancePanelProps> = ({ scho
       try {
         setIsLoading(true);
         setError(null);
-        setReport(await payrollVarianceService.varianceForRun(schoolId, runId));
+        setAiBrief(null);
+        const r = await payrollVarianceService.varianceForRun(schoolId, runId);
+        setReport(r);
+        if (r && r.totals.flagCount > 0) {
+          // AI-2: narrate flags only (timeout → rule brief fallback).
+          const flags = r.rows.flatMap((row) =>
+            row.flags.map((f) => ({
+              code: f.code,
+              employeeId: f.employeeId,
+              employeeName: f.employeeName,
+              detail: f.detail,
+            })),
+          );
+          payrollRunBrief(flags)
+            .then((res) => setAiBrief(res.brief))
+            .catch(() => setAiBrief(null));
+        }
       } catch (err: any) {
         setError(err?.message ?? 'Could not run payroll variance compare');
       } finally {
@@ -69,6 +87,12 @@ export const PayrollVariancePanel: React.FC<PayrollVariancePanelProps> = ({ scho
         {report && (
           <>
             <p className="text-sm text-slate-600">{summarizeVariance(report)}</p>
+            {aiBrief && (
+              <p className="text-sm text-slate-700 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                <span className="text-[10px] uppercase tracking-wide text-slate-400 block mb-1">AI brief (suggest only)</span>
+                {aiBrief}
+              </p>
+            )}
             {report.rows.filter((r) => r.flags.length > 0).length === 0 ? (
               <p className="text-sm text-slate-400">No anomalies vs the previous two runs.</p>
             ) : (

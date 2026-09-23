@@ -25,6 +25,10 @@ import {
   ObservationDraftEdgeSchema,
   InterventionDraftEdgeSchema,
 } from "./aiSchemas.ts";
+import {
+  PayrollBriefEdgeSchema,
+  ExamPaperDraftEdgeSchema,
+} from "./aiSchemasExtra.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,7 +36,12 @@ const corsHeaders = {
 };
 
 interface RequestPayload {
-  action: "generate_assignment" | "extract_work_observation" | "suggest_intervention";
+  action:
+    | "generate_assignment"
+    | "extract_work_observation"
+    | "suggest_intervention"
+    | "payroll_run_brief"
+    | "draft_exam_paper";
   payload: Record<string, any>;
 }
 
@@ -403,6 +412,87 @@ Output strictly valid JSON:
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // AI-2: narrate deterministic payroll variance flags only. Never posts payroll.
+    if (action === "payroll_run_brief") {
+      const prompt = `
+You are a school finance assistant. Explain ONLY the variance flags below.
+Do NOT invent numbers, staff names, or reasons that are not in the flags.
+Flags (from deterministic SQL compare):
+${(payload.flags ?? []).map((f: any) => `- [${f.code}] ${f.employeeName ?? f.employeeId}: ${f.detail}`).join("\n") || "(none)"}
+
+Write a short formal brief for the Bursar (3-6 sentences).
+Output strictly valid JSON:
+{ "brief": "string", "highlights": ["string"] }
+`;
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = PayrollBriefEdgeSchema.safeParse(parsed);
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
+        }
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
+      }
+      return new Response(
+        JSON.stringify({
+          provider: provider.provider,
+          brief: validated.brief,
+          highlights: validated.highlights,
+          status: "draft",
+          isAiSuggested: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // AI-3: draft exam paper from past-paper structure + teacher brief. Teacher approves.
+    if (action === "draft_exam_paper") {
+      const prompt = `
+You are an expert exam paper setter. Draft a NEW paper using the structure and teacher brief.
+Do NOT copy unique items verbatim from the past paper. Teacher owns final approval.
+Structure (from past paper):
+${JSON.stringify(payload.structure ?? {})}
+Teacher brief: title=${payload.title}, term=${payload.termLabel}, topics=${(payload.topics ?? []).join(", ")}, instructions=${payload.instructions ?? ""}
+Difficulty hint only (never a grade prediction): ${payload.difficulty ?? "mixed"}
+
+Output strictly valid JSON:
+{
+  "header": { "title": "string", "termLabel": "string", "timeMinutes": number|null, "totalMarks": number, "instructions": "string", "isDraft": true, "origin": "ai_draft" },
+  "sections": [
+    { "code": "string", "title": "string", "questions": [ { "n": number, "text": "string", "marks": number, "topic": "string" } ] }
+  ]
+}
+`;
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = ExamPaperDraftEdgeSchema.safeParse(parsed);
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
+        }
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
+      }
+      return new Response(
+        JSON.stringify({
+          provider: provider.provider,
+          paper: validated,
+          status: "draft",
+          isAiSuggested: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), {
