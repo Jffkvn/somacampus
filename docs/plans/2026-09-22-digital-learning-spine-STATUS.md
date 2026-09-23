@@ -228,4 +228,103 @@ Principle: digitise where software adds value; fit around paper/teacher-led work
 
 **P3 Assessment & Academic Records core is complete.** Customer-funded only: digital exam hall (P4).
 
+---
+
+## 10. AI Gateway tracker (whole product)
+
+Full plan: [`2026-09-22-ai-gateway-plan.md`](./2026-09-22-ai-gateway-plan.md)  
+One gateway · risk-tiered gates · manual marks default · audit every call.
+
+| ID | Item | Status |
+|---|---|---|
+| AI-0 | Plan + principle + tracker | **Done** |
+| AI-1 | Payroll rule compare (2-month variance flags) | Not started |
+| AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
+| AI-3 | Wire `draft_exam_paper` → gateway | Not started |
+| AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
+| AI-5 | `explain_results` (evidence-cited) | Not started |
+| AI-6 | `draft_report_comment` (evidence-cited) | Not started |
+| AI-7 | Timetable explain / propose swap | Not started |
+| AI-8 | `ai_gateway_audit` | Not started |
+| AI-9 | HR / comms polish | Not started |
+
+---
+
+## 10. AI Gateway tracker (whole product)
+
+Full plan: [`2026-09-22-ai-gateway-plan.md`](./2026-09-22-ai-gateway-plan.md)  
+One gateway · risk-tiered gates · manual marks default · audit every call.
+
+| ID | Item | Status |
+|---|---|---|
+| AI-0 | Plan + principle + tracker | **Done** |
+| AI-1 | Payroll rule compare (2-month variance flags) | Not started |
+| AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
+| AI-3 | Wire `draft_exam_paper` → gateway | Not started |
+| AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
+| AI-5 | `explain_results` (evidence-cited) | Not started |
+| AI-6 | `draft_report_comment` (evidence-cited) | Not started |
+| AI-7 | Timetable explain / propose swap | Not started |
+| AI-8 | `ai_gateway_audit` | Not started |
+| AI-9 | HR / comms polish | Not started |
+
+---
+
+## 10. AI Gateway tracker (whole product)
+
+Full plan: [`2026-09-22-ai-gateway-plan.md`](./2026-09-22-ai-gateway-plan.md)  
+One gateway · risk-tiered gates · manual marks default · audit every call.
+
+| ID | Item | Status |
+|---|---|---|
+| AI-0 | Plan + principle + tracker | **Done** |
+| AI-1 | Payroll rule compare (2-month variance flags) | Not started |
+| AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
+| AI-3 | Wire `draft_exam_paper` → gateway | Not started |
+| AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
+| AI-5 | `explain_results` (evidence-cited) | Not started |
+| AI-6 | `draft_report_comment` (evidence-cited) | Not started |
+| AI-7 | Timetable explain / propose swap | Not started |
+| AI-8 | `ai_gateway_audit` | Not started |
+| AI-9 | HR / comms polish | Not started |
+
+---
+
+## 10. AI Gateway tracker (whole product)
+
+Full plan: [`2026-09-22-ai-gateway-plan.md`](./2026-09-22-ai-gateway-plan.md)  
+One gateway · risk-tiered gates · manual marks default · audit every call.
+
+| ID | Item | Status |
+|---|---|---|
+| AI-0 | Plan + principle + tracker | **Done** |
+| AI-1 | Payroll rule compare (2-month variance flags) | Not started |
+| AI-2 | Payroll AI brief (`payroll_run_brief`) | Not started |
+| AI-3 | Wire `draft_exam_paper` → gateway | Not started |
+| AI-4 | Wire `extract_marks` + tiered confirm (photo off by default) | Not started |
+| AI-5 | `explain_results` (evidence-cited) | Not started |
+| AI-6 | `draft_report_comment` (evidence-cited) | Not started |
+| AI-7 | Timetable explain / propose swap | Not started |
+| AI-8 | `ai_gateway_audit` | Not started |
+| AI-9 | HR / comms polish | Not started |
+
+---
+
+## 10. AI Gateway tracker
+
+Full plan: [`2026-09-22-ai-gateway-plan.md`](./2026-09-22-ai-gateway-plan.md)  
+One gateway · risk-tiered gates · manual marks default · audit every call.
+
+| ID | Item | Status |
+|---|---|---|
+| AI-0 | Gateway (`ai-teaching-assistant` + Gemini provider) | **Done (pre-existing)** |
+| AI-1 | Payroll variance compare (rules, last 2 months) | Not started |
+| AI-2 | Payroll run brief (AI explains flags) | Not started |
+| AI-3 | `draft_exam_paper` → gateway | Not started |
+| AI-4 | `extract_marks` + tiered confirm (photo off by default) | Not started |
+| AI-5 | `explain_results` + `draft_report_comment` (evidence-cited) | Not started |
+| AI-6 | `timetable_explain` / `propose_swap` | Not started |
+| AI-7 | `ai_gateway_audit` | Not started |
+| AI-8 | OpenAI provider arm | Deferred |
+
 Testing rule: unit tests + **signed-in UI tests with screenshots for every role touched** + STATUS updated in the same PR.
