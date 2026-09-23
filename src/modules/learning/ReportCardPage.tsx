@@ -12,6 +12,7 @@ import { AlertCircle, Printer } from 'lucide-react';
 import { reportCardService } from './reportCardService';
 import type { TermReportCard } from './reportCardDomain';
 import { draftReportComment } from '../../lib/aiGateway';
+import { ReportPackDocument } from './ReportPackDocument';
 
 export interface ReportCardPageProps {
   schoolId: string;
@@ -99,6 +100,7 @@ export const ReportCardPage: React.FC<ReportCardPageProps> = ({
         </Card>
       )}
 
+      {card && <ReportPackDocument report={card} schoolCode="GCC" />}
       {card && (
         <>
           <Card>

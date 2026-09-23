@@ -182,9 +182,10 @@ export const ExamMarkEntryPage: React.FC<ExamMarkEntryPageProps> = ({ sittingId 
       {/* P3-E mark-sheet assist — suggest only; teacher confirms */}
       <Card>
         <CardHeader>
-          <CardTitle>Mark-sheet assist (suggest → confirm)</CardTitle>
+          <CardTitle>Mark-sheet assist (read first-page marks → confirm)</CardTitle>
           <CardDescription>
-            Paste OCR/text from the paper mark sheet. Suggested marks never write the gradebook until you confirm.
+            Paste/photo text of the marks the teacher wrote on the first page. We only read those figures —
+            never invent a score. Confirm every number before it enters the academic record.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

@@ -13,7 +13,8 @@ export type AiAction =
   | 'extract_marks'
   | 'explain_results'
   | 'draft_report_comment'
-  | 'timetable_explain';
+  | 'timetable_explain'
+  | 'regenerate_exam_question';
 
 /** AI-8: every gateway call is audited (who signed this?). */
 async function auditAiCall(action: AiAction, payload: Record<string, unknown>): Promise<void> {
@@ -113,4 +114,14 @@ export async function timetableExplain(input: {
   swaps: Array<{ summary: string; scorecardDelta: string }>;
 }> {
   return callAiGateway('timetable_explain', input);
+}
+
+/** Per-question regenerate (teacher edit aid — not a grade). */
+export async function regenerateExamQuestion(input: {
+  n: number;
+  questionText: string;
+  topic: string;
+  marks: number;
+}): Promise<{ question: { n: number; text: string; marks: number; topic: string } }> {
+  return callAiGateway('regenerate_exam_question', input);
 }

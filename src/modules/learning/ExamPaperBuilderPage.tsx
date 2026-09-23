@@ -222,6 +222,39 @@ export const ExamPaperBuilderPage: React.FC<ExamPaperBuilderPageProps> = ({
                     <li key={q.n}>
                       {q.text}{' '}
                       <span className="text-xs text-slate-400">[{q.marks} marks]</span>
+                      <button
+                        type="button"
+                        className="ml-2 text-[11px] font-semibold text-brand-teal hover:underline print:hidden"
+                        onClick={async () => {
+                          try {
+                            const { regenerateExamQuestion } = await import('../../lib/aiGateway');
+                            const res = await regenerateExamQuestion({
+                              n: q.n,
+                              questionText: q.text,
+                              topic: q.topic,
+                              marks: q.marks,
+                            });
+                            const next = {
+                              ...draft,
+                              sections: draft.sections.map((s) =>
+                                s.code !== sec.code
+                                  ? s
+                                  : {
+                                      ...s,
+                                      questions: s.questions.map((item) =>
+                                        item.n === q.n ? { ...item, text: res.question.text } : item,
+                                      ),
+                                    },
+                              ),
+                            };
+                            setDraft(next);
+                          } catch {
+                            /* fail closed — teacher edits by hand */
+                          }
+                        }}
+                      >
+                        Redo this question
+                      </button>
                     </li>
                   ))}
                 </ol>
