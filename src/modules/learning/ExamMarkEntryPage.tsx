@@ -25,6 +25,7 @@ export const ExamMarkEntryPage: React.FC<ExamMarkEntryPageProps> = ({ sittingId 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sheetText, setSheetText] = useState('');
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<
     Array<{ studentLabel: string; score: number | null; confidence: 'high' | 'low'; sourceLine?: string | null }>
   >([]);
@@ -76,6 +77,7 @@ export const ExamMarkEntryPage: React.FC<ExamMarkEntryPageProps> = ({ sittingId 
     try {
       const res = await extractMarks({
         sheetText,
+        photoDataUrl,
         rosterNames: candidates.map((c) => c.studentName ?? c.studentId),
       });
       setSuggestions(
@@ -189,6 +191,28 @@ export const ExamMarkEntryPage: React.FC<ExamMarkEntryPageProps> = ({ sittingId 
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <label className="block text-xs font-semibold text-slate-600 mb-1">
+            Option B — photo of first-page marks (optional)
+          </label>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="block w-full text-xs mb-2"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              const reader = new FileReader();
+              reader.onload = () => setPhotoDataUrl(String(reader.result || ''));
+              reader.readAsDataURL(f);
+            }}
+          />
+          {photoDataUrl && (
+            <img src={photoDataUrl} alt="Mark sheet first page" className="max-h-40 rounded-lg border border-slate-200 mb-2" />
+          )}
+          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">
+            Or paste mark-sheet text (manual read)
+          </label>
           <textarea
             className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white"
             rows={4}

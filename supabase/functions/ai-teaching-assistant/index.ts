@@ -66,7 +66,7 @@ function json(body: unknown, status = 200): Response {
  * Call Gemini generateContent and return the parsed JSON payload.
  * Transport failures -> 500 AI_PROVIDER_ERROR; malformed JSON -> 500 AI_INVALID_OUTPUT.
  */
-async function callGeminiJson(cfg: ProviderConfig, prompt: string): Promise<unknown> {
+async function callGeminiJson(cfg: ProviderConfig, prompt: string, photoDataUrl?: string | null): Promise<unknown> {
   let response: Response;
   try {
     if (cfg.provider === "openai") {
@@ -81,18 +81,44 @@ async function callGeminiJson(cfg: ProviderConfig, prompt: string): Promise<unkn
           body: JSON.stringify({
             model: cfg.model,
             response_format: { type: "json_object" },
-            messages: [{ role: "user", content: prompt }],
+            messages: [
+              {
+                role: "user",
+                content: photoDataUrl
+                  ? [
+                      { type: "text", text: prompt },
+                      { type: "image_url", image_url: { url: photoDataUrl } },
+                    ]
+                  : prompt,
+              },
+            ],
           }),
         },
       );
     } else {
+    const contents = photoDataUrl
+      ? [
+          {
+            role: "user",
+            parts: [
+              { text: prompt },
+              {
+                inline_data: {
+                  mime_type: photoDataUrl.slice(5, photoDataUrl.indexOf(";")) || "image/jpeg",
+                  data: photoDataUrl.slice(photoDataUrl.indexOf(",") + 1),
+                },
+              },
+            ],
+          },
+        ]
+      : [{ parts: [{ text: prompt }] }];
     response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent?key=${cfg.apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          contents,
           generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
         }),
       }
@@ -577,7 +603,7 @@ Output strictly valid JSON:
 `;
       let validated;
       try {
-        const parsed = await callGeminiJson(provider, prompt);
+        const parsed = await callGeminiJson(provider, prompt, payload.photoDataUrl ?? null);
         const checked = ExtractMarksEdgeSchema.safeParse(parsed);
         if (!checked.success) {
           throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));

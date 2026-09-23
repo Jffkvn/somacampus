@@ -9,7 +9,7 @@ import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { AlertCircle, Printer } from 'lucide-react';
-import { reportCardService } from './reportCardService';
+import { reportCardService, currentAcademicWindow } from './reportCardService';
 import type { TermReportCard } from './reportCardDomain';
 import { draftReportComment } from '../../lib/aiGateway';
 import { ReportPackDocument } from './ReportPackDocument';
@@ -20,15 +20,6 @@ export interface ReportCardPageProps {
   studentIdOrEmail: string;
   /** Who is commenting: teacher writes; parent views read-only. */
   canComment?: boolean;
-}
-
-function termWindow(): { fromIso: string; toIso: string; termLabel: string } {
-  const now = new Date();
-  // Rolling 90-day academic window (term label is explicit, not invented).
-  const from = new Date(now.getTime() - 90 * 86400000);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const termLabel = `Term window ${iso(from)} → ${iso(now)}`;
-  return { fromIso: iso(from), toIso: iso(now), termLabel };
 }
 
 const EVIDENCE_PILL: Record<string, 'success' | 'pending' | 'neutral'> = {
@@ -52,7 +43,7 @@ export const ReportCardPage: React.FC<ReportCardPageProps> = ({
     try {
       setIsLoading(true);
       setError(null);
-      const w = termWindow();
+      const w = await currentAcademicWindow(schoolId);
       const built = await reportCardService.buildForStudent({
         studentIdOrEmail,
         schoolId,
@@ -100,7 +91,12 @@ export const ReportCardPage: React.FC<ReportCardPageProps> = ({
         </Card>
       )}
 
-      {card && <ReportPackDocument report={card} schoolCode="GCC" />}
+      {card && (
+        <ReportPackDocument
+          report={card}
+          schoolCode={card.schoolName.slice(0, 3).toUpperCase() || 'SCH'}
+        />
+      )}
       {card && (
         <>
           <Card>

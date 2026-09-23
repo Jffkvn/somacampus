@@ -1,6 +1,19 @@
 # Digital Learning Spine — STATUS / HANDOFF
 
-**Last updated:** 2026-09-22 (P0–P3 complete · Trust Gate green)  
+**Last updated:** 2026-09-22 (P0–P3 + AI Gateway complete · hardening pass)
+
+## CURRENT STATE (read this first)
+
+| Track | State |
+|---|---|
+| P0 Learning spine | **Done** |
+| P1 Online school ops | **Done** |
+| P2 Advanced platform | **Done** |
+| P3 Assessment & academic records | **Done** (hardening: [`p3-hardening-checklist.md`](./2026-09-22-p3-hardening-checklist.md)) |
+| AI Gateway AI-0…AI-8 | **Done** (server audit, risk tiers) |
+| P4 exam hall | **Customer-funded only** |
+
+**Canonical trackers:** hardening checklist · §8 AI Gateway · §9 P3.  
 **Charter:** [`2026-09-22-digital-learning-spine.md`](./2026-09-22-digital-learning-spine.md)  
 **Branch:** `feat/digital-learning-spine-p0`  
 **Base:** `main` @ `18bfd1d`

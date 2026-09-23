@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { AlertCircle, FileText, Sparkles, Printer, CheckCircle2 } from 'lucide-react';
-import { paperService, aiDraftPaper } from './paperService';
+import { paperService } from './paperService';
 import { parsePastPaperStructure, type PaperDraft, type PaperStructure } from './paperDraftDomain';
 
 const inputClass =
@@ -72,7 +72,7 @@ export const ExamPaperBuilderPage: React.FC<ExamPaperBuilderPageProps> = ({
       setPaperId(paper.id);
       setDraft(d);
     } catch (err: any) {
-      // Fallback: local backend-AI draft so the teacher can still review.
+      // H5: always persist a draft so Approve is never blocked.
       try {
         const brief = {
           title,
@@ -81,7 +81,15 @@ export const ExamPaperBuilderPage: React.FC<ExamPaperBuilderPageProps> = ({
           instructions,
         };
         const st = structure ?? parsePastPaperStructure(pastPaperText || '1. Calculate. [2 marks]');
-        setDraft(await aiDraftPaper(st, brief));
+        const saved = await paperService.createManualDraft({
+          schoolId,
+          structure: st,
+          brief,
+          subjectId: null,
+          classId: null,
+        });
+        setPaperId(saved.paper.id);
+        setDraft(saved.draft);
       } catch (e2: any) {
         setError(err?.message ?? e2?.message ?? 'Could not draft paper');
       }
@@ -217,24 +225,39 @@ export const ExamPaperBuilderPage: React.FC<ExamPaperBuilderPageProps> = ({
                 <p className="font-bold text-slate-900 mb-1">
                   Section {sec.code}: {sec.title}
                 </p>
-                <ol className="list-decimal ml-5 space-y-1 text-sm text-slate-800">
+                <ol className="list-decimal ml-5 space-y-2 text-sm text-slate-800">
                   {sec.questions.map((q) => (
                     <li key={q.n}>
-                      {q.text}{' '}
-                      <span className="text-xs text-slate-400">[{q.marks} marks]</span>
-                      <button
-                        type="button"
-                        className="ml-2 text-[11px] font-semibold text-brand-teal hover:underline print:hidden"
-                        onClick={async () => {
-                          try {
-                            const { regenerateExamQuestion } = await import('../../lib/aiGateway');
-                            const res = await regenerateExamQuestion({
-                              n: q.n,
-                              questionText: q.text,
-                              topic: q.topic,
-                              marks: q.marks,
-                            });
-                            const next = {
+                      <textarea
+                        className="w-full px-2 py-1.5 text-sm rounded-lg border border-slate-200 bg-white"
+                        rows={2}
+                        value={q.text}
+                        onChange={(e) => {
+                          const text = e.target.value;
+                          setDraft({
+                            ...draft,
+                            sections: draft.sections.map((s) =>
+                              s.code !== sec.code
+                                ? s
+                                : {
+                                    ...s,
+                                    questions: s.questions.map((item) =>
+                                      item.n === q.n ? { ...item, text } : item,
+                                    ),
+                                  },
+                            ),
+                          });
+                        }}
+                      />
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          type="number"
+                          min={1}
+                          className="w-16 px-2 py-1 text-xs border border-slate-200 rounded-lg"
+                          value={q.marks}
+                          onChange={(e) => {
+                            const marks = Math.max(1, Number(e.target.value) || 1);
+                            setDraft({
                               ...draft,
                               sections: draft.sections.map((s) =>
                                 s.code !== sec.code
@@ -242,21 +265,94 @@ export const ExamPaperBuilderPage: React.FC<ExamPaperBuilderPageProps> = ({
                                   : {
                                       ...s,
                                       questions: s.questions.map((item) =>
-                                        item.n === q.n ? { ...item, text: res.question.text } : item,
+                                        item.n === q.n ? { ...item, marks } : item,
                                       ),
                                     },
                               ),
-                            };
-                            setDraft(next);
-                          } catch {
-                            /* fail closed — teacher edits by hand */
+                            });
+                          }}
+                        />
+                        <span className="text-xs text-slate-400">marks</span>
+                        <button
+                          type="button"
+                          className="text-[11px] font-semibold text-rose-600 hover:underline print:hidden"
+                          onClick={() =>
+                            setDraft({
+                              ...draft,
+                              sections: draft.sections.map((s) =>
+                                s.code !== sec.code
+                                  ? s
+                                  : { ...s, questions: s.questions.filter((item) => item.n !== q.n) },
+                              ),
+                            })
                           }
-                        }}
-                      >
-                        Redo this question
-                      </button>
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          className="text-[11px] font-semibold text-brand-teal hover:underline print:hidden"
+                          onClick={async () => {
+                            try {
+                              const { regenerateExamQuestion } = await import('../../lib/aiGateway');
+                              const res = await regenerateExamQuestion({
+                                n: q.n,
+                                questionText: q.text,
+                                topic: q.topic,
+                                marks: q.marks,
+                              });
+                              setDraft({
+                                ...draft,
+                                sections: draft.sections.map((s) =>
+                                  s.code !== sec.code
+                                    ? s
+                                    : {
+                                        ...s,
+                                        questions: s.questions.map((item) =>
+                                          item.n === q.n ? { ...item, text: res.question.text } : item,
+                                        ),
+                                      },
+                                ),
+                              });
+                            } catch {
+                              /* fail closed — teacher edits by hand */
+                            }
+                          }}
+                        >
+                          Redo this question
+                        </button>
+                      </div>
                     </li>
                   ))}
+                  <li>
+                    <button
+                      type="button"
+                      className="text-[11px] font-semibold text-brand-teal hover:underline print:hidden"
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          sections: draft.sections.map((s) =>
+                            s.code !== sec.code
+                              ? s
+                              : {
+                                  ...s,
+                                  questions: [
+                                    ...s.questions,
+                                    {
+                                      n: (s.questions[s.questions.length - 1]?.n ?? 0) + 1,
+                                      text: 'New question — edit me.',
+                                      marks: 1,
+                                      topic: s.questions[0]?.topic ?? 'topic',
+                                    },
+                                  ],
+                                },
+                          ),
+                        })
+                      }
+                    >
+                      + Add question
+                    </button>
+                  </li>
                 </ol>
               </div>
             ))}
