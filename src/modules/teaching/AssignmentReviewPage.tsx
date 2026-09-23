@@ -75,6 +75,7 @@ export const AssignmentReviewPage: React.FC = () => {
 
   // P0 rubric marking (human only; deterministic total).
   const [rubrics, setRubrics] = useState<LearningRubric[]>([]);
+  const [selectedRubricId, setSelectedRubricId] = useState<string | null>(null);
   const [markTarget, setMarkTarget] = useState<StudentSubmission | null>(null);
 
   const loadData = async () => {
@@ -444,16 +445,32 @@ export const AssignmentReviewPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* P0 rubric marking — human taps levels; total is deterministic sum */}
-      {markTarget && rubrics[0] && schoolId && myTeacherId && (
-        <RubricMarkingPanel
-          schoolId={schoolId}
-          studentId={markTarget.studentId}
-          markedBy={myTeacherId}
-          rubric={rubrics[0]}
-          assignmentId={assignmentId ?? null}
-          onRecorded={() => setMarkTarget(null)}
-        />
+      {/* P0/P2A-3 rubric marking — human taps levels; total is deterministic sum */}
+      {markTarget && rubrics.length > 0 && schoolId && myTeacherId && (
+        <>
+          {rubrics.length > 1 && (
+            <select
+              className="mb-2 px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white"
+              value={selectedRubricId ?? rubrics[0].id}
+              onChange={(e) => setSelectedRubricId(e.target.value)}
+              aria-label="Choose rubric"
+            >
+              {rubrics.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.title}
+                </option>
+              ))}
+            </select>
+          )}
+          <RubricMarkingPanel
+            schoolId={schoolId}
+            studentId={markTarget.studentId}
+            markedBy={myTeacherId}
+            rubric={rubrics.find((r) => r.id === (selectedRubricId ?? rubrics[0].id)) ?? rubrics[0]}
+            assignmentId={assignmentId ?? null}
+            onRecorded={() => setMarkTarget(null)}
+          />
+        </>
       )}
 
       {/* Roster Review Grid */}

@@ -28,6 +28,7 @@ import {
 import {
   PayrollBriefEdgeSchema,
   ExamPaperDraftEdgeSchema,
+  ExamPaperQuestionEdgeSchema,
   ExtractMarksEdgeSchema,
   ExplainResultsEdgeSchema,
   ReportCommentEdgeSchema,
@@ -49,7 +50,8 @@ interface RequestPayload {
     | "extract_marks"
     | "explain_results"
     | "draft_report_comment"
-    | "timetable_explain";
+    | "timetable_explain"
+    | "regenerate_exam_question";
   payload: Record<string, any>;
 }
 
@@ -67,6 +69,23 @@ function json(body: unknown, status = 200): Response {
 async function callGeminiJson(cfg: ProviderConfig, prompt: string): Promise<unknown> {
   let response: Response;
   try {
+    if (cfg.provider === "openai") {
+      response = await fetch(
+        `https://api.openai.com/v1/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${cfg.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: cfg.model,
+            response_format: { type: "json_object" },
+            messages: [{ role: "user", content: prompt }],
+          }),
+        },
+      );
+    } else {
     response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent?key=${cfg.apiKey}`,
       {
@@ -78,6 +97,7 @@ async function callGeminiJson(cfg: ProviderConfig, prompt: string): Promise<unkn
         }),
       }
     );
+    }
   } catch (e) {
     throw geminiTransportError(e instanceof Error ? e.message : "network failure");
   }
@@ -506,9 +526,11 @@ Output strictly valid JSON:
     // AI-4: suggest marks from mark-sheet text/OCR. Teacher confirms (tiered). Never auto-writes.
     if (action === "extract_marks") {
       const prompt = `
-You are a careful mark-sheet reader. Extract marks ONLY from the text below.
-Do not invent students or scores. If unsure, confidence is "low".
-Mark sheet text:
+You are a careful mark-sheet transcriber. The teacher already marked the work in pen
+and wrote the final marks on the first page. Your job is ONLY to READ those written
+figures from the text below. Do NOT grade the work. Do NOT invent scores or names.
+If unsure of a digit, confidence is "low".
+Mark-sheet text (first page marks):
 ${payload.sheetText ?? ""}
 Roster names (for matching): ${(payload.rosterNames ?? []).join(", ")}
 
@@ -639,6 +661,36 @@ Output strictly valid JSON:
       }
       return new Response(
         JSON.stringify({ provider: provider.provider, ...validated, status: "suggested", isAiSuggested: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Per-question regenerate (teacher-only edit aid). Not a grade.
+    if (action === "regenerate_exam_question") {
+      const prompt = `
+Rewrite ONE exam question. Keep the same marks and topic. Do not invent grades.
+Current question: ${payload.questionText ?? ""}
+Topic: ${payload.topic ?? ""}
+Marks: ${payload.marks ?? 1}
+Output strictly valid JSON:
+{ "n": number, "text": "string", "marks": number, "topic": "string" }
+`;
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = ExamPaperQuestionEdgeSchema.safeParse({ ...parsed, n: payload.n ?? 1, marks: payload.marks ?? 1, topic: payload.topic ?? 'topic' });
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
+        }
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
+      }
+      return new Response(
+        JSON.stringify({ provider: provider.provider, question: validated, status: "draft", isAiSuggested: true }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
