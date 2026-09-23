@@ -10,6 +10,7 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { AlertCircle, FileSearch } from 'lucide-react';
 import { analyticsService } from './analyticsService';
 import type { StudentAnalytics } from './analyticsDomain';
+import { explainResults } from '../../lib/aiGateway';
 import { SuggestionsPanel } from './SuggestionsPanel';
 import { suggestionService } from './suggestionService';
 
@@ -25,6 +26,7 @@ export const StudentAnalyticsPanel: React.FC<StudentAnalyticsPanelProps> = ({
   learnerLabel,
 }) => {
   const [data, setData] = useState<StudentAnalytics | null>(null);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -33,8 +35,16 @@ export const StudentAnalyticsPanel: React.FC<StudentAnalyticsPanelProps> = ({
       try {
         setIsLoading(true);
         setError(null);
+        setAiSummary(null);
         const a = await analyticsService.getStudentAnalytics(studentId, schoolId);
         setData(a);
+        // AI-5: evidence-cited explain (optional; fail closed to rule claims).
+        const evidence = a.claims.flatMap((c) => c.evidence);
+        if (evidence.length) {
+          explainResults({ evidence, context: a.claims.map((c) => `${c.title}: ${c.value}`).join('; ') })
+            .then((res) => setAiSummary(res.summary || null))
+            .catch(() => setAiSummary(null));
+        }
         // P2B-2: persist gap suggestions (recommend-only) when evidence supports them.
         try {
           const gaps = suggestionService.suggestGaps(
@@ -100,6 +110,12 @@ export const StudentAnalyticsPanel: React.FC<StudentAnalyticsPanelProps> = ({
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {aiSummary && (
+              <p className="text-sm text-slate-700 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                <span className="text-[10px] uppercase tracking-wide text-slate-400 block mb-1">AI summary (cited evidence required)</span>
+                {aiSummary}
+              </p>
+            )}
             {data.claims.map((c) => (
               <div key={c.key} className="rounded-xl border border-slate-100 px-4 py-3">
                 <div className="flex items-start justify-between gap-3">

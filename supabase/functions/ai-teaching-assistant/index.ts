@@ -28,6 +28,8 @@ import {
 import {
   PayrollBriefEdgeSchema,
   ExamPaperDraftEdgeSchema,
+  ExtractMarksEdgeSchema,
+  ExplainResultsEdgeSchema,
 } from "./aiSchemasExtra.ts";
 
 const corsHeaders = {
@@ -41,7 +43,9 @@ interface RequestPayload {
     | "extract_work_observation"
     | "suggest_intervention"
     | "payroll_run_brief"
-    | "draft_exam_paper";
+    | "draft_exam_paper"
+    | "extract_marks"
+    | "explain_results";
   payload: Record<string, any>;
 }
 
@@ -489,6 +493,83 @@ Output strictly valid JSON:
           provider: provider.provider,
           paper: validated,
           status: "draft",
+          isAiSuggested: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // AI-4: suggest marks from mark-sheet text/OCR. Teacher confirms (tiered). Never auto-writes.
+    if (action === "extract_marks") {
+      const prompt = `
+You are a careful mark-sheet reader. Extract marks ONLY from the text below.
+Do not invent students or scores. If unsure, confidence is "low".
+Mark sheet text:
+${payload.sheetText ?? ""}
+Roster names (for matching): ${(payload.rosterNames ?? []).join(", ")}
+
+Output strictly valid JSON:
+{ "suggestions": [ { "studentLabel": "string", "score": number|null, "confidence": "high"|"low", "sourceLine": "string" } ] }
+`;
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = ExtractMarksEdgeSchema.safeParse(parsed);
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
+        }
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
+      }
+      return new Response(
+        JSON.stringify({
+          provider: provider.provider,
+          suggestions: validated.suggestions,
+          status: "suggested",
+          isAiSuggested: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // AI-5: evidence-cited analysis. Every claim must carry evidence refs.
+    if (action === "explain_results") {
+      const prompt = `
+You are a school assessment analyst. Explain results using ONLY the evidence list.
+Every claim must cite evidence ids. If evidence is thin, return "Not enough evidence".
+Evidence:
+${JSON.stringify(payload.evidence ?? [])}
+Context: ${payload.context ?? ""}
+
+Output strictly valid JSON:
+{
+  "claims": [ { "title": "string", "value": string|number|null, "note": "string", "evidence": [ { "kind": "string", "id": "string", "label": "string" } ] } ],
+  "summary": "string"
+}
+`;
+      let validated;
+      try {
+        const parsed = await callGeminiJson(provider, prompt);
+        const checked = ExplainResultsEdgeSchema.safeParse(parsed);
+        if (!checked.success) {
+          throw invalidAiOutputError(checked.error.issues.map((i) => i.message).join("; "));
+        }
+        validated = checked.data;
+      } catch (e) {
+        if (e instanceof HttpError) {
+          return json({ error: e.code, message: e.message }, e.status);
+        }
+        throw e;
+      }
+      return new Response(
+        JSON.stringify({
+          provider: provider.provider,
+          ...validated,
+          status: "suggested",
           isAiSuggested: true,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
