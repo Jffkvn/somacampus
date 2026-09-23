@@ -143,6 +143,17 @@ Head teachers and bursars will ask *“who signed this?”*
 
 ---
 
+## 8b. Watch items (LOCK 2026-09-22 — product review)
+
+1. **Latency / timeout fallbacks** — gateway calls non-blocking (skeleton + retry). On failure: **manual template / typed marks**, never a dead spinner.
+2. **Schema drift & model pinning** — pin `GEMINI_MODEL` (no “latest”); strict Zod fail-closed; schema errors → audit.
+3. **School tone presets** — `formal_cambridge | encouraging_holistic | concise_bullet` (default `formal_cambridge`); hint only; evidence still required.
+4. **Cost guardrails** — per-school task caps (esp. `extract_marks`); hard stop with a clear message.
+
+Release blocker for AI-3/4/6: **tiered confirm + fail-closed schema + timeout fallback**.
+
+---
+
 ## 9. Non-goals
 
 - Separate AI products per module · `VITE_*` AI keys · AI auto-grading / auto-payroll / auto-publish  
